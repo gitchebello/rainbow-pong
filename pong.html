@@ -2867,7 +2867,6 @@
   const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";   // sem I e O, que viram 1 e 0
   const sala = { ws: null, canal: null, codigo: "", papel: "", via: "", conectado: false, visto: 0, atraso: 60, ping: 0 };
   let mundoEm = 0;
-  let bolaEm = 0;
   let padEm = 0;
   let pingEm = 0;
   const r1 = v => Math.round(v * 10) / 10;
@@ -3040,9 +3039,22 @@
       }
       return;
     }
-    if (m.t === "ping") { enviar({ t: "pong", ts: m.ts }); return; }
+    if (m.t === "ping") { enviar({ t: "pong", ts: m.ts, seu: Math.round(performance.now()) }); return; }
     if (m.t === "pong") {
-      sala.atraso = sala.atraso * 0.7 + (performance.now() - m.ts) * 0.3;
+      /* Relógio comum. Cada pong traz o relógio do outro lado; a diferença
+         estimada é (relógio dele) − (meu relógio), assumindo ida e volta
+         simétricas. Só amostras com o ida-e-volta perto do MELHOR já visto
+         entram na média: as demais viajaram por fila cheia e mentem. */
+      const agora = performance.now();
+      const rtt = agora - m.ts;
+      sala.atraso = sala.atraso * 0.7 + rtt * 0.3;
+      if (m.seu !== undefined) {
+        const amostra = m.seu - (m.ts + rtt / 2);
+        if (sala.rttMin === undefined || rtt <= sala.rttMin * 1.3 + 2) {
+          sala.desvio = sala.desvio === undefined ? amostra : sala.desvio * 0.8 + amostra * 0.2;
+        }
+        sala.rttMin = sala.rttMin === undefined ? rtt : Math.min(sala.rttMin * 1.02, rtt);
+      }
       return;
     }
 
@@ -3058,10 +3070,9 @@
     }
 
     if (sala.papel !== "convidado") return;
-    if (m.t === "bola") { adotarBola(m.b, false); return; }
     if (m.t === "ev") {
       const duro = m.m === "saque" || m.m === "ponto";
-      adotarBola(m.bola, duro);
+      adotarBola(m.bola, duro, m.ts);
       reagirAoEvento(m.m);
       return;
     }
@@ -3082,14 +3093,6 @@
     r2(ball.spin), r2(ball.budget), r1(ball.speed)
   ];
 
-  /* Com a rotação morta, `spin` e `budget` são zero e param de mudar: mandá-los
-     vinte vezes por segundo é papel queimado. O pacote curto omite os dois, e
-     quem recebe sabe preencher. `speed` fica: ela só muda em evento, mas um
-     evento perdido deixaria o convidado com a bola errada para sempre. */
-  const estadoBolaCurto = () => [
-    r1(ball.a), r1(ball.b), r1(ball.va), r1(ball.vb), r1(ball.speed)
-  ];
-
   /** Chamado a cada descontinuidade da trajetória. */
   function sincronizar(motivo) {
     if (!sala.conectado || sala.papel !== "anfitriao") return;
@@ -3101,6 +3104,7 @@
     if (!sala.conectado || sala.papel !== "anfitriao") return;
     enviar({
       t: "mundo",
+      ts: Math.round(performance.now()),
       fase: S.phase, ct: r2(S.t), placar: S.score, venc: S.winner, roda: spoke,
       lens: [pads[0].len, pads[1].len],
       fogo: [fire.on ? 1 : 0, star.on ? 1 : 0, armed.who, armed.kind || ""],
@@ -3119,15 +3123,7 @@
     });
   }
 
-  /** A bola oficial. O convidado já integra a mesma física, então isto não
-      transporta a trajetória — só corrige o desvio que a compensação de atraso
-      deixou no último evento. Por isso o fio pode afinar quando a rota já é
-      reta: ali os dois lados calculam exatamente o mesmo, e não há o que
-      corrigir além daquele desencontro inicial. */
-  function transmitirBola() {
-    if (!sala.conectado || sala.papel !== "anfitriao" || S.phase !== "play") return;
-    enviar({ t: "bola", b: ball.spin !== 0 ? estadoBola() : estadoBolaCurto() });
-  }
+
 
   /* A raquete é o outro fluxo contínuo, e cada lado manda apenas o
      que o outro precisa: o convidado manda a INTENÇÃO (para o anfitrião
@@ -3152,22 +3148,61 @@
   }
 
   /** Adota o estado recebido, adiantado pelo meio-caminho do atraso medido. */
-  function adotarBola(bola, duro) {
-    const adiante = Math.min(0.25, Math.max(0, (sala.atraso / 2) / 1000));
-    let [a, b, va, vb, spin, budget, speed] = bola;
-    if (bola.length === 5) { speed = spin; spin = 0; budget = 0; }   // pacote curto
-    a += va * adiante;
-    b += vb * adiante;
-    if (b <= WALL) { b = WALL + (WALL - b); vb = Math.abs(vb); }
-    if (b + BOLA >= SPAN - WALL) { b = 2 * (SPAN - WALL - BOLA) - b; vb = -Math.abs(vb); }
-    b = clamp(b, WALL, SPAN - WALL - BOLA);
+  /* Reprodução exata: o evento diz "a bola estava ASSIM no instante ts do
+     relógio do anfitrião". Com a diferença de relógios medida, esse instante
+     existe no relógio local — daqui até lá é só rodar a MESMA física, passo a
+     passo. Não há chute: entre eventos os dois lados calculam a mesma
+     trajetória no mesmo tempo t, que é o que sincroniza de verdade. */
+  function avancarBolaLivre(seg) {
+    let resta = Math.min(0.6, Math.max(0, seg));
+    while (resta > 1e-6) {
+      const dt = Math.min(DT, resta);
+      resta -= dt;
+      if (ball.spin !== 0 && ball.budget > 0) {
+        const want = ball.spin * dt;
+        const mag = Math.min(Math.abs(want), ball.budget);
+        const w = want < 0 ? -mag : mag;
+        ball.budget -= mag;
+        const c = Math.cos(w), s = Math.sin(w);
+        const nva = ball.va * c - ball.vb * s;
+        ball.vb = ball.va * s + ball.vb * c;
+        ball.va = nva;
+        ball.spin *= Math.pow(SPIN_DECAY, dt);
+        if (Math.abs(ball.spin) < 0.02 || ball.budget <= 0) ball.spin = 0;
+        const at = Math.atan2(ball.vb, Math.abs(ball.va));
+        if (Math.abs(at) > MAX_ANGLE) {
+          const sp = Math.hypot(ball.va, ball.vb);
+          const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
+          ball.va = Math.cos(lim) * sp * (ball.va < 0 ? -1 : 1);
+          ball.vb = Math.sin(lim) * sp;
+          ball.spin = 0; ball.budget = 0;
+        }
+      }
+      ball.a += ball.va * dt;
+      ball.b += ball.vb * dt;
+      if (ball.b <= WALL) { ball.b = WALL; ball.vb = Math.abs(ball.vb); ball.spin *= -0.65; }
+      if (ball.b + BOLA >= SPAN - WALL) { ball.b = SPAN - WALL - BOLA; ball.vb = -Math.abs(ball.vb); ball.spin *= -0.65; }
+    }
+  }
 
-    // A velocidade é sempre a oficial; a posição só salta se já divergiu muito
-    ball.va = va; ball.vb = vb;
+  function adotarBola(bola, duro, ts) {
+    const [a, b, va, vb, spin, budget, speed] = bola;
+    const antesA = ball.a, antesB = ball.b;
+    ball.a = a; ball.b = b; ball.va = va; ball.vb = vb;
     ball.spin = spin; ball.budget = budget; ball.speed = speed;
-    const longe = Math.hypot(a - ball.a, b - ball.b);
-    if (duro || longe > 60) { ball.a = a; ball.b = b; }
-    else { ball.a += (a - ball.a) * 0.35; ball.b += (b - ball.b) * 0.35; }
+
+    // do instante do evento até agora, no relógio local
+    const decorrido = ts !== undefined && sala.desvio !== undefined
+      ? (performance.now() - (ts - sala.desvio)) / 1000
+      : (sala.atraso / 2) / 1000;
+    avancarBolaLivre(decorrido);
+
+    // a previsão local costuma já estar lá; perto, alisa em vez de saltar
+    const longe = Math.hypot(ball.a - antesA, ball.b - antesB);
+    if (!duro && longe < 24) {
+      ball.a = antesA + (ball.a - antesA) * 0.4;
+      ball.b = antesB + (ball.b - antesB) * 0.4;
+    }
   }
 
   /* O convidado devolve a bola na raquete com a mesma conta do anfitrião. Sem
@@ -3300,7 +3335,7 @@
     else roleta.on = false;
 
     // rede de segurança: só corrige se a bola já divergiu de verdade
-    adotarBola(m.bola, false);
+    adotarBola(m.bola, false, m.ts);
   }
 
   function pintarSala() {
@@ -4564,11 +4599,6 @@
       if (sala.conectado) {
         padEm -= dt;
         if (padEm <= 0) { padEm = 1 / 25; transmitirRaquete(); }
-        bolaEm -= dt;
-        /* Com a rota reta os dois lados calculam exatamente a mesma coisa —
-           não há o que corrigir, e o fio cai para 4 Hz. Só na fase curva, onde
-           a integração pode divergir no arredondamento, ele volta a 20 Hz. */
-        if (bolaEm <= 0) { bolaEm = ball.spin !== 0 ? 1 / 20 : 1 / 4; transmitirBola(); }
         pingEm -= dt;
         if (pingEm <= 0) { pingEm = 2; enviar({ t: "ping", ts: Math.round(performance.now()) }); }
         if (sala.papel === "anfitriao") {
