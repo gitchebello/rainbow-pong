@@ -4146,13 +4146,13 @@
 
     let y = Math.max(8, ch * 0.03);
     const umaLinha = nomes[S.winner] + " VENCEU";
-    if (textWidth(umaLinha, 3) <= maxTextW) {
-      y += centered(g, umaLinha, cw / 2, y, 3, winCol, maxTextW) + 8;
+    if (textWidth(umaLinha, 2) <= maxTextW) {
+      y += centered(g, umaLinha, cw / 2, y, 2, winCol, maxTextW) + 7;
     } else {
-      y += centered(g, nomes[S.winner], cw / 2, y, 3, winCol, maxTextW) + 5;
-      y += centered(g, "VENCEU", cw / 2, y, 3, winCol, maxTextW) + 8;
+      y += centered(g, nomes[S.winner], cw / 2, y, 2, winCol, maxTextW) + 4;
+      y += centered(g, "VENCEU", cw / 2, y, 2, winCol, maxTextW) + 7;
     }
-    y += centered(g, S.score[0] + " A " + S.score[1], cw / 2, y, 5, COL.ball, maxTextW) + 12;
+    y += centered(g, S.score[0] + " - " + S.score[1], cw / 2, y, 4, COL.ball, maxTextW) + 12;
     y += centered(g, "RAQUETES", cw / 2, y, 2, COL.dim, maxTextW) + 10;
 
     const maiorLen = Math.max(pads[0].len, pads[1].len);
