@@ -828,21 +828,21 @@
           <canvas class="icon" data-item="gum" role="img" aria-label="Chiclete"></canvas>
           <div>
             <h3>Chiclete</h3>
-            <p>A bola encosta e <em>incha: dobro do tamanho, um quarto mais lenta</em>. Cada mordida dobra de novo; o ponto seguinte desinfla.</p>
+            <p>A bola <em>dobra de tamanho</em> e perde um quarto da velocidade. Acumula a cada chiclete. Volta ao normal no ponto seguinte.</p>
           </div>
         </li>
         <li>
           <canvas class="icon" data-item="rainbow" role="img" aria-label="Rainbow ball"></canvas>
           <div>
             <h3>Rainbow ball</h3>
-            <p>A bola encosta e <em>roda as sete cores</em>. A cor acesa na sua rebatida <em>é o prêmio que sai</em>.</p>
+            <p>A bola troca de cor entre os sete itens. Ao rebater, <em>você recebe o efeito da cor atual</em>.</p>
           </div>
         </li>
         <li>
           <canvas class="icon" data-item="heart" role="img" aria-label="Coração"></canvas>
           <div>
             <h3>Coração</h3>
-            <p><em>Uma vez por partida</em>: 30 segundos batendo no centro. Devolve a bola, e quem o acerta <em>ganha raquete — mais a cada acerto</em>.</p>
+            <p>Aparece <em>uma vez por partida</em> e fica 30 segundos no centro. Rebate a bola e <em>aumenta a raquete de quem o acerta</em>, mais a cada acerto.</p>
           </div>
         </li>
         <li>
@@ -2072,7 +2072,7 @@
     slow.t = SLOW_TIME;
     kick(0.45, 0.6, COL.time, 1);
     Snd.slow();
-    showHint(-1, "TEMPO LENTO", COL.time);
+    showHint(-1, "SLOW", COL.time);
     announce("Tempo lento por dois segundos e meio.");
   }
 
