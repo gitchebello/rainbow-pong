@@ -5169,10 +5169,13 @@
 
   screenEl.addEventListener("pointermove", e => {
     let i = owners.get(e.pointerId);
-    // O mouse conduz a raquete do jogador 1 só de passar por cima, como antes
+    /* O mouse conduz a raquete só de passar por cima, sem segurar botão.
+       Vale no 1 jogador e TAMBÉM na sala online — lá o modo é "2p", mas cada
+       aparelho controla uma raquete só, a sua. O único caso em que o vôo
+       livre não serve é o 2p local, com dois jogadores no mesmo mouse. */
     if (i === undefined) {
-      if (e.pointerType !== "mouse" || S.mode === "2p") return;
-      i = 0;
+      if (e.pointerType !== "mouse" || (S.mode === "2p" && !naSala())) return;
+      i = naSala() ? (sala.papel === "anfitriao" ? 0 : 1) : 0;
     }
     const court = toCourt(e.clientX, e.clientY);
     pads[i].touch = clamp(court.b, WALL, SPAN - WALL);
@@ -5187,7 +5190,9 @@
   screenEl.addEventListener("pointerup", release);
   screenEl.addEventListener("pointercancel", release);
   screenEl.addEventListener("pointerleave", e => {
-    if (e.pointerType === "mouse" && !owners.has(e.pointerId)) pads[0].touch = null;
+    if (e.pointerType !== "mouse" || owners.has(e.pointerId)) return;
+    const meu = naSala() ? (sala.papel === "anfitriao" ? 0 : 1) : 0;
+    pads[meu].touch = null;
   });
 
   /* ── Tela acesa enquanto se joga ── */
