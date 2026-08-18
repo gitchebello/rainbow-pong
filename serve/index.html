@@ -2895,7 +2895,7 @@
   // Ao voltar para a aba, se a sala caiu no meio tempo, religa na hora
   document.addEventListener("visibilitychange", () => {
     if (document.hidden || !naSala()) return;
-    if (!sala.ws && sala.via !== "abas") {
+    if (!sala.conectado && (!sala.ws || sala.via === "abas")) {
       sala.tentativas = 0;
       abrirSala(sala.codigo, sala.papel);
       return;
@@ -2933,7 +2933,18 @@
       sala.canal.onmessage = e => receber(e.data);
       if (papel === "convidado") enviar({ t: "ola" });
       pintarSala();
-      announce("Não achei o servidor. A sala vale só entre janelas deste navegador.");
+      if (!sala.avisouAbas) {
+        sala.avisouAbas = true;
+        announce("Não achei o servidor ainda. Vou continuar tentando.");
+      }
+      /* O modo abas era um beco sem saída: uma falha transitória na entrada e
+         a pessoa ficava "sem servidor" para sempre, mesmo com a rede de volta.
+         Agora é só um abrigo: enquanto ninguém parear, a rede é tentada de
+         novo a cada 5 s — no sucesso a sala sobe para o servidor sozinha. */
+      setTimeout(() => {
+        if (sala.codigo === codigo && sala.via === "abas" && !sala.conectado)
+          abrirSala(codigo, papel);
+      }, 5000);
     };
 
     try {
@@ -2972,7 +2983,9 @@
           fecharSala(false);
         }
       };
-      setTimeout(() => { if (ws.readyState !== 1) cairParaAbas(); }, 1400);
+      /* Aperto de mão em celular atrás de proxy passa fácil de 1,5 s; cair
+         para as abas nesse meio tempo era condenar conexões boas. */
+      setTimeout(() => { if (ws.readyState !== 1) cairParaAbas(); }, 4000);
     } catch (_) {
       cairParaAbas();
     }
@@ -3437,8 +3450,8 @@
     const nota = document.getElementById("sala-nota");
     if (nota) {
       nota.hidden = !dentro || sala.via !== "abas";
-      nota.textContent = "Sem servidor nesta página: a sala só alcança outra janela deste mesmo navegador. "
-        + "Para jogar entre aparelhos, abra o jogo pelo endereço da sua rede.";
+      nota.textContent = "Ainda sem servidor: por enquanto a sala só alcança outra janela deste navegador. "
+        + "Vou continuar tentando conectar sozinho — se não sair daqui, confira a internet do aparelho.";
     }
   }
 
@@ -4891,6 +4904,7 @@
   document.getElementById("sala-criar").addEventListener("click", () => {
     if (!TEM_CANAL) return;
     const c = novoCodigo();
+    sala.avisouAbas = false;
     abrirSala(c, "anfitriao");
     announce(`Sala ${c.split("").join(" ")} criada. Abra o jogo em outra janela e entre com esse código.`);
   });
@@ -4910,6 +4924,7 @@
     }
     campoSala.dataset.aberto = "0";
     campoSala.blur();                          // no celular, tira o teclado da frente
+    sala.avisouAbas = false;
     abrirSala(c, "convidado");
     announce(`Entrando na sala ${c.split("").join(" ")}.`);
   }
