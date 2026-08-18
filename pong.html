@@ -758,6 +758,7 @@
           <div class="row" role="group" aria-labelledby="lg-imagem">
             <button class="key toggle" id="btn-dark" aria-pressed="false"><span class="led"></span>Escuro</button>
             <button class="key toggle" id="btn-crt" aria-pressed="true"><span class="led"></span>Tubo</button>
+            <button class="key toggle" id="btn-mira" aria-pressed="true"><span class="led"></span>Mira</button>
           </div>
         </div>
 
@@ -1351,7 +1352,7 @@
   let immersive = false;   // jogo ocupando a tela toda
 
   const S = {
-    mode: "1p", diff: "normal", crt: true,
+    mode: "1p", diff: "normal", crt: true, mira: true,
     phase: "attract",     // attract | serve | play | pause | over
     t: 0, blink: 0,
     score: [0, 0], winner: null, serveTo: 1
@@ -4256,6 +4257,7 @@
   }
 
   function desenharMiras() {
+    if (!S.mira) return;
     const alvo = preverImpacto();
     if (!alvo) return;
     if (mirasVisiveis().indexOf(alvo.i) < 0) return;
@@ -4761,6 +4763,20 @@
     S.crt = !S.crt;
     btnCrt.setAttribute("aria-pressed", String(S.crt));
     screenEl.classList.toggle("plain", !S.crt);
+  });
+
+  /* A mira é ajuda de pontaria; há quem prefira jogar no olho. A escolha
+     fica guardada no navegador — quem desliga uma vez não quer religar a
+     cada visita. Cada jogador decide pela própria tela: numa sala, um lado
+     pode jogar com mira e o outro sem. */
+  const btnMira = document.getElementById("btn-mira");
+  try { if (localStorage.getItem("rainbow-pong-mira") === "0") S.mira = false; } catch (_) {}
+  btnMira.setAttribute("aria-pressed", String(S.mira));
+  btnMira.addEventListener("click", () => {
+    S.mira = !S.mira;
+    btnMira.setAttribute("aria-pressed", String(S.mira));
+    try { localStorage.setItem("rainbow-pong-mira", S.mira ? "1" : "0"); } catch (_) {}
+    announce(S.mira ? "Mira ligada." : "Mira desligada.");
   });
 
   /* ── Tela cheia ──
