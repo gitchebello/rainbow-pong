@@ -1533,8 +1533,8 @@
     ".dwwyyyssd.",
     "..dyydssd..",
     "..yyy.sss..",
-    "..yy...ss..",
-    "..y.....s..",
+    ".yyy...sss.",
+    ".yy.....ss.",
     "..........."
   ];
 
@@ -3921,7 +3921,7 @@
       ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"].filter(n => stats.used[k][n] > 0).length));
     // Em tela baixa com log comprido, o corpo do log cai um degrau
     const logSt = (ch < 320 && linhas > 4) ? 1 : 2;
-    const abaixo = 8 + CH * 2 + 5 + CH + 7 + linhas * (CH * logSt + 1);
+    const abaixo = 8 + CH * 2 + 5 + linhas * (CH * logSt + 1);
     const escalaBarra = clamp(((ch - 26) - y - abaixo) / maiorLen, 0.35, 1);
     const base = y + maiorLen * escalaBarra;
     const gap = Math.min(62, cw * 0.19);
@@ -3940,19 +3940,30 @@
         g.fillRect(x - 3, base - agora - 3, PT + 6, agora + 6);
         g.globalAlpha = 1;
       }
+      /* O vencedor acende quando a barra assenta: anéis concêntricos com um
+         pulso lento, o mesmo vocabulário do halo da raquete em jogo. */
+      if (i === S.winner && revela > 0) {
+        const resp = reduceMotion ? 0.6 : 0.55 + 0.45 * Math.sin(S.blink * 3.2);
+        g.fillStyle = col;
+        for (let ring = 3; ring >= 1; ring--) {
+          g.globalAlpha = revela * resp * 0.14 * (4 - ring) / 3;
+          g.fillRect(x - ring * 3, base - agora - ring * 3, PT + ring * 6, agora + ring * 6);
+        }
+        g.globalAlpha = 1;
+      }
       g.fillStyle = col;
       g.fillRect(x, base - agora, PT, agora);
 
       let ty = base + 8;
-      const tam = String(Math.round(len * eased));
-      drawText(g, tam, cx - textWidth(tam, 2) / 2, ty, 2, col);
+      /* Só o que a partida rendeu: a barra já mostra o tamanho, o número diz
+         o ganho. O total repetido embaixo era informação duas vezes. */
+      const dif = len - PL;
+      const ganho = Math.round(dif * eased);
+      const marca = dif > 0 ? "+" + ganho : "-";
+      drawText(g, marca, cx - textWidth(marca, 2) / 2, ty, 2, dif > 0 ? col : COL.dim);
       ty += CH * 2 + 5;
 
       g.globalAlpha = revela;
-      const dif = len - PL;
-      const marca = dif > 0 ? "+" + dif : "-";
-      drawText(g, marca, cx - textWidth(marca, 1) / 2, ty, 1, dif > 0 ? col : COL.dim);
-      ty += CH + 7;
       drawUseLog(cx, ty, i, logSt);
       g.globalAlpha = 1;
     }
