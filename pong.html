@@ -1553,28 +1553,27 @@
                              s: COL.starLo, r: COL.fire });
 
   /* Estrela geométrica: os cinco braços saem do MESMO pentagrama, em 21
-     células de 1 px (mesmo tamanho final de campo). A metade esquerda é
-     rasterizada e espelhada — simetria exata por construção; sem isso o
-     polígono saía deslocado uma coluna pelo viés da amostragem. Delineado
-     fechado; brilho e sombra só por dentro. */
+     células de 1 px, metade rasterizada e espelhada (simetria exata). O
+     delineado tem DOIS anéis do amarelo-escuro: nesta resolução um anel só
+     tem 1 px e ficava ralo perto dos outros itens, cujas células valem 2. */
   const STAR = [
     ".....................",
     ".....................",
     ".........ddd.........",
-    "........dwwwd........",
-    "........dwwwd........",
-    ".......dwwwwwd.......",
-    ".......dwwwwwd.......",
-    ".ddddddwwwwwwydddddd.",
-    ".dwwwwwwwwwwyyyyyssd.",
-    "..dwwwwwwwwyyyyyssd..",
-    "...dwwwwwwyyyyyssd...",
-    "....dwwwwyyyyyssd....",
-    ".....dwwyyyyyssd.....",
-    ".....dwyyyyysssd.....",
-    ".....dyyyyyssssd.....",
-    ".....dyyydddsssd.....",
-    "....dyydd...ddssd....",
+    "........ddddd........",
+    "........ddwdd........",
+    ".......ddwwwdd.......",
+    ".......ddwwwdd.......",
+    ".dddddddwwwwwddddddd.",
+    ".ddddddwwwwwyydddddd.",
+    "..ddwwwwwwwyyyyysdd..",
+    "...ddwwwwwyyyyysdd...",
+    "....ddwwwyyyyysdd....",
+    ".....ddwyyyyysdd.....",
+    ".....ddyyyyyssdd.....",
+    ".....ddyydddssdd.....",
+    ".....ddddddddddd.....",
+    "....ddddd...ddddd....",
     "....ddd.......ddd....",
     "....d...........d....",
     ".....................",
