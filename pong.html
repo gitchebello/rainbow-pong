@@ -1542,6 +1542,20 @@
      largura toda, uma fileira a mais de corpo para o vão das pernas abrir
      baixo, e pernas CURTAS terminando em ponta seca de um pixel. As pontas
      finas ficam na cor do corpo — contorno em ponta fina apaga o espeto. */
+  /* A coroa do vencedor, na tela final. Gira como moeda: o desenho achata
+     no eixo horizontal e volta — rotação de verdade borraria o pixel. */
+  const COROA = [
+    "w....w....w",
+    "yw..wyw..wy",
+    "yy.yyyyy.yy",
+    "dyyyyyyyyyd",
+    "dyyryyyryyd",
+    "dsssssssssd",
+    ".ddddddddd."
+  ];
+  const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
+                             s: COL.starLo, r: COL.fire });
+
   const STAR = [
     ".....w.....",
     "....dwd....",
@@ -4150,6 +4164,23 @@
         g.fillRect(x - 3, base - agora - 3, PT + 6, agora + 6);
         g.globalAlpha = 1;
       }
+      /* A coroa do campeão: paira sobre a barra do vencedor, girando como
+         moeda. Entra junto com os números, no `revela`. */
+      if (i === S.winner && revela > 0) {
+        const ce = 2;
+        const cw2 = 11 * ce, ch2 = 7 * ce;
+        const flutua = reduceMotion ? 0 : Math.sin(S.blink * 2.1) * 2;
+        const giro = reduceMotion ? 1 : Math.cos(S.blink * 2.6);
+        const cyTopo = base - agora - ch2 - 7 + flutua;
+        g.save();
+        g.globalAlpha = revela;
+        g.translate(cx, cyTopo + ch2 / 2);
+        g.scale(Math.max(0.06, Math.abs(giro)) * (giro < 0 ? -1 : 1), 1);
+        drawSprite(COROA, -cw2 / 2, -ch2 / 2, ce, coroaMapa());
+        g.restore();
+        g.globalAlpha = 1;
+      }
+
       /* O vencedor acende quando a barra assenta: anéis concêntricos com um
          pulso lento, o mesmo vocabulário do halo da raquete em jogo. */
       if (i === S.winner && revela > 0) {
