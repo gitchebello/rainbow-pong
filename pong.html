@@ -1538,35 +1538,20 @@
   /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
      1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
      do alto à esquerda, como os demais. */
-  /* Estrela pontuda de corpo cheio: pirâmide no topo (1, 3, 5), braços na
-     largura toda, uma fileira a mais de corpo para o vão das pernas abrir
-     baixo, e pernas CURTAS terminando em ponta seca de um pixel. As pontas
-     finas ficam na cor do corpo — contorno em ponta fina apaga o espeto. */
-  /* A coroa do vencedor, na tela final. Gira como moeda: o desenho achata
-     no eixo horizontal e volta — rotação de verdade borraria o pixel. */
-  const COROA = [
-    "w....w....w",
-    "yw..wyw..wy",
-    "yy.yyyyy.yy",
-    "dyyyyyyyyyd",
-    "dyyryyyryyd",
-    "dsssssssssd",
-    ".ddddddddd."
-  ];
-  const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
-                             s: COL.starLo, r: COL.fire });
-
+  /* Estrela pontuda de corpo cheio, com DELINEADO fechado: todo pixel de
+     borda é o amarelo-escuro, sem exceção — as pontas em cor viva derretiam
+     no fundo claro da legenda. O brilho e a sombra só existem por dentro. */
   const STAR = [
-    ".....w.....",
+    ".....d.....",
     "....dwd....",
     "...dwwwd...",
-    "wddwwwwydds",
+    "dddwwwwyddd",
     ".dwwwwyyyd.",
     "..dwwyyyd..",
     "..dwyyysd..",
     ".dwydddssd.",
     ".ddd...ddd.",
-    ".y.......s.",
+    ".d.......d.",
     "..........."
   ];
 
