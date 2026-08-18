@@ -1923,8 +1923,7 @@
     heart.pulse = 0;
     heart.on = true;
     Snd.heartIn();
-    // no corpo do veneno: o texto grande nascia em cima do próprio coração
-    showHint(-1, "CORAÇÃO", COL.heart, false, 2);
+    showHint(-1, "CORAÇÃO", COL.heart);
     announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
   }
 
@@ -2192,7 +2191,7 @@
     Snd.arm();
 
     const estrela = armed.kind === "star";
-    showHint(i, estrela ? "ESTRELA PRONTA" : "ARMADA", estrela ? COL.star : COL.fire);
+    showHint(i, "ARMADA", estrela ? COL.star : COL.fire);
     announce(i === 0
       ? (estrela ? "Estrela armada. Ela acende na sua próxima rebatida."
                  : "Bola de fogo armada. Ela acende na sua próxima rebatida.")
