@@ -2929,9 +2929,15 @@
 
     try {
       /* O endereço é relativo à página: se o jogo está em /pong/, a sala fica
-         em /pong/ws. Assim ele funciona atrás de qualquer proxy de subcaminho. */
+         em /pong/ws. Assim ele funciona atrás de qualquer proxy de subcaminho.
+         Sem a barra final (/pong), o último segmento é a própria pasta — só é
+         arquivo se tiver extensão. Cortá-lo mandava o socket para /ws na raiz
+         do domínio, a conexão falhava e a sala caía para o modo "abas". */
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      const base = location.pathname.replace(/[^\/]*$/, "");
+      let base = location.pathname;
+      if (!/\/$/.test(base)) {
+        base = /\.[^\/]*$/.test(base) ? base.replace(/[^\/]*$/, "") : base + "/";
+      }
       const ws = new WebSocket(`${proto}//${location.host}${base}ws`);
       sala.ws = ws;
       ws.onopen = () => {
