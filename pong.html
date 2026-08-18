@@ -1552,31 +1552,31 @@
   const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
                              s: COL.starLo, r: COL.fire });
 
-  /* Estrela geométrica: os cinco braços saem do MESMO pentagrama, com o
-     dobro da resolução (21 células de 1 px, mesmo tamanho final de campo).
-     Numa grade de pixels a simetria de cinco pontas nunca fecha em 11x11 —
-     nesta resolução o erro cai pela metade e os braços ficam parelhos.
-     Delineado fechado; brilho e sombra só por dentro. */
+  /* Estrela geométrica: os cinco braços saem do MESMO pentagrama, em 21
+     células de 1 px (mesmo tamanho final de campo). A metade esquerda é
+     rasterizada e espelhada — simetria exata por construção; sem isso o
+     polígono saía deslocado uma coluna pelo viés da amostragem. Delineado
+     fechado; brilho e sombra só por dentro. */
   const STAR = [
     ".....................",
     ".....................",
-    ".........dd..........",
-    "........dwwd.........",
-    "........dwwd.........",
-    ".......dwwwwd........",
-    ".......dwwwwd........",
-    ".ddddddwwwwwwdddddd..",
-    ".dwwwwwwwwwwyyyyysd..",
-    "..dwwwwwwwwyyyyysd...",
-    "...dwwwwwwyyyyysd....",
-    "....dwwwwyyyyysd.....",
-    ".....dwwyyyyysd......",
-    ".....dwyyyyyssd......",
-    ".....dyyyyysssd......",
-    ".....dyyyddsssd......",
-    "....dyydd..ddssd.....",
-    "....ddd......ddd.....",
-    "....d..........d.....",
+    ".........ddd.........",
+    "........dwwwd........",
+    "........dwwwd........",
+    ".......dwwwwwd.......",
+    ".......dwwwwwd.......",
+    ".ddddddwwwwwwydddddd.",
+    ".dwwwwwwwwwwyyyyyssd.",
+    "..dwwwwwwwwyyyyyssd..",
+    "...dwwwwwwyyyyyssd...",
+    "....dwwwwyyyyyssd....",
+    ".....dwwyyyyyssd.....",
+    ".....dwyyyyysssd.....",
+    ".....dyyyyyssssd.....",
+    ".....dyyydddsssd.....",
+    "....dyydd...ddssd....",
+    "....ddd.......ddd....",
+    "....d...........d....",
     ".....................",
     "....................."
   ];
