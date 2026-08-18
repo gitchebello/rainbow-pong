@@ -1071,10 +1071,10 @@
     core:     "#f4ead2",
     time:     "#8fd2e8",   // o corpo do cristal
     timeDark: "#3f88ad",   // as arestas
-    star:     "#e6d492",   // corpo da estrela, no mesmo pastel do cristal
-    starHi:   "#faf2d5",   // brilho, em cima e à esquerda
-    starLo:   "#c8b273",   // sombra, embaixo e à direita
-    starEdge: "#a08f52",
+    star:     "#ffc93c",   // corpo da estrela: amarelo-gema, saturado
+    starHi:   "#fff0b0",   // brilho, em cima e à esquerda
+    starLo:   "#dda12f",   // sombra, embaixo e à direita
+    starEdge: "#b87f24",
     venom:     "#bf95e0",   // a espiral
     venomHi:   "#e6d4f2",
     venomMid:  "#9b74c2",
@@ -1564,11 +1564,10 @@
   /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
      1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
      do alto à esquerda, como os demais. */
-  /* Estrela pontuda com corpo cheio: a ponta do topo sobe em pirâmide
-     (1, 3, 5 pixels), os braços saem na largura toda e as pernas afiam até
-     o fim. As pontas de um pixel ficam na COR do corpo, não no contorno —
-     contorno em ponta fina apaga o espeto e foi isso que deixava as versões
-     anteriores atarracadas. */
+  /* Estrela pontuda de corpo cheio: pirâmide no topo (1, 3, 5), braços na
+     largura toda, uma fileira a mais de corpo para o vão das pernas abrir
+     baixo, e pernas CURTAS terminando em ponta seca de um pixel. As pontas
+     finas ficam na cor do corpo — contorno em ponta fina apaga o espeto. */
   const STAR = [
     ".....w.....",
     "....dwd....",
@@ -1576,10 +1575,10 @@
     "wddwwwwydds",
     ".dwwwwyyyd.",
     "..dwwyyyd..",
-    "..dwydysd..",
-    ".dwyd.dssd.",
-    ".dyd...dsd.",
-    ".dd.....dd.",
+    "..dwyyysd..",
+    ".dwydddssd.",
+    ".ddd...ddd.",
+    ".y.......s.",
     "..........."
   ];
 
