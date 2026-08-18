@@ -5096,8 +5096,13 @@
   /* ── Teclado ── */
   const keys = new Set();   // teclas pressionadas
   addEventListener("keydown", e => {
-    if (e.target.closest("button, summary, a, input")) return;   // deixa o teclado operar o painel
     const k = e.key;
+    /* Num campo de texto, o teclado é todo do campo. Num botão focado, só as
+       teclas que operam o painel (Enter/Espaço/Tab) — clicar em "Jogar" deixa
+       o foco no botão, e o guarda antigo engolia E, /, W e S dali em diante. */
+    if (e.target.closest("input, textarea, select")) return;
+    if (e.target.closest("button, summary, a") &&
+        (k === "Enter" || k === " " || k === "Spacebar" || k === "Tab")) return;
     if (k === " " || k === "Spacebar") { e.preventDefault(); toggleRun(); return; }
     if (k === "r" || k === "R") { newGame("attract"); releaseWake(); syncPlayButton(); announce("Placar zerado."); return; }
     if (k === "f" || k === "F") { toggleImmersive(); return; }
