@@ -1765,6 +1765,7 @@
       gumPop = 0.45;
       gumFesta = 3.2;
       Snd.gum();
+      sincronizar("chiclete");     // fire/star se cobrem via ignite; o chiclete não
       return;
     }
     const cresceu = growPaddle(i, 3, LEN_MAX);
@@ -2326,7 +2327,6 @@
       if (p.glow > 0) p.glow = Math.max(0, p.glow - dt);
       if (p.hit > 0) p.hit = Math.max(0, p.hit - dt);
       if (p.grow > 0) p.grow = Math.max(0, p.grow - dt);
-      if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
 
       /* A varrida fica na memória por uns instantes. Sem isso o jogador
          precisaria estar em movimento no quadro exato do toque — e a gente
@@ -2373,7 +2373,6 @@
       gumTimer -= dt;
       if (gumTimer <= 0) spawnChiclete();
     }
-    if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
 
     /* No ponto final a câmera não fica parada. Pulso a cada 1,2 s em vez de
        tremor contínuo: marca a tensão sem embrulhar o estômago de ninguém. */
@@ -2629,6 +2628,10 @@
       Snd.gum();
       showHint(-1, "CHICLETE", COL.gum);
       announce("Chiclete: a bola inchou e desacelerou um pouco.");
+      /* Descontinuidade dupla: trajetória (evento) e tamanho da bola (que o
+         evento não carrega — só o resumo tem `tam`). Os dois saem já. */
+      sincronizar("chiclete");
+      transmitirMundo();
     }
 
     /* Rainbow ball: dispara no contato, sem passar pelo inventário. A bola
@@ -2786,7 +2789,7 @@
 
     sincronizar("pad" + i);
 
-    if (roleta.on && roleta.dono === i) premioRoleta(i);
+    if (roleta.on && roleta.dono === i) { premioRoleta(i); transmitirMundo(); }
 
     if (armed.who === i) {
       const kind = armed.kind;
@@ -2891,9 +2894,20 @@
 
   // Ao voltar para a aba, se a sala caiu no meio tempo, religa na hora
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && naSala() && !sala.ws && sala.via !== "abas") {
+    if (document.hidden || !naSala()) return;
+    if (!sala.ws && sala.via !== "abas") {
       sala.tentativas = 0;
       abrirSala(sala.codigo, sala.papel);
+      return;
+    }
+    /* A aba dormiu e voltou: em vários celulares o performance.now() congela
+       durante o sono, então o desvio medido antes está errado exatamente pelo
+       tempo dormido. Remede do zero, com rajada. */
+    if (sala.ws && sala.ws.readyState === 1) {
+      sala.rttMin = undefined;
+      sala.desvio = undefined;
+      for (let k = 0; k < 5; k++)
+        setTimeout(() => enviar({ t: "ping", ts: Math.round(performance.now()) }), 60 + k * 140);
     }
   });
 
@@ -2904,6 +2918,7 @@
     sala.conectado = false;
     sala.visto = performance.now();
     sala.rttMin = undefined;       // rede pode ter mudado: mede de novo
+    sala.desvio = undefined;       // e o relógio comum se recalibra do zero
     sala.via = "tentando";
     if (sala.tentativas === undefined) sala.tentativas = 0;
 
@@ -3037,7 +3052,13 @@
       sala.atraso = sala.atraso * 0.7 + rtt * 0.3;
       if (m.seu !== undefined) {
         const amostra = m.seu - (m.ts + rtt / 2);
-        if (sala.rttMin === undefined || rtt <= sala.rttMin * 1.3 + 2) {
+        /* NTP de bolso: a viagem mais rápida já vista é a estimativa mais
+           honesta — ela vale inteira e apaga qualquer primeira amostra
+           inflada pelo aquecimento do socket. As demais, se razoáveis,
+           só refinam pela média. */
+        if (sala.rttMin === undefined || rtt <= sala.rttMin) {
+          sala.desvio = amostra;
+        } else if (rtt <= sala.rttMin * 1.3 + 2) {
           sala.desvio = sala.desvio === undefined ? amostra : sala.desvio * 0.8 + amostra * 0.2;
         }
         sala.rttMin = sala.rttMin === undefined ? rtt : Math.min(sala.rttMin * 1.02, rtt);
@@ -3059,6 +3080,7 @@
     if (sala.papel !== "convidado") return;
     if (m.t === "ev") {
       const duro = m.m === "saque" || m.m === "ponto";
+      if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
       adotarBola(m.bola, duro, m.ts);
       reagirAoEvento(m.m);
       return;
@@ -3172,7 +3194,7 @@
      passo. Não há chute: entre eventos os dois lados calculam a mesma
      trajetória no mesmo tempo t, que é o que sincroniza de verdade. */
   function avancarBolaLivre(seg) {
-    let resta = Math.min(0.6, Math.max(0, seg));
+    let resta = Math.min(2, Math.max(0, seg));   // 2 s cobre o reenvio de mundo; são ~240 passos baratos
     while (resta > 1e-6) {
       const dt = Math.min(DT, resta);
       resta -= dt;
@@ -3203,6 +3225,8 @@
     }
   }
 
+  const corrBola = { a: 0, b: 0 };   // deslocamento só de desenho, ver adotarBola
+
   function adotarBola(bola, duro, ts) {
     const [a, b, va, vb, spin, budget, speed] = bola;
     const antesA = ball.a, antesB = ball.b;
@@ -3213,13 +3237,20 @@
     const decorrido = ts !== undefined && sala.desvio !== undefined
       ? (performance.now() - (ts - sala.desvio)) / 1000
       : (sala.atraso / 2) / 1000;
-    avancarBolaLivre(decorrido);
+    /* No saque a bola do anfitrião fica imóvel: adiantar aqui a faria andar
+       sozinha. E durante a câmera lenta o mundo anda em timeScale — o replay
+       do intervalo tem de andar no mesmo ritmo. */
+    if (S.phase === "play") avancarBolaLivre(decorrido * timeScale());
 
-    // a previsão local costuma já estar lá; perto, alisa em vez de saltar
+    /* A física adota o estado exato — resíduo permanente era o defeito do
+       blend antigo. O que alisa é só o DESENHO: um deslocamento visual que
+       parte da posição antiga e decai a zero em ~150 ms. */
     const longe = Math.hypot(ball.a - antesA, ball.b - antesB);
     if (!duro && longe < 24) {
-      ball.a = antesA + (ball.a - antesA) * 0.4;
-      ball.b = antesB + (ball.b - antesB) * 0.4;
+      corrBola.a = antesA - ball.a;
+      corrBola.b = antesB - ball.b;
+    } else {
+      corrBola.a = corrBola.b = 0;
     }
   }
 
@@ -3229,6 +3260,13 @@
      aviso oficial ainda vem e corrige, mas de mansinho. */
   function rebaterLocal(i, dir) {
     const p = pads[i];
+    // defesa de bola de fogo: o anfitrião apaga o fogo e devolve ao ritmo
+    // base antes do ganho de 7% — sem espelhar, a previsão sai rápida demais
+    if (fire.on) {
+      fire.on = false;
+      trail.length = 0;
+      ball.speed = LEVELS[S.diff].base * 1.2;
+    }
     const rel = ((ball.b + BOLA / 2) - (p.b + padLen(i) / 2)) / (padLen(i) / 2);
     const ang = clamp(rel, -1, 1) * 0.95;
     ball.speed = Math.min(ball.speed * 1.07, star.on ? 900 : 640);
@@ -3259,6 +3297,16 @@
       ball.va = nva;
       ball.spin *= Math.pow(SPIN_DECAY, dt);
       if (Math.abs(ball.spin) < 0.02 || ball.budget <= 0) ball.spin = 0;
+      // a MESMA trava do anfitrião: sem ela as curvas fortes bifurcam
+      const at = Math.atan2(ball.vb, Math.abs(ball.va));
+      if (Math.abs(at) > MAX_ANGLE) {
+        const sp = Math.hypot(ball.va, ball.vb);
+        const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
+        ball.va = Math.cos(lim) * sp * (ball.va < 0 ? -1 : 1);
+        ball.vb = Math.sin(lim) * sp;
+        ball.spin = 0;
+        ball.budget = 0;
+      }
     }
     ball.a += ball.va * dt;
     ball.b += ball.vb * dt;
@@ -3730,6 +3778,7 @@
       }
       glowFill(col, pa, pb, th, ln);
     }
+    ball.a += corrBola.a; ball.b += corrBola.b;   // só o desenho vê isto
     if (S.phase !== "over") {
       if (fire.on) {
         fill(COL.fire, Math.round(ball.a) - 2, Math.round(ball.b) - 2, BOLA + 4, BOLA + 4);
@@ -3781,6 +3830,7 @@
         glowFill(COL.ball, Math.round(ball.a), Math.round(ball.b), BOLA, BOLA);
       }
     }
+    ball.a -= corrBola.a; ball.b -= corrBola.b;
 
     g.restore();
     drawSideFlash();
@@ -4529,6 +4579,11 @@
       const pisoAberr = pontoFinal() && S.phase === "play" && !reduceMotion ? 0.2 : 0;
       aberr = Math.max(pisoAberr, aberr - dt * 1.4);
       if (slow.t > 0) slow.t = Math.max(0, slow.t - dt);
+      corrBola.a *= Math.exp(-dt / 0.05);
+      corrBola.b *= Math.exp(-dt / 0.05);
+      for (let i = 0; i < 2; i++)
+        if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
+      if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
 
       // Tira e devolve a cor conforme a tempestade entra e sai
       const alvoMono = stormRamp();
@@ -4557,27 +4612,49 @@
           if (meu.down) meu.b += 430 * DT;
           meu.b = clamp(meu.b, WALL, SPAN - WALL - padLen(1));
           meu.vb = (meu.b - meu.prevB) / DT;
+          // a varrida (memória do movimento) alimenta o spin do rebaterLocal
+          if (Math.abs(meu.vb) > Math.abs(meu.swing)) meu.swing = meu.vb;
+          else meu.swing *= Math.pow(SWING_FADE, DT);
 
-          andarBolaLocal(DT);
-          atualizarEnfeites(DT);
+          andarBolaLocal(DT);        // já se guarda: só integra no "play"
+
+          /* Cronômetros do MUNDO só andam no "play", como no anfitrião — o
+             step() dele retorna antes disso fora da fase. Decair sempre abria
+             ~0,5 s de deriva a cada saque e reexecutava sons de efeito. E
+             nada aqui pode aparecer em dobro: slow.t decai no quadro (para os
+             dois papéis) e roleta.t anda dentro de atualizarEnfeites. */
+          if (S.phase === "play") {
+            atualizarEnfeites(DT);
+            if (venom.t > 0) venom.t = Math.max(0, venom.t - DT);
+            if (storm.t > 0) storm.t = Math.max(0, storm.t - DT);
+            if (heart.pulse > 0) heart.pulse = Math.max(0, heart.pulse - DT);
+            if (heart.on) heart.t += DT;
+            /* Vidas de item: só para o desenho (o pisca de fim). Nunca
+               desligam nada aqui — quem decide é o resumo do anfitrião. */
+            if (item.on && item.life > 0.05) item.life -= DT;
+            if (gem.on && gem.life > 0.05) gem.life -= DT;
+            if (poison.on && poison.life > 0.05) poison.life -= DT;
+            if (bolt.on && bolt.life > 0.05) bolt.life -= DT;
+            if (iris.on && iris.life > 0.05) iris.life -= DT;
+            if (chiclete.on && chiclete.life > 0.05) chiclete.life -= DT;
+          }
           if (ball.hit > 0) ball.hit = Math.max(0, ball.hit - DT);
           for (const p of pads) {
             if (p.hit > 0) p.hit = Math.max(0, p.hit - DT);
             if (p.glow > 0) p.glow = Math.max(0, p.glow - DT);
             if (p.grow > 0) p.grow = Math.max(0, p.grow - DT);
           }
-          if (roleta.on) roleta.t += DT;
-          if (heart.pulse > 0) heart.pulse = Math.max(0, heart.pulse - DT);
-          if (heart.on) heart.t += DT;
-          if (venom.t > 0) venom.t = Math.max(0, venom.t - DT);
-          if (slow.t > 0) slow.t = Math.max(0, slow.t - DT);
-          if (storm.t > 0) storm.t = Math.max(0, storm.t - DT);
           acc -= DT;
         }
-        // a raquete do adversário alcança o último ponto recebido sem saltar
+        // a raquete do adversário alcança o último ponto recebido sem saltar,
+        // e a varrida estimada dali alimenta o spin das previsões
         const outro = pads[0];
-        if (outro.destino !== undefined) {
-          outro.b += clamp(outro.destino - outro.b, -1400 * dt, 1400 * dt);
+        if (outro.destino !== undefined && dt > 0) {
+          const passo = clamp(outro.destino - outro.b, -1400 * dt, 1400 * dt);
+          outro.b += passo;
+          outro.vb = passo / dt;
+          if (Math.abs(outro.vb) > Math.abs(outro.swing)) outro.swing = outro.vb;
+          else outro.swing *= Math.pow(SWING_FADE, dt);
         }
       }
 
@@ -4590,7 +4667,7 @@
           step(DT);
           if (S.phase === "serve") {
             S.t += DT;
-            if (S.t >= 1.5) { S.phase = "play"; S.t = 0; }
+            if (S.t >= 1.5) { S.phase = "play"; S.t = 0; sincronizar("play"); }
           }
           else if (S.phase === "over") S.t += DT;
         }

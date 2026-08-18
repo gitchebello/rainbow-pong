@@ -17,6 +17,7 @@ import socket
 import struct
 import sys
 import threading
+import queue
 import time
 
 print = __import__("functools").partial(print, flush=True)   # log ao vivo, sem buffer
@@ -84,23 +85,48 @@ def montar_quadro(corpo, opcode=1):
 
 
 class Par:
-    """Um jogador conectado, com envio protegido por trava."""
+    """Um jogador conectado. O envio passa por uma fila com escritor próprio:
+    o laço de LEITURA de um jogador nunca bloqueia no socket do OUTRO — antes,
+    um receptor travado segurava o parceiro por até 45 s no sendall."""
 
     def __init__(self, sock):
         self.sock = sock
         self.codigo = None
-        self.trava = threading.Lock()
         self.vivo = True
         self.visto = time.time()
+        self.fila = queue.Queue(maxsize=64)
+        threading.Thread(target=self._escritor, daemon=True).start()
+
+    def _escritor(self):
+        while True:
+            texto = self.fila.get()
+            if texto is None or not self.vivo:
+                return
+            try:
+                self.sock.sendall(montar_quadro(texto.encode("utf-8")))
+            except OSError:
+                self.vivo = False
+                return
 
     def enviar(self, texto):
         if not self.vivo:
             return
         try:
-            with self.trava:
-                self.sock.sendall(montar_quadro(texto.encode("utf-8")))
-        except OSError:
+            self.fila.put_nowait(texto)
+        except queue.Full:
+            # 64 mensagens paradas = o outro lado não lê há segundos: morto
             self.vivo = False
+            try:
+                self.sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    def fechar(self):
+        self.vivo = False
+        try:
+            self.fila.put_nowait(None)
+        except queue.Full:
+            pass
 
 
 def _tirar(par, codigo):
@@ -202,8 +228,10 @@ def atender_websocket(sock, chave):
             if opcode == 8:
                 break
             if opcode == 9:
-                with par.trava:
+                try:
                     sock.sendall(montar_quadro(corpo, opcode=10))
+                except OSError:
+                    break
                 continue
             if opcode != 1:
                 continue
@@ -234,7 +262,7 @@ def atender_websocket(sock, chave):
     except (ConnectionError, OSError):
         pass
     finally:
-        par.vivo = False
+        par.fechar()
         sair_da_sala(par)
         try:
             sock.close()
