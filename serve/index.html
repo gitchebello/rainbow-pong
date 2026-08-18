@@ -1547,6 +1547,20 @@
   /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
      1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
      do alto à esquerda, como os demais. */
+  /* A coroa do vencedor, na tela final. Gira como moeda: o desenho achata
+     no eixo horizontal e volta — rotação de verdade borraria o pixel. */
+  const COROA = [
+    "w....w....w",
+    "yw..wyw..wy",
+    "yy.yyyyy.yy",
+    "dyyyyyyyyyd",
+    "dyyryyyryyd",
+    "dsssssssssd",
+    ".ddddddddd."
+  ];
+  const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
+                             s: COL.starLo, r: COL.fire });
+
   /* Estrela de delineado fechado e segmentos parelhos: todos os cinco
      braços com miolo dourado dentro do contorno — as pernas inclusive, que
      em todas as versões anteriores acabavam só contorno e destoavam. */

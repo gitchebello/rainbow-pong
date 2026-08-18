@@ -346,13 +346,19 @@ var getComputedStyle=()=>({paddingLeft:"0",paddingRight:"0"});
 var console={error:(...a)=>{globalThis.__erro=a.map(String).join(" | ")},log:()=>{},warn:()=>{}};
 globalThis.__erro=null; globalThis.relatarFalha=e=>{globalThis.__erro=String(e&&e.stack||e)};
 """)
-    _m.eval("(function(){\n" + js + "\n})()")
-    _res = _m.eval("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}return __erro||'';})()")
+    # gancho de teste: depois da abertura, forca a tela final — ela ja ficou
+    # descoberta uma vez (a coroa sumiu num recorte e so quebrava no fim de jogo)
+    _js2 = js.replace("function frame(now) {",
+        "globalThis.__forcarOver = () => { S.phase = \"over\"; S.winner = 0; S.t = 0; };\n  function frame(now) {", 1)
+    _m.eval("(function(){\n" + _js2 + "\n})()")
+    _res = _m.eval("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
+                   "if(!__erro&&globalThis.__forcarOver){__forcarOver();"
+                   "for(let k=301;k<=500&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}}return __erro||'';})()")
     if _res:
         ruim = True
         print("EXECUÇÃO: erro em quadro ->", _res.split("\n")[0][:200])
     else:
-        print("EXECUÇÃO: 300 quadros sem erro")
+        print("EXECUÇÃO: 500 quadros (abertura + tela final) sem erro")
 except ImportError:
     print("EXECUÇÃO: V8 indisponível — pulando")
 except Exception as _e:
