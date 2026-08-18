@@ -2359,7 +2359,16 @@
       const p = pads[i];
       p.prevB = p.b;
       const isAI = i === 1 && S.mode === "1p";
+      const remoto = sala.conectado && i === 1 && sala.papel === "anfitriao";
       if (isAI) { driveAI(i, dt, S.diff, false); }
+      else if (remoto) {
+        /* A raquete do convidado é dele: aqui só se alcança a posição que ele
+           reporta, depressa e sem inventar cinemática por cima. */
+        if (p.destino !== undefined) {
+          const longe = p.destino - p.b;
+          p.b += Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
+        }
+      }
       else {
         if (p.touch !== null) {
           const want = p.touch - padLen(i) / 2;
@@ -3136,13 +3145,9 @@
       return;
     }
     if (m.t === "pad") {
-      if (sala.papel === "anfitriao") {
-        pads[1].touch = m.alvo === null ? null : m.alvo;
-        pads[1].up = !!m.u;
-        pads[1].down = !!m.d;
-      } else {
-        pads[0].destino = m.b;   // o desenho alcança sem saltar
-      }
+      const outro = pads[sala.papel === "anfitriao" ? 1 : 0];
+      // meio atraso à frente: onde a raquete DEVE estar agora, não onde estava
+      outro.destino = m.b + (m.v || 0) * (sala.atraso / 2) / 1000;
       return;
     }
 
@@ -3238,22 +3243,21 @@
      que o outro precisa: o convidado manda a INTENÇÃO (para o anfitrião
      simular), o anfitrião manda a POSIÇÃO (para o convidado desenhar). E
      ninguém manda nada enquanto a raquete está parada. */
-  const ultimoPad = { b: null, alvo: null, u: false, d: false };
+  const ultimoPad = { b: null, v: null };
 
+  /* Cada lado manda a POSIÇÃO da própria raquete (e a velocidade, para o
+     receptor extrapolar meio atraso à frente). Antes o convidado mandava só a
+     INTENÇÃO do toque e o anfitrião simulava a perseguição — a cópia chegava
+     com atraso de rede MAIS o tempo de perseguição, e era com essa cópia
+     velha que o anfitrião julgava a defesa: a bola atravessava uma raquete
+     que, na tela do dono, estava no lugar certo. */
   function transmitirRaquete() {
     if (!sala.conectado) return;
-    if (sala.papel === "convidado") {
-      const p = pads[1];
-      const alvo = p.touch === null ? null : r1(p.touch);
-      if (alvo === ultimoPad.alvo && p.up === ultimoPad.u && p.down === ultimoPad.d) return;
-      ultimoPad.alvo = alvo; ultimoPad.u = p.up; ultimoPad.d = p.down;
-      enviar({ t: "pad", alvo, u: p.up, d: p.down });
-    } else {
-      const b = r1(pads[0].b);
-      if (b === ultimoPad.b) return;
-      ultimoPad.b = b;
-      enviar({ t: "pad", b });
-    }
+    const p = pads[sala.papel === "anfitriao" ? 0 : 1];
+    const b = r1(p.b), v = r1(p.vb);
+    if (b === ultimoPad.b && v === ultimoPad.v) return;
+    ultimoPad.b = b; ultimoPad.v = v;
+    enviar({ t: "pad", b, v });
   }
 
   /** Adota o estado recebido, adiantado pelo meio-caminho do atraso medido. */
@@ -4747,7 +4751,8 @@
         // e a varrida estimada dali alimenta o spin das previsões
         const outro = pads[0];
         if (outro.destino !== undefined && dt > 0) {
-          const passo = clamp(outro.destino - outro.b, -1400 * dt, 1400 * dt);
+          const longe = outro.destino - outro.b;
+          const passo = Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
           outro.b += passo;
           outro.vb = passo / dt;
           if (Math.abs(outro.vb) > Math.abs(outro.swing)) outro.swing = outro.vb;
@@ -4773,7 +4778,11 @@
 
       if (sala.conectado) {
         padEm -= dt;
-        if (padEm <= 0) { padEm = 1 / 25; transmitirRaquete(); }
+        /* Perto da defesa a cadência dobra: é o instante em que a posição
+           da raquete decide o ponto, e 20 ms de folga fazem diferença. */
+        const minhaFace = sala.papel === "anfitriao" ? padA(0) : padA(1);
+        const perto = Math.abs(ball.a - minhaFace) < 170;
+        if (padEm <= 0) { padEm = perto ? 1 / 50 : 1 / 25; transmitirRaquete(); }
         pingEm -= dt;
         if (pingEm <= 0) { pingEm = 2; enviar({ t: "ping", ts: Math.round(performance.now()) }); }
         if (sala.papel === "anfitriao") {
