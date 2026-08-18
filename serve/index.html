@@ -1525,17 +1525,20 @@
     "...BCDE..."
   ];
 
+  /* Zigue-zague clássico: traço grosso descendo da direita, quebra no meio
+     e afina até a ponta de 1 px embaixo à esquerda — a forma canônica de um
+     relâmpago, no lugar do bloco anguloso de antes. Mesmas quatro cores. */
   const BOLT = [
-    "....dddd...",
-    "...dwvvd...",
+    "...ddddd...",
     "..dwwwd....",
-    ".dwwwwd....",
-    ".dwwwvvddd.",
-    "..dvvvvsdd.",
-    "...dvvsd...",
-    "..dvvsd....",
-    "..dvsd.....",
-    "..ddd......",
+    "..dwwwd....",
+    ".dwwwwvdd..",
+    "..dwwvvd...",
+    "...dvvd....",
+    "..dvvd.....",
+    "..dvd......",
+    ".dvd.......",
+    ".dd........",
     "..........."
   ];
 
@@ -1561,11 +1564,14 @@
      última fileira, sem nada embaixo, virava uma barra chata — a estrela
      ficava de botas. Agora elas vão preenchidas e afinam até uma ponta de
      1 px, que é o que uma ponta de estrela precisa ser. */
+  /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
+     1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
+     do alto à esquerda, como os demais. */
   const STAR = [
     ".....d.....",
     "....dwd....",
-    "...dwwwd...",
-    "dddwwwyyddd",
+    "....dwd....",
+    ".dddwwyddd.",
     "dwwwwyyyssd",
     ".dwwyyyssd.",
     "..dyydssd..",
@@ -2495,9 +2501,11 @@
         const perto = Math.random() < 0.5;
         bolhas.push({
           a: rand(0, LEN),
-          b: perto ? rand(-2, WALL + 8) : rand(SPAN - WALL - 10, SPAN + 2),
+          /* Coladas na parede e com menos empuxo para dentro: a festa é a
+             mesma, mas o miolo do campo fica limpo para a jogada. */
+          b: perto ? rand(-2, WALL + 4) : rand(SPAN - WALL - 6, SPAN + 2),
           va: rand(-18, 18),
-          vb: (perto ? 1 : -1) * rand(9, 28),
+          vb: (perto ? 1 : -1) * rand(6, 15),
           r: rand(4, 9),
           life: rand(0.8, 1.8),
           pop: 0,
