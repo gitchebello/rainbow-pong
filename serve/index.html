@@ -1547,9 +1547,9 @@
   /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
      1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
      do alto à esquerda, como os demais. */
-  /* Estrela pontuda de corpo cheio, com DELINEADO fechado: todo pixel de
-     borda é o amarelo-escuro, sem exceção — as pontas em cor viva derretiam
-     no fundo claro da legenda. O brilho e a sombra só existem por dentro. */
+  /* Estrela de delineado fechado e segmentos parelhos: todos os cinco
+     braços com miolo dourado dentro do contorno — as pernas inclusive, que
+     em todas as versões anteriores acabavam só contorno e destoavam. */
   const STAR = [
     ".....d.....",
     "....dwd....",
@@ -1558,9 +1558,9 @@
     ".dwwwwyyyd.",
     "..dwwyyyd..",
     "..dwyyysd..",
-    ".dwydddssd.",
-    ".ddd...ddd.",
-    ".d.......d.",
+    ".dwyd.dysd.",
+    ".dwyd.dysd.",
+    "..ddd.ddd..",
     "..........."
   ];
 
