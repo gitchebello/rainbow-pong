@@ -4627,7 +4627,7 @@
       corrBola.b *= Math.exp(-dt / 0.05);
       for (let i = 0; i < 2; i++)
         if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
-        if (i === 0 && scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
+      if (scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
       if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
 
       // Tira e devolve a cor conforme a tempestade entra e sai

@@ -316,5 +316,49 @@ else:
     print("JS: ordem das declaracoes OK")
 
 
+
+# ── 7. fumaça de execução: 300 quadros num DOM fantasma ──
+# Sintaxe boa não garante quadro bom: um `i` fora do seu `for` compila liso e
+# mata o jogo no primeiro quadro. Aqui o script roda de verdade no V8, com um
+# DOM de mentira, e qualquer erro que o laço de quadros engolir aparece.
+try:
+    from py_mini_racer import MiniRacer as _MR
+    _m = _MR()
+    _m.eval(r"""
+function fantasma(n){const f=function(){return fantasma(n+"()")};return new Proxy(f,{
+ get(t,p){if(p===Symbol.toPrimitive||p==="valueOf")return()=>0;if(p==="toString")return()=>"";
+  if(p===Symbol.iterator)return function*(){};if(p==="length")return 0;
+  if(p==="matches"||p==="hidden")return false;return fantasma(n+"."+String(p));},
+ set(){return true},has(){return true},
+ apply(){return fantasma(n+"()")},construct(){return fantasma(n+"{}")}});}
+var document=fantasma("document"); var window=globalThis;
+var location={protocol:"http:",host:"x",pathname:"/pong/",href:"http://x/pong/"};
+var localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
+var matchMedia=()=>({matches:false,addEventListener:()=>{}});
+var addEventListener=()=>{}; var removeEventListener=()=>{};
+var __raf=null; var requestAnimationFrame=cb=>{__raf=cb;return 0};
+var __rel=0; var performance={now:()=>__rel};
+var setTimeout=()=>0; var setInterval=()=>0; var clearTimeout=()=>{};
+var BroadcastChannel=function(){this.postMessage=()=>{};this.close=()=>{}};
+var WebSocket=function(){this.send=()=>{};this.close=()=>{};this.readyState=0};
+var navigator={wakeLock:undefined};
+var getComputedStyle=()=>({paddingLeft:"0",paddingRight:"0"});
+var console={error:(...a)=>{globalThis.__erro=a.map(String).join(" | ")},log:()=>{},warn:()=>{}};
+globalThis.__erro=null; globalThis.relatarFalha=e=>{globalThis.__erro=String(e&&e.stack||e)};
+""")
+    _m.eval("(function(){\n" + js + "\n})()")
+    _res = _m.eval("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}return __erro||'';})()")
+    if _res:
+        ruim = True
+        print("EXECUÇÃO: erro em quadro ->", _res.split("\n")[0][:200])
+    else:
+        print("EXECUÇÃO: 300 quadros sem erro")
+except ImportError:
+    print("EXECUÇÃO: V8 indisponível — pulando")
+except Exception as _e:
+    ruim = True
+    print("EXECUÇÃO: erro na carga ->", str(_e).split("\n")[0][:200])
+
+
 print("\nRESULTADO:", "FALHOU" if ruim else "PASSOU")
 sys.exit(1 if ruim else 0)
