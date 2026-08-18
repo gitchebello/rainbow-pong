@@ -314,26 +314,6 @@
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.35);
   }
   .codigo::placeholder { color: var(--ink-faint); letter-spacing: 0.12em; }
-  .chat-campo {
-    flex: 1 1 100%;
-    letter-spacing: 0.04em;
-    text-transform: none;
-    text-align: left;
-    padding-left: 10px;
-  }
-  .chat-log {
-    list-style: none;
-    margin: 7px 0 0;
-    padding: 0;
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    line-height: 1.5;
-    color: var(--body-ink);
-    overflow-wrap: anywhere;
-  }
-  .chat-log b { font-weight: 700; }
-  .chat-log .p1 b { color: var(--p1); }
-  .chat-log .p2 b { color: var(--p2); }
   .codigo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .codigo[hidden], .key[hidden] { display: none; }
   .sala-nota {
@@ -790,12 +770,6 @@
                    enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
             <button class="key ghost" id="sala-sair" hidden>Sair</button>
           </div>
-          <div class="row" id="chat-linha" hidden>
-            <input class="codigo chat-campo" id="chat-campo" maxlength="80" autocomplete="off"
-                   spellcheck="false" enterkeyhint="send" placeholder="mensagem para o outro jogador"
-                   aria-label="Mensagem para o outro jogador">
-          </div>
-          <ul class="chat-log" id="chat-log" hidden aria-live="polite"></ul>
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
@@ -1447,7 +1421,6 @@
     if (rastroIris.length > IRIS_TETO) rastroIris.shift();
   }
   const hint = { t: 0, who: 0, txt: "", col: null, arco: false };
-  const papo = { t: 0, txt: "", quem: 0 };   // última mensagem do chat, sobre o campo
   let itemTimer = rand(6, 11);
   let flash = 0;              // clarão no instante em que a paleta vira
   let flashCol = "";
@@ -2482,7 +2455,6 @@
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
     if (hint.t > 0) hint.t -= dt;
-    if (papo.t > 0) papo.t -= dt;
     if (roleta.on) roleta.t += dt;
 
     if (gumFesta > 0) {
@@ -2894,8 +2866,18 @@
      amigo. O anfitrião ficava mudo, o servidor o despejava como fantasma, e o
      amigo caía numa sala vazia. O setInterval sobrevive ao segundo plano. */
   setInterval(() => {
-    if (sala.ws && sala.ws.readyState === 1)
+    if (sala.ws && sala.ws.readyState === 1) {
       sala.ws.send(JSON.stringify({ t: "ping", ts: Math.round(performance.now()) }));
+      /* Zumbi: o servidor ecoa todo ping, então numa conexão viva SEMPRE chega
+         alguma coisa. Nove segundos de silêncio total = socket meio-aberto
+         (fomos despejados e o TCP não avisou). Fechar dispara o religamento
+         do onclose — era o impasse dos dois jogadores presos em "esperando". */
+      if (naSala() && performance.now() - sala.visto > 9000) {
+        sala.visto = performance.now();
+        sala.tentativas = 0;
+        try { sala.ws.close(); } catch (_) {}
+      }
+    }
   }, 3000);
 
   // Ao voltar para a aba, se a sala caiu no meio tempo, religa na hora
@@ -2912,6 +2894,7 @@
     sala.papel = papel;
     sala.conectado = false;
     sala.visto = performance.now();
+    sala.rttMin = undefined;       // rede pode ter mudado: mede de novo
     sala.via = "tentando";
     if (sala.tentativas === undefined) sala.tentativas = 0;
 
@@ -2995,6 +2978,12 @@
     if (m.t === "par") {
       if (!sala.conectado) {
         sala.conectado = true;
+        /* Rajada de sincronia: cinco pings espaçados assim que o par fecha.
+           O relógio comum (desvio) já nasce convergido, em vez de esperar os
+           pings de rotina de 2 s — o primeiro saque já cai no tempo certo. */
+        for (let k = 0; k < 5; k++)
+          setTimeout(() => enviar({ t: "ping", ts: Math.round(performance.now()) }), 90 + k * 140);
+        ultimoPad.b = ultimoPad.alvo = null;   // o fluxo de raquete recomeça do zero
         pintarSala();
         showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart);
         Snd.premio();
@@ -3027,18 +3016,7 @@
       announce("O outro jogador saiu da sala.");
       return;
     }
-    if (m.t === "chat") {
-      // texto cru do outro lado: corta no tamanho e tira controle antes de usar
-      const txt = String(m.m || "").replace(/[\u0000-\u001f]/g, "").slice(0, 80).trim();
-      if (txt) {
-        const dele = sala.papel === "anfitriao" ? 1 : 0;
-        anotarChat(dele, txt);
-        papo.t = 4.5; papo.txt = txt; papo.quem = dele;
-        Snd.gum();
-        announce(`Mensagem do outro jogador: ${txt}`);
-      }
-      return;
-    }
+    if (m.t === "eco") return;   // sinal de vida do servidor; o topo já anotou sala.visto
     if (m.t === "ping") { enviar({ t: "pong", ts: m.ts, seu: Math.round(performance.now()) }); return; }
     if (m.t === "pong") {
       /* Relógio comum. Cada pong traz o relógio do outro lado; a diferença
@@ -3100,8 +3078,39 @@
   }
 
   /** Resumo do que muda devagar: placar, itens, efeitos, raquetes. */
+  /* O resumo só viaja quando a FORMA do mundo muda — item nasceu ou sumiu,
+     placar andou, efeito ligou ou desligou, raquete cresceu. A assinatura
+     ignora de propósito o que decai sozinho (vidas de item, cronômetros de
+     efeito, o relógio da partida): isso o convidado já integra localmente, e
+     o reenvio de segurança a cada 2 s apara qualquer deriva. Antes isto saía
+     em 4 Hz fixos, mudado ou não. */
+  let mundoAssin = "";
+  let mundoQuando = -1e9;
+
+  function assinaturaMundo() {
+    return JSON.stringify([
+      S.phase, S.score, S.winner, spoke,
+      pads[0].len, pads[1].len,
+      fire.on, star.on, armed.who, armed.kind, held[0], held[1],
+      item.on && [item.kind, r1(item.a), r1(item.b)],
+      gem.on && [r1(gem.a), r1(gem.b)],
+      poison.on && [r1(poison.a), r1(poison.b)],
+      bolt.on && [r1(bolt.a), r1(bolt.b)],
+      iris.on && [r1(iris.a), r1(iris.b)],
+      chiclete.on && [r1(chiclete.a), r1(chiclete.b)],
+      heart.on && [heart.hits[0], heart.hits[1]],
+      roleta.on && roleta.dono,
+      venom.t > 0, slow.t > 0, storm.t > 0, BOLA
+    ]);
+  }
+
   function transmitirMundo() {
     if (!sala.conectado || sala.papel !== "anfitriao") return;
+    const assin = assinaturaMundo();
+    const agora = performance.now();
+    if (assin === mundoAssin && agora - mundoQuando < 2000) return;
+    mundoAssin = assin;
+    mundoQuando = agora;
     enviar({
       t: "mundo",
       ts: Math.round(performance.now()),
@@ -3361,14 +3370,6 @@
     const onde = { rede: "rede", abas: "só nesta janela", tentando: "ligando", "sem-jeito": "sem transporte" }[sala.via] || "";
     est.textContent = !dentro ? "desligada"
       : `${sala.codigo} · ${sala.conectado ? "conectada" : "esperando"} · ${onde}`;
-
-    const chatLinha = document.getElementById("chat-linha");
-    const chatLog = document.getElementById("chat-log");
-    if (chatLinha) {
-      const aberto = dentro && sala.conectado;
-      chatLinha.hidden = !aberto;
-      chatLog.hidden = !aberto || !chatLog.childElementCount;
-    }
 
     const nota = document.getElementById("sala-nota");
     if (nota) {
@@ -3809,15 +3810,6 @@
       const esc = hint.esc || (middle ? 3 : 2);
       if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
       else centered(g, hint.txt, p[0], p[1] - 10, esc, col, maxTextW);
-      g.globalAlpha = 1;
-    }
-
-    // Balão do chat: a última mensagem cruza qualquer fase por alguns segundos
-    if (papo.t > 0 && naSala()) {
-      const corPapo = papo.quem === 0 ? COL.p1 : COL.p2;
-      g.globalAlpha = Math.min(1, papo.t * 1.6);
-      const rotulo = (papo.quem === 0 ? "J1: " : "J2: ") + papo.txt;
-      centered(g, rotulo, cw / 2, Math.max(24, ch * 0.09), 2, corPapo, maxTextW);
       g.globalAlpha = 1;
     }
 
@@ -4603,7 +4595,8 @@
         if (pingEm <= 0) { pingEm = 2; enviar({ t: "ping", ts: Math.round(performance.now()) }); }
         if (sala.papel === "anfitriao") {
           mundoEm -= dt;
-          if (mundoEm <= 0) { mundoEm = 0.25; transmitirMundo(); }
+          // checa a 10 Hz; transmite só na mudança (ou no reenvio de 2 s)
+          if (mundoEm <= 0) { mundoEm = 0.1; transmitirMundo(); }
         }
       }
       if (naSala() && !sala.conectado && now - sala.visto > 900) {
@@ -4854,36 +4847,6 @@
   campoSala.addEventListener("keydown", e => {
     e.stopPropagation();
     if (e.key === "Enter") entrarNaSala(false);
-  });
-
-  /* ── Chat da sala ──
-     Aparece quando a conexão fecha. A mensagem vai crua pelo relay ({t:"chat"});
-     quem recebe poda e mostra em dois lugares: no histórico do painel (texto
-     completo, via textContent — nunca HTML) e num balão sobre o campo, que a
-     fonte do jogo desenha em maiúsculas. */
-  const chatCampo = document.getElementById("chat-campo");
-
-  function anotarChat(quem, txt) {
-    const log = document.getElementById("chat-log");
-    const li = document.createElement("li");
-    li.className = quem === 0 ? "p1" : "p2";
-    const b = document.createElement("b");
-    b.textContent = (quem === 0 ? "J1" : "J2") + ": ";
-    li.append(b, txt);
-    log.append(li);
-    while (log.childElementCount > 6) log.firstElementChild.remove();
-    log.hidden = false;
-  }
-
-  chatCampo.addEventListener("keydown", e => {
-    e.stopPropagation();
-    if (e.key !== "Enter") return;
-    const txt = chatCampo.value.replace(/[\u0000-\u001f]/g, "").slice(0, 80).trim();
-    if (!txt || !sala.conectado) return;
-    enviar({ t: "chat", m: txt });
-    const eu = sala.papel === "anfitriao" ? 0 : 1;
-    anotarChat(eu, txt);
-    chatCampo.value = "";
   });
 
   document.getElementById("sala-sair").addEventListener("click", () => {

@@ -214,6 +214,13 @@ def atender_websocket(sock, chave):
             except ValueError:
                 continue
 
+            if msg.get("t") == "ping":
+                # eco ao remetente: quem espera sozinho também precisa de um
+                # sinal de vida, senão socket morto e espera saudável são
+                # indistinguíveis do lado de lá (o ping só era repassado ao
+                # par — que pode não existir)
+                par.enviar(json.dumps({"t": "eco"}))
+
             if msg.get("t") == "sala":
                 entrar_na_sala(par, str(msg.get("codigo", ""))[:8].upper())
                 continue
