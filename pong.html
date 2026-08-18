@@ -2201,6 +2201,18 @@
   function useItem(i, fromAI) {
     if (S.phase !== "play" || !held[i] || armed.who === i) return;
     if (i === 1 && S.mode === "1p" && !fromAI) return;   // o item do computador é dele
+
+    /* Numa sala o anfitrião é o dono do estado. O convidado só manda a
+       intenção — armar localmente durava até o próximo resumo de mundo, que
+       desfazia o gesto na frente do jogador. O eco visual sai na hora; o
+       estado verdadeiro volta pelo resumo, já armado. */
+    if (sala.conectado && sala.papel === "convidado" && !fromAI) {
+      if (i !== 1) return;
+      enviar({ t: "usar" });
+      Snd.arm();
+      showHint(1, "ARMADA", held[1] === "star" ? COL.star : COL.fire);
+      return;
+    }
     armed.kind = held[i];
     armed.who = i;
     stats.used[i][armed.kind]++;
@@ -3119,6 +3131,10 @@
       return;
     }
 
+    if (m.t === "usar") {
+      if (sala.papel === "anfitriao") useItem(1, false);
+      return;
+    }
     if (m.t === "pad") {
       if (sala.papel === "anfitriao") {
         pads[1].touch = m.alvo === null ? null : m.alvo;
@@ -5106,8 +5122,10 @@
     if (k === " " || k === "Spacebar") { e.preventDefault(); toggleRun(); return; }
     if (k === "r" || k === "R") { newGame("attract"); releaseWake(); syncPlayButton(); announce("Placar zerado."); return; }
     if (k === "f" || k === "F") { toggleImmersive(); return; }
-    if (k === "e" || k === "E") { useItem(0, false); return; }   // lado do W/S
-    if (k === "/") { e.preventDefault(); useItem(1, false); return; }   // lado das setas
+    // numa sala as duas teclas valem para a SUA raquete, como o W/S e as setas
+    const padTecla = lado => naSala() ? (sala.papel === "anfitriao" ? 0 : 1) : lado;
+    if (k === "e" || k === "E") { useItem(padTecla(0), false); return; }   // lado do W/S
+    if (k === "/") { e.preventDefault(); useItem(padTecla(1), false); return; }   // lado das setas
     if (k === "ArrowUp" || k === "ArrowDown") e.preventDefault();
     keys.add(k); applyKeys();
   });
