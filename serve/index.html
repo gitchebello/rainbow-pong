@@ -1924,35 +1924,47 @@
   }
 
   /** Quanto da câmera lenta está em vigor, de 0 a 1, com entrada e saída. */
-  /* Cristaizinhos do tempo lento: lascas azuis que nascem nas laterais e
-     sobem devagar, cintilando — a festa do cristal, como as bolhas são a do
-     chiclete. Vivem em coordenadas de quadra, então valem nas duas
-     orientações e entram no zoom da câmera junto com o mundo. */
+  /* Estilhaços do tempo lento: contornos de losango — só o traço, sem
+     preenchimento, no azul do ícone do cristal — em três formas e tamanhos,
+     nascendo em volta do campo inteiro. Vida curta de propósito: o efeito é
+     um susto bonito, marca e some. */
+  const LASCA_FORMAS = [
+    [".t.", "t.t", ".t."],
+    ["..t..", ".t.t.", "t...t", ".t.t.", "..t.."],
+    ["...t...", "..t.t..", ".t...t.", "t.....t", ".t...t.", "..t.t..", "...t..."],
+    [".t.", "t.t", "t.t", "t.t", ".t."]
+  ];
   const lascas = [];
   let lascaTimer = 0;
+
+  function salvaLascas(quantas) {
+    if (reduceMotion) return;
+    for (let k = 0; k < quantas; k++) {
+      const lado = (Math.random() * 4) | 0;      // em torno do campo: 4 beiradas
+      const f = LASCA_FORMAS[(Math.random() * LASCA_FORMAS.length) | 0];
+      lascas.push({
+        f,
+        a: lado === 2 ? rand(-4, 14) : lado === 3 ? rand(LEN - 14, LEN + 4) : rand(0, LEN),
+        b: lado === 0 ? rand(-4, WALL + 10) : lado === 1 ? rand(SPAN - WALL - 12, SPAN + 4)
+                      : rand(WALL, SPAN - WALL),
+        va: rand(-9, 9),
+        vb: lado === 0 ? rand(3, 12) : lado === 1 ? rand(-12, -3) : rand(-7, 7),
+        vida: rand(0.6, 1.4),
+        fase: rand(0, 6.28)
+      });
+      if (lascas.length > 60) lascas.shift();
+    }
+  }
 
   function atualizarLascas(dt) {
     if (slow.t > 0 && !reduceMotion) {
       lascaTimer -= dt;
-      while (lascaTimer <= 0) {
-        lascaTimer += 0.07;
-        const perto = Math.random() < 0.5;
-        lascas.push({
-          a: rand(0, LEN),
-          b: perto ? rand(-2, WALL + 10) : rand(SPAN - WALL - 12, SPAN + 2),
-          va: rand(-6, 6),
-          vb: (perto ? 1 : -1) * rand(3, 10),
-          s: rand(2, 4),
-          vida: rand(0.9, 2.0),
-          max: 0,
-          fase: rand(0, 6.28)
-        });
-        if (lascas.length > 70) lascas.shift();
-      }
+      while (lascaTimer <= 0) { lascaTimer += 0.09; salvaLascas(1); }
     }
     for (let i = lascas.length - 1; i >= 0; i--) {
       const o = lascas[i];
-      o.vida -= dt;
+      // acabou o efeito, o resto se apaga em dobro: marca forte, saída limpa
+      o.vida -= dt * (slow.t > 0 ? 1 : 2.2);
       o.a += o.va * dt;
       o.b += o.vb * dt;
       if (o.vida <= 0) lascas.splice(i, 1);
@@ -2138,7 +2150,9 @@
 
   function enterSlow() {
     slow.t = SLOW_TIME;
-    kick(0.45, 0.6, COL.time, 1);
+    kick(0.65, 0.6, COL.time, 1.25);   // soco no engate do zoom
+    salvaLascas(18);                    // estilhaço inicial: a impressão forte
+
     Snd.slow();
     showHint(-1, "SLOW", COL.time);
     announce("Tempo lento por dois segundos e meio.");
@@ -3823,16 +3837,14 @@
     }
     g.globalAlpha = 1;
 
-    /* Lascas do tempo lento: losango azul com miolo claro, cintilando na
-       frequência própria de cada uma. */
+    /* Estilhaços do tempo lento: só o traço do losango, no azul do cristal,
+       cada um cintilando na própria fase. */
     for (const o of lascas) {
-      const brilho = 0.35 + 0.3 * Math.sin(S.blink * 5 + o.fase);
-      g.globalAlpha = Math.min(1, o.vida * 2) * (0.35 + brilho * slowRamp());
-      const s = o.s;
-      fill(COL.timeDark, o.a - 1, o.b, s + 2, s);
-      fill(COL.timeDark, o.a, o.b - 1, s, s + 2);
-      fill(COL.time, o.a, o.b, s, s);
-      if (s >= 3) fill(COL.core, o.a + 1, o.b + 1, 1, 1);
+      g.globalAlpha = Math.min(1, o.vida * 2.5) * (0.4 + 0.45 * Math.sin(S.blink * 6 + o.fase));
+      const f = o.f;
+      for (let l = 0; l < f.length; l++)
+        for (let cch = 0; cch < f[l].length; cch++)
+          if (f[l][cch] === "t") fill(COL.time, o.a + cch, o.b + l, 1, 1);
     }
     g.globalAlpha = 1;
 
@@ -3963,7 +3975,6 @@
     ball.a -= corrBola.a; ball.b -= corrBola.b;
 
     g.restore();
-    bordasSonhadoras(cw, ch, slowRamp());
     drawSideFlash();
 
     // Placar: fora da câmera, para não sair de quadro nem borrar no tremor.
@@ -4674,38 +4685,6 @@
      redesenhado uma vez por cor do arco-íris, cada uma deslocada para um lado,
      somando luz. Feito por composição — sem depender de filtro de canvas. */
   let abBuf = null;
-  /* Bordas sonhadoras do tempo lento: as laterais da tela derretem em
-     cópias deslocadas de si mesmas, com alfa caindo — profundidade de campo
-     de mentira, compatível com qualquer navegador (nada de ctx.filter). É a
-     compensação ótica do zoom: a lente fecha no centro e as beiradas saem de
-     foco, em vez de o quadro inteiro só "aumentar". */
-  function bordasSonhadoras(cw, ch, k) {
-    if (k <= 0.03 || reduceMotion) return;
-    if (!abBuf) abBuf = document.createElement("canvas");
-    if (abBuf.width !== cw || abBuf.height !== ch) { abBuf.width = cw; abBuf.height = ch; }
-    const bx = abBuf.getContext("2d");
-    bx.globalCompositeOperation = "source-over";
-    bx.clearRect(0, 0, cw, ch);
-    bx.drawImage(cv, 0, 0);
-
-    const larg = Math.round(cw * 0.16);
-    for (const lado of [0, 1]) {
-      const x0 = lado === 0 ? 0 : cw - larg;
-      for (const [desl, alfa] of [[2, 0.30], [5, 0.20], [9, 0.12]]) {
-        g.globalAlpha = k * alfa;
-        const dx = lado === 0 ? -desl : desl;
-        g.drawImage(abBuf, x0, 0, larg, ch, x0 + dx, 0, larg, ch);
-        g.drawImage(abBuf, x0, 0, larg, ch, x0, -desl, larg, ch);
-        g.drawImage(abBuf, x0, 0, larg, ch, x0, desl, larg, ch);
-      }
-      // um véu azulado sela o desfoque e tinge de sonho
-      g.globalAlpha = k * 0.10;
-      g.fillStyle = COL.time;
-      g.fillRect(x0, 0, larg, ch);
-    }
-    g.globalAlpha = 1;
-  }
-
   function aberracaoCromatica(cw, ch, k, canais) {
     if (k <= 0.02) return;
     const cores = canais || VIVAS;
