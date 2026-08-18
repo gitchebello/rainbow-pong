@@ -1917,7 +1917,7 @@
     heart.on = true;
     Snd.heartIn();
     showHint(-1, "CORAÇÃO", COL.heart);
-    announce("Um coração apareceu no meio do campo por trinta segundos. Acerte-o para crescer.");
+    announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
   }
 
   function spawnBolt() {
@@ -2057,7 +2057,7 @@
     venom.t = VENOM_TIME;
     kick(0.4, 0.55, COL.venom, 0.95);
     Snd.venom();
-    showHint(-1, "VENENO", COL.venom, false, 2);
+    showHint(-1, "VENENO", COL.venom);
     announce("Veneno: as duas raquetes encolheram por cinco segundos.");
   }
 
@@ -2072,7 +2072,7 @@
     slow.t = SLOW_TIME;
     kick(0.45, 0.6, COL.time, 1);
     Snd.slow();
-    showHint(-1, "SLOW");
+    showHint(-1, "TEMPO LENTO", COL.time);
     announce("Tempo lento por dois segundos e meio.");
   }
 
@@ -2839,7 +2839,7 @@
         moldura.arco = decisivo;
         moldura.cor = who === 0 ? COL.p1 : COL.p2;
         showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
-                 null, decisivo);
+                 null, decisivo, 3);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
         announce(decisivo
           ? "Ponto final: o próximo ponto decide a partida."
@@ -3038,7 +3038,7 @@
           setTimeout(() => enviar({ t: "ping", ts: Math.round(performance.now()) }), 90 + k * 140);
         ultimoPad.b = ultimoPad.alvo = null;   // o fluxo de raquete recomeça do zero
         pintarSala();
-        showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart);
+        showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart, false, 3);
         Snd.premio();
         announce(sala.papel === "anfitriao" ? "O oponente entrou na sala." : "Sala conectada.");
       }
@@ -3065,7 +3065,7 @@
     if (m.t === "tchau") {
       sala.conectado = false;
       pintarSala();
-      showHint(-1, "OPONENTE SAIU", COL.dim);
+      showHint(-1, "OPONENTE SAIU", COL.dim, false, 3);
       announce("O outro jogador saiu da sala.");
       return;
     }
@@ -3391,7 +3391,7 @@
         moldura.arco = decisivo;
         moldura.cor = quem === 0 ? COL.p1 : COL.p2;
         showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
-                 null, decisivo);
+                 null, decisivo, 3);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
       }
     }
@@ -3895,7 +3895,9 @@
                        : rect(hint.who === 0 ? LEN * 0.26 : LEN * 0.74, SPAN / 2, 0, 0);
       const col = hint.col || (middle ? COL.time : (hint.who === 0 ? COL.p1 : COL.p2));
       g.globalAlpha = Math.min(1, hint.t * 2);
-      const esc = hint.esc || (middle ? 3 : 2);
+      /* Efeitos anunciam-se todos no mesmo corpo (2). A escala 3 é reservada
+         a eventos de partida — ponto final, gente entrando na sala. */
+      const esc = hint.esc || 2;
       if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
       else centered(g, hint.txt, p[0], p[1] - 10, esc, col, maxTextW);
       g.globalAlpha = 1;
