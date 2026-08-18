@@ -1100,8 +1100,11 @@
   const offset = () => spoke * (360 / WHEEL);
 
   /** Anda `n` casas na roda e repinta tudo. */
+  let scoreGlow = 0;    // acende os dígitos quando a roda de cores gira
+
   function turnWheel(n) {
     spoke = (spoke + n + WHEEL) % WHEEL;
+    scoreGlow = 0.9;
     applyColors();
   }
 
@@ -1752,8 +1755,12 @@
     Snd.premio();
     announce("Arco-íris parou em " + (saiu.fala || saiu.nome.toLowerCase()) + ".");
 
+    /* Resolver a roleta também gira a roda de cores do jogo. Fogo e estrela
+       já giram por dentro do próprio disparo; os demais prêmios giram aqui —
+       assim toda resolução vale exatamente UMA virada. */
     if (saiu.chave === "fire") { ignite(i); return; }
     if (saiu.chave === "star") { igniteStar(i); return; }
+    turnWheel(1);
     if (saiu.chave === "poison") { enterVenom(); return; }
     if (saiu.chave === "gem") { enterSlow(); return; }
     if (saiu.chave === "bolt") { enterStorm(); return; }
@@ -1916,7 +1923,8 @@
     heart.pulse = 0;
     heart.on = true;
     Snd.heartIn();
-    showHint(-1, "CORAÇÃO", COL.heart);
+    // no corpo do veneno: o texto grande nascia em cima do próprio coração
+    showHint(-1, "CORAÇÃO", COL.heart, false, 2);
     announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
   }
 
@@ -2057,7 +2065,7 @@
     venom.t = VENOM_TIME;
     kick(0.4, 0.55, COL.venom, 0.95);
     Snd.venom();
-    showHint(-1, "VENENO", COL.venom);
+    showHint(-1, "VENENO", COL.venom, false, 2);
     announce("Veneno: as duas raquetes encolheram por cinco segundos.");
   }
 
@@ -2839,7 +2847,7 @@
         moldura.arco = decisivo;
         moldura.cor = who === 0 ? COL.p1 : COL.p2;
         showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
-                 null, decisivo, 3);
+                 null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
         announce(decisivo
           ? "Ponto final: o próximo ponto decide a partida."
@@ -3038,7 +3046,7 @@
           setTimeout(() => enviar({ t: "ping", ts: Math.round(performance.now()) }), 90 + k * 140);
         ultimoPad.b = ultimoPad.alvo = null;   // o fluxo de raquete recomeça do zero
         pintarSala();
-        showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart, false, 3);
+        showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart);
         Snd.premio();
         announce(sala.papel === "anfitriao" ? "O oponente entrou na sala." : "Sala conectada.");
       }
@@ -3065,7 +3073,7 @@
     if (m.t === "tchau") {
       sala.conectado = false;
       pintarSala();
-      showHint(-1, "OPONENTE SAIU", COL.dim, false, 3);
+      showHint(-1, "OPONENTE SAIU", COL.dim);
       announce("O outro jogador saiu da sala.");
       return;
     }
@@ -3391,11 +3399,11 @@
         moldura.arco = decisivo;
         moldura.cor = quem === 0 ? COL.p1 : COL.p2;
         showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
-                 null, decisivo, 3);
+                 null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
       }
     }
-    if (m.roda !== spoke) { spoke = m.roda; applyColors(); }
+    if (m.roda !== spoke) { spoke = m.roda; scoreGlow = 0.9; applyColors(); }
 
     pads[0].len = m.lens[0];
     pads[1].len = m.lens[1];
@@ -3878,13 +3886,20 @@
       g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
       const txt = String(S.score[i]);
       const w = textWidth(txt, ss);
-      if (vertical) {
-        const y = i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss;
-        drawText(g, txt, cw / 2 - w / 2, y, ss, cor);
-      } else {
-        const x = i === 0 ? cw / 2 - 38 - w : cw / 2 + 38;
-        drawText(g, txt, x, 24, ss, cor);
+      /* A roda girou: os dígitos acendem na cor nova, com um halo curto —
+         senão a troca de esquema passa despercebida justamente no placar. */
+      const gl = dim ? 0 : scoreGlow;
+      if (gl > 0) g.globalAlpha = Math.max(g.globalAlpha, gl);
+      const dx = vertical ? cw / 2 - w / 2 : (i === 0 ? cw / 2 - 38 - w : cw / 2 + 38);
+      const dy = vertical ? (i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss) : 24;
+      if (gl > 0) {
+        const salvo = g.globalAlpha;
+        g.globalAlpha = gl * 0.3;
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+          drawText(g, txt, dx + ox, dy + oy, ss, cor);
+        g.globalAlpha = salvo;
       }
+      drawText(g, txt, dx, dy, ss, cor);
     }
     g.globalAlpha = 1;
 
@@ -3895,9 +3910,7 @@
                        : rect(hint.who === 0 ? LEN * 0.26 : LEN * 0.74, SPAN / 2, 0, 0);
       const col = hint.col || (middle ? COL.time : (hint.who === 0 ? COL.p1 : COL.p2));
       g.globalAlpha = Math.min(1, hint.t * 2);
-      /* Efeitos anunciam-se todos no mesmo corpo (2). A escala 3 é reservada
-         a eventos de partida — ponto final, gente entrando na sala. */
-      const esc = hint.esc || 2;
+      const esc = hint.esc || (middle ? 3 : 2);
       if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
       else centered(g, hint.txt, p[0], p[1] - 10, esc, col, maxTextW);
       g.globalAlpha = 1;
@@ -4614,6 +4627,7 @@
       corrBola.b *= Math.exp(-dt / 0.05);
       for (let i = 0; i < 2; i++)
         if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
+        if (i === 0 && scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
       if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
 
       // Tira e devolve a cor conforme a tempestade entra e sai
