@@ -1,0 +1,4922 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="mobile-web-app-capable" content="yes">
+<title>RAINBOW PONG — Vídeo-Raio Mod. P-72</title>
+
+<style>
+  /* ── Paleta única e deliberada: sala escura, vidro de CRT, plástico amarelado ── */
+  :root {
+    --void:        #0d1012;
+    --void-warm:   #16191a;
+    --screen:      #161b1d;
+    --screen-edge: #0a0d0e;
+
+    --p1:          #c86f63;  /* vermelho de fósforo, desbotado */
+    --p2:          #6d90b6;  /* azul de fósforo, desbotado    */
+    --net:         #7fa06a;  /* verde-sálvia                  */
+    --ball:        #d8c48d;  /* âmbar                         */
+
+    --plastic:     #c2b69c;
+    --plastic-hi:  #dcd2bb;
+    --plastic-lo:  #9d9179;
+    --plastic-edge:#6d6450;
+    --paper:       #cfc5ac;
+
+    --ink:         #2f2c24;
+    --ink-soft:    #605844;
+    --ink-faint:   #857b63;
+    --body-ink:    #3d382c;
+    --footer-ink:  #4d4a41;
+
+    /* Peças físicas do gabinete, trocadas em bloco pelo tema escuro */
+    --frame:       #4b4536;
+    --key-hi:      #e0d6bf;
+    --key-mid:     #c5b99f;
+    --key-lo:      #b3a68b;
+    --key-hi-h:    #eae0c9;
+    --key-mid-h:   #cec2a8;
+    --key-lo-h:    #bcaf94;
+    --key-on-a:    #9c9078;
+    --key-on-b:    #ada18a;
+    --key-on-ink:  #1f1d17;
+    --ghost-a:     #c9bda6;
+    --ghost-b:     #b6aa90;
+    --led-off:     #6f6553;
+    --prim-a:      #c8776a;
+    --prim-b:      #ab5d52;
+    --prim-c:      #964f45;
+    --prim-edge:   #6c3a33;
+    --prim-ink:    #f0e6d2;
+    --rule:        rgba(47,44,36,0.35);
+    --rule-mid:    rgba(47,44,36,0.28);
+    --rule-soft:   rgba(47,44,36,0.10);
+    --sheen:       rgba(255,255,255,0.30);
+    --card-edge:   rgba(0,0,0,0.08);
+    --emboss:      rgba(255,255,255,0.45);
+    --halo:        #23292b;
+    --focus:       #4a5f78;
+
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    background-image:
+      radial-gradient(120% 90% at 50% -10%, var(--halo) 0%, var(--void-warm) 45%, var(--void) 100%);
+    background-attachment: fixed;
+    color: var(--plastic);
+    font-family: var(--sans);
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: clamp(14px, 4vw, 56px) clamp(12px, 4vw, 40px) 48px;
+    display: flex;
+    justify-content: center;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .room {
+    width: 100%;
+    max-width: 1160px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(16px, 3.5vw, 40px);
+  }
+
+  /* ── Cabeçalho ─────────────────────────────────────────── */
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+  .logo {
+    display: block;
+    width: min(340px, 62vw);
+    height: auto;
+    image-rendering: pixelated;
+  }
+  .tagline {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ── Gabinete ──────────────────────────────────────────── */
+  /* Gabinete à esquerda, manual encostado nele. */
+  .deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1.62fr) minmax(290px, 1fr);
+    gap: clamp(16px, 3vw, 30px);
+    align-items: start;
+  }
+  @media (max-width: 940px) {
+    .deck { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .cabinet {
+    background: linear-gradient(178deg, var(--plastic-hi) 0%, var(--plastic) 22%, var(--plastic-lo) 100%);
+    border-radius: 18px 18px 10px 10px;
+    padding: clamp(10px, 2.2vw, 22px);
+    box-shadow:
+      inset 0 1px 0 var(--emboss),
+      inset 0 -3px 0 rgba(0,0,0,0.22),
+      0 26px 50px -18px rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .screen-frame {
+    background: var(--frame);
+    border-radius: 14px;
+    padding: clamp(8px, 1.6vw, 16px);
+    box-shadow:
+      inset 0 2px 5px rgba(0,0,0,0.6),
+      0 1px 0 rgba(255,255,255,0.3);
+    display: flex;
+    justify-content: center;
+  }
+
+  /* A largura e a altura em px são definidas pelo script, conforme a tela */
+  .screen {
+    position: relative;
+    /* Medida de reserva: sem isto a tela depende só do JavaScript para ter
+       tamanho, e qualquer falha antes do layout faz o jogo sumir da página
+       enquanto todo o resto continua aparecendo. */
+    width: 100%;
+    aspect-ratio: 512 / 320;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--screen-edge);
+    box-shadow:
+      inset 0 0 0 2px #1b1e1c,
+      inset 0 0 34px 10px rgba(0,0,0,0.75);
+    line-height: 0;
+    touch-action: none;
+    max-width: 100%;
+  }
+  #game {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+  @media (hover: hover) and (pointer: fine) { #game { cursor: none; } }
+  .screen:focus-visible { outline: 3px solid var(--ball); outline-offset: 3px; }
+
+  /* Vidro: linhas de varredura + vinheta. Desligado pela classe .plain */
+  .glass {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.30) 0px, rgba(0,0,0,0.30) 1px,
+        rgba(0,0,0,0.00) 2px, rgba(0,0,0,0.00) 4px
+      ),
+      radial-gradient(115% 120% at 50% 45%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%);
+    transition: opacity 220ms ease;
+  }
+  .screen.plain .glass { opacity: 0; }
+
+  .badge-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 4px;
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .badge-row .brand { color: var(--ink); font-weight: 700; }
+
+  /* ── Painel de controle ────────────────────────────────── */
+  /* Duas colunas fixas: os grupos fecham em pares certos, sem sobra órfã.
+     O comando principal atravessa as duas, no alto. */
+  .panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px clamp(12px, 2vw, 20px);
+    padding: 16px 14px 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.02));
+    border-radius: 10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.18);
+  }
+  .group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .group.wide {
+    grid-column: 1 / -1;
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  @media (max-width: 430px) {
+    .panel { grid-template-columns: minmax(0, 1fr); }
+  }
+  .legend {
+    font-family: var(--mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* Botões físicos */
+  .key {
+    flex: 1 1 auto;
+    appearance: none;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    padding: 9px 10px;
+    border: 1px solid var(--plastic-edge);
+    border-radius: 5px;
+    background: linear-gradient(180deg, var(--key-hi) 0%, var(--key-mid) 55%, var(--key-lo) 100%);
+    box-shadow: 0 3px 0 var(--plastic-edge), 0 5px 8px rgba(0,0,0,0.32);
+    cursor: pointer;
+    transition: transform 60ms ease, box-shadow 60ms ease, background 140ms ease;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+  .key:hover { background: linear-gradient(180deg, var(--key-hi-h) 0%, var(--key-mid-h) 55%, var(--key-lo-h) 100%); }
+  .key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--plastic-edge), 0 2px 4px rgba(0,0,0,0.3); }
+  .key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .key[aria-pressed="true"] {
+    background: linear-gradient(180deg, var(--key-on-a) 0%, var(--key-on-b) 100%);
+    color: var(--key-on-ink);
+    transform: translateY(3px);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.28);
+  }
+  .key[hidden] { display: none; }
+
+  .key.toggle { display: flex; align-items: center; gap: 8px; justify-content: flex-start; }
+  .led {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--led-off);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,0.5);
+    flex: none;
+  }
+  .key[aria-pressed="true"] .led {
+    background: var(--p1);
+    box-shadow: 0 0 7px 1px var(--p1), inset 0 0 2px rgba(255,255,255,0.5);
+  }
+
+  .key.primary {
+    flex: 2 1 170px;
+    padding: 13px 12px;
+    font-size: 0.8125rem;
+    letter-spacing: 0.2em;
+    color: var(--prim-ink);
+    background: linear-gradient(180deg, var(--prim-a) 0%, var(--prim-b) 60%, var(--prim-c) 100%);
+    border-color: var(--prim-edge);
+    box-shadow: 0 4px 0 var(--prim-edge), 0 7px 12px rgba(0,0,0,0.4);
+  }
+  .key.primary:hover { filter: brightness(1.1); }
+  .key.primary:active { transform: translateY(4px); box-shadow: 0 0 0 var(--prim-edge), 0 2px 5px rgba(0,0,0,0.35); }
+
+  .key.ghost { background: linear-gradient(180deg, var(--ghost-a) 0%, var(--ghost-b) 100%); }
+
+  /* Sala: código à mostra e campo para digitar o do outro */
+  #sala-estado {
+    float: right;
+    letter-spacing: 0.18em;
+    color: var(--ink);
+  }
+  #sala-estado.ligada { color: var(--p1); }
+  .codigo {
+    flex: 0 1 96px;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 9px 6px;
+    color: var(--ink);
+    background: var(--rule-soft);
+    border: 1px solid var(--plastic-edge);
+    border-radius: 5px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.35);
+  }
+  .codigo::placeholder { color: var(--ink-faint); letter-spacing: 0.12em; }
+  .codigo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .codigo[hidden], .key[hidden] { display: none; }
+  .sala-nota {
+    margin: 8px 0 0;
+    font-family: var(--sans);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .sala-nota[hidden] { display: none; }
+
+  /* ── Legenda dos itens ─────────────────────────────────── */
+  .guide {
+    background: var(--paper);
+    background-image: linear-gradient(184deg, var(--sheen), rgba(0,0,0,0.06));
+    border-radius: 4px;
+    padding: clamp(16px, 2.2vw, 24px);
+    color: var(--ink);
+    box-shadow: 0 18px 34px -16px rgba(0,0,0,0.8), inset 0 0 0 1px var(--card-edge);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-self: stretch;
+  }
+  .guide h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--rule);
+  }
+
+  .items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .items li {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+  .icon {
+    width: 34px; height: 34px;
+    image-rendering: pixelated;
+    align-self: center;
+  }
+  .items h3 {
+    margin: 0 0 3px;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .items p { margin: 0; font-size: 0.8125rem; line-height: 1.45; color: var(--body-ink); }
+  .items em { font-style: normal; color: var(--ink); border-bottom: 1px solid var(--rule); }
+
+  .tip {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--body-ink);
+    padding: 10px 12px;
+    border-radius: 3px;
+    background: var(--rule-soft);
+  }
+  .tip strong { color: var(--ink); }
+
+  .scoreline {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    padding-top: 14px;
+    border-top: 1px dashed var(--rule);
+  }
+  .scoreline b { color: var(--ink); }
+
+  /* Faixa de diagnóstico: só aparece quando algo quebra de verdade. */
+  .erro {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #3a1114;
+    color: #ffd9dc;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  }
+  .erro[hidden] { display: none; }
+  .erro strong { color: #ff8f99; flex: none; }
+  .erro span { flex: 1 1 auto; word-break: break-word; }
+  .erro .key { flex: none; }
+
+  /* ── Histórico de partidas ─────────────────────────────── */
+  .history {
+    background: var(--paper);
+    background-image: linear-gradient(184deg, var(--sheen), rgba(0,0,0,0.06));
+    border-radius: 4px;
+    padding: clamp(16px, 2.2vw, 24px);
+    color: var(--ink);
+    box-shadow: 0 18px 34px -16px rgba(0,0,0,0.8), inset 0 0 0 1px var(--card-edge);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .history h2 {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .key.tiny {
+    flex: none;
+    padding: 5px 9px;
+    font-size: 0.5625rem;
+    letter-spacing: 0.16em;
+    box-shadow: 0 2px 0 var(--plastic-edge), 0 3px 6px rgba(0,0,0,0.25);
+  }
+
+  .tally {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(14px, 4vw, 34px);
+    font-family: var(--mono);
+  }
+  .tally .side { display: flex; align-items: center; gap: 12px; }
+  .tally .side.right { flex-direction: row; }
+  .tally .who {
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .tally b {
+    font-size: 2rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .tally #tally-1 { color: var(--p1); }
+  .tally #tally-2 { color: var(--p2); }
+  .tally .versus {
+    font-size: 0.5625rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .matches { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .matches li {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: baseline;
+    padding: 7px 0;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--body-ink);
+  }
+  .matches .res {
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    min-width: 62px;
+  }
+  .matches .win { color: var(--p1); }
+  .matches .loss { color: var(--p2); }
+  .matches .meta { color: var(--ink-faint); letter-spacing: 0.08em; }
+  .matches .dur { color: var(--ink); }
+  .matches .ago { color: var(--ink-faint); text-align: right; }
+
+  .hist-note {
+    margin: 0;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+    color: var(--ink-faint);
+  }
+  .hist-note:empty { display: none; }
+
+  footer {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--footer-ink);
+  }
+
+  .sr {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+
+  /* ── Modo escuro: mesmo gabinete, feito de grafite e luz fria ──
+     Troca só os tokens; nenhuma regra de componente sabe que o tema existe. */
+  body.dark {
+    --void:        #04050b;
+    --void-warm:   #080b14;
+    --screen:      #080b14;
+    --screen-edge: #020307;
+
+    --plastic:     #171c2b;
+    --plastic-hi:  #232a3e;
+    --plastic-lo:  #0e1220;
+    --plastic-edge:#39456b;
+    --paper:       #0c1019;
+
+    --ink:         #e6f0ff;
+    --ink-soft:    #93a8cf;
+    --ink-faint:   #64789f;
+    --body-ink:    #b6c7e6;
+    --footer-ink:  #4a5980;
+
+    --frame:       #0f1424;
+    --key-hi:      #283149;
+    --key-mid:     #1b2233;
+    --key-lo:      #131926;
+    --key-hi-h:    #35405e;
+    --key-mid-h:   #232c42;
+    --key-lo-h:    #1a2233;
+    --key-on-a:    #0c1120;
+    --key-on-b:    #1a2234;
+    --key-on-ink:  #e6f0ff;
+    --ghost-a:     #1e2537;
+    --ghost-b:     #151b29;
+    --led-off:     #2a3350;
+    --prim-a:      #ff5f7e;
+    --prim-b:      #dd3560;
+    --prim-c:      #a81f4a;
+    --prim-edge:   #5e0f2c;
+    --prim-ink:    #fff0f4;
+
+    --rule:        rgba(150,180,240,0.32);
+    --rule-mid:    rgba(150,180,240,0.24);
+    --rule-soft:   rgba(150,180,240,0.09);
+    --sheen:       rgba(120,170,255,0.05);
+    --card-edge:   rgba(140,180,255,0.14);
+    --emboss:      rgba(180,210,255,0.10);
+    --halo:        #101a2e;
+    --focus:       #7fd4ff;
+  }
+  body.dark .cabinet {
+    box-shadow:
+      inset 0 1px 0 var(--emboss),
+      inset 0 -3px 0 rgba(0,0,0,0.4),
+      0 0 0 1px rgba(120,170,255,0.10),
+      0 30px 60px -20px #000;
+  }
+  body.dark .screen {
+    box-shadow:
+      inset 0 0 0 2px #0b1020,
+      inset 0 0 40px 14px rgba(0,0,0,0.85),
+      0 0 30px -20px var(--p1);
+  }
+  body.dark .glass {
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.34) 0px, rgba(0,0,0,0.34) 1px,
+        rgba(0,0,0,0.00) 2px, rgba(0,0,0,0.00) 4px
+      ),
+      radial-gradient(115% 120% at 50% 45%, rgba(120,190,255,0.07) 0%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.62) 100%);
+  }
+  body.dark .guide { background-image: linear-gradient(184deg, var(--sheen), rgba(0,0,0,0.25)); }
+
+  /* ── Modo imersivo: só a quadra, borda a borda ─────────── */
+  body.immersive { padding: 0; overflow: hidden; }
+  body.immersive .room { gap: 0; max-width: none; }
+  body.immersive .masthead,
+  body.immersive .panel,
+  body.immersive .badge-row,
+  body.immersive .guide,
+  body.immersive .history,
+  body.immersive footer { display: none; }
+  body.immersive .cabinet,
+  body.immersive .screen-frame {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    border-radius: 0;
+  }
+  body.immersive .screen {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 0;
+    z-index: 40;
+    box-shadow: inset 0 0 70px 22px rgba(0,0,0,0.72);
+  }
+
+  /* Os dois comandos ficam na altura da rede, encostados na borda direita:
+     um ao norte da linha do meio, outro ao sul. Longe do trajeto das duas
+     raquetes, que trabalham nas pontas. */
+  .hud {
+    position: fixed;
+    z-index: 50;
+    top: 50%;
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .hud[hidden] { display: none; }
+
+  /* Só o ícone: sem caixa, sem plástico, sem sombra de botão. O recheio dá
+     área de toque sem aparecer. */
+  .hud .key,
+  .hud .key:hover,
+  .hud .key[aria-pressed="true"] {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    padding: 9px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    box-shadow: none;
+    color: var(--net);
+    transform: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hud .key { opacity: 0.5; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+  .hud .key:active { transform: scale(0.88); }
+  .hud .ic { width: 13px; height: 13px; fill: currentColor; display: none; }
+  .hud .key.icon > .ic:only-of-type { display: block; }
+  .hud .key.icon[data-icon="play"] .ic-play { display: block; }
+  .hud .key.icon[data-icon="pause"] .ic-pause { display: block; }
+
+  /* Durante o rally o HUD quase some, para não disputar espaço com a raquete */
+  .hud.faded .key { opacity: 0.22; }
+  .hud .key:hover, .hud .key:focus-visible { opacity: 1; }
+  .hud .key:focus-visible { outline: 2px solid var(--net); outline-offset: 1px; }
+
+  @media (pointer: coarse) {
+    .hud .key { padding: 15px; }          /* 16 + 30 = 46px de alvo, sem caixa visível */
+    .hud .ic { width: 16px; height: 16px; }
+  }
+
+  /* ── Telas estreitas ───────────────────────────────────── */
+  @media (max-width: 760px) {
+    body { padding: 12px 10px 28px; }
+    .room { gap: 14px; }
+    .masthead { gap: 8px; }
+    .tagline { font-size: 0.5625rem; letter-spacing: 0.18em; }
+    .cabinet { border-radius: 14px; gap: 10px; }
+    .panel { gap: 10px; padding: 12px 10px; }
+    .badge-row { font-size: 0.5rem; letter-spacing: 0.18em; }
+    footer { letter-spacing: 0.14em; }
+  }
+  /* Celular deitado: o campo é largo e baixo, então o cabeçalho sai da frente */
+  @media (max-height: 480px) and (orientation: landscape) {
+    body { padding: 8px 10px 16px; }
+    .masthead, footer { display: none; }
+  }
+  /* Dedo, não mouse: alvos maiores */
+  @media (pointer: coarse) {
+    .key { padding: 13px 10px; font-size: 0.75rem; }
+    .key.primary { padding: 16px 12px; }
+    .cap { min-width: 86px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .key, .glass { transition: none; }
+  }
+</style>
+
+</head>
+<body>
+<div class="room">
+
+  <header class="masthead">
+    <canvas id="logo" class="logo" role="img" aria-label="Rainbow Pong"></canvas>
+    <p class="tagline">Vídeo-Raio · Mod. P-72 · Sete cores de fósforo</p>
+  </header>
+
+  <div class="deck">
+
+    <div class="cabinet">
+      <div class="screen-frame">
+        <div class="screen" id="screen" tabindex="0" role="application"
+             aria-label="Mesa de jogo. Arraste o dedo na sua metade da tela, ou use o mouse, as setas e as teclas W e S.">
+          <canvas id="game" width="512" height="320"></canvas>
+          <div class="glass" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div class="badge-row">
+        <span class="brand">Vídeo-Raio</span>
+        <span id="badge-mode">Série 1972</span>
+      </div>
+
+      <div class="panel">
+        <div class="group wide">
+          <span class="legend" id="lg-acao">Partida</span>
+          <div class="row" role="group" aria-labelledby="lg-acao">
+            <button class="key primary" id="btn-play">Jogar</button>
+            <button class="key ghost" id="btn-reset">Reiniciar</button>
+            <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <span class="legend" id="lg-modo">Modo</span>
+          <div class="row" role="group" aria-labelledby="lg-modo">
+            <button class="key" data-mode="1p" aria-pressed="true">1 jogador</button>
+            <button class="key" data-mode="2p" aria-pressed="false">2 jogadores</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <span class="legend" id="lg-nivel">Nível do computador</span>
+          <div class="row" role="group" aria-labelledby="lg-nivel">
+            <button class="key" data-diff="facil" aria-pressed="false">Fácil</button>
+            <button class="key" data-diff="normal" aria-pressed="true">Normal</button>
+            <button class="key" data-diff="dificil" aria-pressed="false">Difícil</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <span class="legend" id="lg-imagem">Imagem</span>
+          <div class="row" role="group" aria-labelledby="lg-imagem">
+            <button class="key toggle" id="btn-dark" aria-pressed="false"><span class="led"></span>Escuro</button>
+            <button class="key toggle" id="btn-crt" aria-pressed="true"><span class="led"></span>Tubo</button>
+          </div>
+        </div>
+
+        <div class="group wide sala-grupo">
+          <span class="legend" id="lg-sala">Sala <span id="sala-estado">desligada</span></span>
+          <div class="row" role="group" aria-labelledby="lg-sala">
+            <button class="key" id="sala-criar">Criar sala</button>
+            <button class="key" id="sala-entrar">Entrar</button>
+            <input class="codigo" id="sala-codigo" maxlength="4" autocomplete="off"
+                   spellcheck="false" autocapitalize="characters" autocorrect="off"
+                   enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
+            <button class="key ghost" id="sala-sair" hidden>Sair</button>
+          </div>
+          <p class="sala-nota" id="sala-nota" hidden></p>
+        </div>
+
+        <div class="group">
+          <span class="legend" id="lg-som">Som e cores</span>
+          <div class="row" role="group" aria-labelledby="lg-som">
+            <button class="key toggle" id="btn-som" aria-pressed="true"><span class="led"></span>Som</button>
+            <button class="key" id="cor">Girar cores</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="guide">
+      <h2>Os oito itens</h2>
+
+      <ul class="items">
+        <li>
+          <canvas class="icon" data-item="fire" role="img" aria-label="Chama"></canvas>
+          <div>
+            <h3>Bola de fogo</h3>
+            <p>Acende na sua rebatida e quase dobra a velocidade. Quem defender <em>ganha raquete maior</em>.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="star" role="img" aria-label="Estrela"></canvas>
+          <div>
+            <h3>Estrela</h3>
+            <p>Acende na sua rebatida e <em>acelera a bola até o fim do ponto</em>.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="gem" role="img" aria-label="Cristal"></canvas>
+          <div>
+            <h3>Cristal do tempo</h3>
+            <p>Sem dono: a bola encosta e o jogo entra em <em>câmera lenta por 2,5 segundos</em>.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="poison" role="img" aria-label="Espiral"></canvas>
+          <div>
+            <h3>Espiral do veneno</h3>
+            <p>Sem dono e sem perdão: <em>as duas raquetes encolhem pela metade</em> por 5 segundos.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="gum" role="img" aria-label="Chiclete"></canvas>
+          <div>
+            <h3>Chiclete</h3>
+            <p>Sem dono: a bola encosta, <em>dobra de tamanho e perde um quarto da velocidade</em>. Volta ao normal no ponto seguinte.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="rainbow" role="img" aria-label="Rainbow ball"></canvas>
+          <div>
+            <h3>Rainbow ball</h3>
+            <p>Sem guardar: a bola encosta e <em>passa a vibrar nas cores dos sete itens</em>. Você leva o efeito da cor em que ela estiver ao tocar sua raquete.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="heart" role="img" aria-label="Coração"></canvas>
+          <div>
+            <h3>Coração</h3>
+            <p><em>Uma vez por partida</em>: 30 segundos pulsando no meio do campo. Devolve a bola e engorda a raquete de quem acerta, <strong>mais a cada acerto</strong>.</p>
+          </div>
+        </li>
+        <li>
+          <canvas class="icon" data-item="bolt" role="img" aria-label="Raio"></canvas>
+          <div>
+            <h3>Raio</h3>
+            <p>O mais raro. <em>A cor some do campo por 10 segundos</em> e o estouro fulmina os itens — só o coração resiste.</p>
+          </div>
+        </li>
+      </ul>
+
+      <p class="tip">Você carrega <strong>um item por vez</strong>. Pegue passando a bola por cima dele; solte com <strong>dois toques na sua metade</strong> da tela — ou <strong>E</strong> e <strong>/</strong> no teclado.</p>
+
+      <div class="scoreline" id="scoreline">Jogador 1 <b>0</b> · <b>0</b> Computador — até 7 pontos</div>
+    </aside>
+
+  </div>
+
+  <section class="history" id="history">
+    <h2>Histórico <button class="key ghost tiny" id="hist-clear">Limpar</button></h2>
+
+    <div class="tally" id="tally">
+      <div class="side">
+        <span class="who">Jogador 1</span>
+        <b id="tally-1">0</b>
+      </div>
+      <span class="versus">vitórias</span>
+      <div class="side right">
+        <b id="tally-2">0</b>
+        <span class="who">Computador</span>
+      </div>
+    </div>
+
+    <ol class="matches" id="matches"></ol>
+    <p class="hist-note" id="hist-note"></p>
+  </section>
+
+  <div class="erro" id="erro" hidden>
+    <strong>Falhou aqui:</strong> <span id="erro-msg"></span>
+    <button class="key tiny" id="erro-fechar">fechar</button>
+  </div>
+
+  <div class="hud" id="hud" hidden>
+    <button class="key icon" id="hud-pause" data-icon="play" aria-label="Jogar">
+      <svg class="ic ic-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.4 13.2 8 4 13.6z"/></svg>
+      <svg class="ic ic-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.8h3.1v10.4H4zM8.9 2.8H12v10.4H8.9z"/></svg>
+    </button>
+    <button class="key ghost icon" id="hud-exit" aria-label="Sair da tela cheia">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8.6 1.8H2.4v12.4h6.2v-1.9H4.3V3.7h4.3z"/>
+        <path d="M10.4 4.3 14.6 8l-4.2 3.7V9.1H6.6V6.9h3.8z"/>
+      </svg>
+    </button>
+  </div>
+
+  <p class="sr" id="live" role="status" aria-live="polite"></p>
+  <footer>Rainbow Pong · Reprodução doméstica de um clássico de 1972</footer>
+</div>
+
+<script>
+/* Relator de falhas: fica fora do jogo, de propósito, para funcionar mesmo que
+   o jogo inteiro morra na carga. Mostra na tela o que quebrou e onde. */
+(() => {
+  let mostrado = false;
+  window.relatarFalha = function (o, onde) {
+    if (mostrado) return;
+    mostrado = true;
+    const faixa = document.getElementById("erro");
+    const msg = document.getElementById("erro-msg");
+    if (!faixa || !msg) return;
+    const texto = o && o.stack ? String(o.stack).split("\n").slice(0, 3).join(" · ")
+                : o && o.message ? o.message : String(o);
+    msg.textContent = (onde ? onde + ": " : "") + texto;
+    faixa.hidden = false;
+    const fechar = document.getElementById("erro-fechar");
+    if (fechar) fechar.onclick = () => { faixa.hidden = true; mostrado = false; };
+  };
+  addEventListener("error", e => relatarFalha(e.error || e.message, "carga"));
+  addEventListener("unhandledrejection", e => relatarFalha(e.reason, "promessa"));
+})();
+
+(() => {
+  "use strict";
+
+  /* ══════════════════════════════════════════════════════════
+     1. Fonte de bitmap 5×7, desenhada à mão
+     ══════════════════════════════════════════════════════════ */
+  const F = {
+    "A":"01110,10001,10001,11111,10001,10001,10001",
+    "Ã":"01101,10110,01110,10001,11111,10001,10001",
+    "Ç":"01110,10001,10000,10000,10001,01110,00100",
+    "Í":"00110,01100,11111,00100,00100,00100,11111",
+    "B":"11110,10001,10001,11110,10001,10001,11110",
+    "C":"01110,10001,10000,10000,10000,10001,01110",
+    "D":"11110,10001,10001,10001,10001,10001,11110",
+    "E":"11111,10000,10000,11110,10000,10000,11111",
+    "F":"11111,10000,10000,11110,10000,10000,10000",
+    "G":"01110,10001,10000,10111,10001,10001,01111",
+    "H":"10001,10001,10001,11111,10001,10001,10001",
+    "I":"11111,00100,00100,00100,00100,00100,11111",
+    "J":"00111,00010,00010,00010,00010,10010,01100",
+    "K":"10001,10010,10100,11000,10100,10010,10001",
+    "L":"10000,10000,10000,10000,10000,10000,11111",
+    "M":"10001,11011,10101,10101,10001,10001,10001",
+    "N":"10001,11001,10101,10011,10001,10001,10001",
+    "O":"01110,10001,10001,10001,10001,10001,01110",
+    "P":"11110,10001,10001,11110,10000,10000,10000",
+    "Q":"01110,10001,10001,10001,10101,10010,01101",
+    "R":"11110,10001,10001,11110,10100,10010,10001",
+    "S":"01111,10000,10000,01110,00001,00001,11110",
+    "T":"11111,00100,00100,00100,00100,00100,00100",
+    "U":"10001,10001,10001,10001,10001,10001,01110",
+    "V":"10001,10001,10001,10001,10001,01010,00100",
+    "W":"10001,10001,10001,10101,10101,11011,10001",
+    "X":"10001,10001,01010,00100,01010,10001,10001",
+    "Y":"10001,10001,01010,00100,00100,00100,00100",
+    "Z":"11111,00001,00010,00100,01000,10000,11111",
+    "0":"01110,10001,10011,10101,11001,10001,01110",
+    "1":"00100,01100,00100,00100,00100,00100,01110",
+    "2":"01110,10001,00001,00110,01000,10000,11111",
+    "3":"11111,00010,00100,00010,00001,10001,01110",
+    "4":"00010,00110,01010,10010,11111,00010,00010",
+    "5":"11111,10000,11110,00001,00001,10001,01110",
+    "6":"00110,01000,10000,11110,10001,10001,01110",
+    "7":"11111,00001,00010,00100,01000,01000,01000",
+    "8":"01110,10001,10001,01110,10001,10001,01110",
+    "9":"01110,10001,10001,01111,00001,00010,01100",
+    " ":"00000,00000,00000,00000,00000,00000,00000",
+    "+":"00000,00100,00100,11111,00100,00100,00000",
+    "-":"00000,00000,00000,11111,00000,00000,00000",
+    "!":"00100,00100,00100,00100,00100,00000,00100",
+    ".":"00000,00000,00000,00000,00000,01100,01100",
+    ":":"00000,01100,01100,00000,01100,01100,00000",
+    "?":"01110,10001,00001,00010,00100,00000,00100",
+    "×":"00000,10001,01010,00100,01010,10001,00000",
+    "/":"00001,00010,00010,00100,01000,01000,10000",
+    "<":"00010,00100,01000,10000,01000,00100,00010",
+    ">":"01000,00100,00010,00001,00010,00100,01000"
+  };
+  const TAIL = { "Ç":"00100" };   // cedilha, na linha de descida
+  F["Ç"] = F["C"];
+
+  const CW = 5, CH = 7, GAP = 1;
+  const glyph = ch => F[ch] || F[" "];
+  const textWidth = (str, s) => str.length * (CW + GAP) * s - GAP * s;
+
+  function drawText(g, str, x, y, s, color) {
+    g.fillStyle = color;
+    let cx = Math.round(x);
+    for (const ch of str.toUpperCase()) {
+      const rows = glyph(ch).split(",");
+      for (let r = 0; r < CH; r++) {
+        for (let c = 0; c < CW; c++) {
+          if (rows[r][c] === "1") g.fillRect(cx + c * s, y + r * s, s, s);
+        }
+      }
+      const tail = TAIL[ch];
+      if (tail) for (let c = 0; c < CW; c++) {
+        if (tail[c] === "1") g.fillRect(cx + c * s, y + CH * s, s, s);
+      }
+      cx += (CW + GAP) * s;
+    }
+  }
+
+  /** Maior escala inteira em que o texto cabe na largura disponível. */
+  function fitScale(str, maxW, desired) {
+    let s = desired;
+    while (s > 1 && textWidth(str, s) > maxW) s--;
+    return s;
+  }
+
+  function centered(g, str, cx, y, desired, color, maxW) {
+    const s = fitScale(str, maxW, desired);
+    drawText(g, str, cx - textWidth(str, s) / 2, y, s, color);
+    return CH * s;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     2. Cores e logotipo
+     ══════════════════════════════════════════════════════════ */
+  /* Os cinco elementos coloridos giram juntos na roda. Como todos andam a mesma
+     distância, a relação entre eles — e a legibilidade de um contra o outro —
+     é a mesma em qualquer posição. Só o cinza da parede e o vidro ficam
+     parados, para o campo continuar sendo campo. */
+  /* Os matizes ficam fixos — o que muda entre os dois temas é a intensidade.
+     No claro, fósforo desbotado de 1972; no escuro, o mesmo tubo levado ao
+     talo, com brilho em volta das peças. A chama nunca entra na roda. */
+  // Só as raquetes giram. Rede, bola e itens ficam fora da roda.
+  const HUES = { p1: 7, p2: 211 };
+  const TINTED = Object.keys(HUES);
+
+  /* Fora da roda e fora dos temas: a bola é sempre branca, o fogo é sempre
+     aquele vermelho da primeira versão, e o relógio é sempre o mesmo azul. São
+     os três pontos de referência que o jogador nunca precisa reaprender. */
+  const FIXED = {
+    ball:     "#f4f0e4",   // branca, para sempre
+    net:      "#d5d0c2",   // a rede: mesmo branco, um tom abaixo da bola
+    fire:     "#c86f63",
+    fireDark: "#a85a4f",
+    ember:    "#d8c48d",   // o âmbar interno da chama
+    core:     "#f4ead2",
+    time:     "#8fd2e8",   // o corpo do cristal
+    timeDark: "#3f88ad",   // as arestas
+    star:     "#e6d492",   // corpo da estrela, no mesmo pastel do cristal
+    starHi:   "#faf2d5",   // brilho, em cima e à esquerda
+    starLo:   "#c8b273",   // sombra, embaixo e à direita
+    starEdge: "#a08f52",
+    venom:     "#bf95e0",   // a espiral
+    venomHi:   "#e6d4f2",
+    venomMid:  "#9b74c2",
+    venomDark: "#7a5296",
+    smokeA:    "#c79ad8",   // fumaça roxa
+    smokeB:    "#d79dc4",   // e a puxada para o rosa
+    heart:     "#86d69b",   // o coração
+    heartHi:   "#daf2e2",
+    heartLo:   "#5fae78",
+    heartEdge: "#3d7a52",
+    bolt:      "#eef2f8",   // o raio
+    boltHi:    "#ffffff",
+    boltLo:    "#c3cbd8",
+    boltEdge:  "#8892a3",
+    gum:       "#ff9ec4",   // o chiclete
+    gumHi:     "#ffdcea",
+    gumLo:     "#d96a97",
+    gumEdge:   "#a44870"
+  };
+
+  const THEMES = {
+    claro: {
+      sl:   { p1: [48, 59], p2: [33, 57] },
+      dim:  "#3c474b",
+      screen: "#161b1d",
+      fade: "rgba(22,27,29,0.80)",
+      veil: "13,16,18",
+      glow: 0
+    },
+    escuro: {
+      sl:   { p1: [92, 64], p2: [88, 63] },
+      dim:  "#1e2c49",
+      screen: "#080b14",
+      fade: "rgba(8,11,20,0.76)",
+      veil: "4,5,11",
+      glow: 1
+    }
+  };
+
+  let theme = THEMES.claro;
+  const COL = {};
+
+  /* ── Roda de cores ──
+     Doze casas, 30° por vez. Gira pelo botão do painel e, sobretudo, toda vez
+     que alguém dispara a bola de fogo. */
+  const WHEEL = 12;
+  let spoke = 0;
+
+  const offset = () => spoke * (360 / WHEEL);
+
+  /** Anda `n` casas na roda e repinta tudo. */
+  function turnWheel(n) {
+    spoke = (spoke + n + WHEEL) % WHEEL;
+    applyColors();
+  }
+
+  /** n cores igualmente espaçadas na roda, a partir da posição atual. */
+  function rainbow(n, sat, lum) {
+    const off = offset();
+    return Array.from({ length: n }, (_, i) =>
+      `hsl(${(off + i * 360 / n) % 360}, ${sat}%, ${lum}%)`);
+  }
+
+  /* PURE guarda sempre as cores de verdade; COL é o que o canvas usa e pode
+     estar dessaturado durante a tempestade. A página — logotipo e legenda —
+     lê sempre de PURE, então nunca perde a cor. */
+  const PURE = {};
+  let monoForca = 0;
+
+  function hexCinza(hex, f) {
+    const r = parseInt(hex.slice(1, 3), 16),
+          g0 = parseInt(hex.slice(3, 5), 16),
+          b = parseInt(hex.slice(5, 7), 16);
+    const y = r * 0.299 + g0 * 0.587 + b * 0.114;
+    const m = v => Math.round(v + (y - v) * f).toString(16).padStart(2, "0");
+    return `#${m(r)}${m(g0)}${m(b)}`;
+  }
+
+  function dessaturar(cor, f) {
+    if (f <= 0.001) return cor;
+    if (cor[0] === "#") return hexCinza(cor, f);
+    const m = /hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/.exec(cor);
+    if (!m) return cor;
+    return `hsl(${m[1]}, ${(+m[2] * (1 - f)).toFixed(1)}%, ${m[3]}%)`;
+  }
+
+  /** Recalcula só a paleta do canvas. Barato o bastante para rodar por quadro. */
+  function aplicarMono(f) {
+    monoForca = f;
+    for (const k of Object.keys(PURE)) COL[k] = dessaturar(PURE[k], f);
+  }
+
+  function applyColors() {
+    const off = offset();
+    for (const k of TINTED) {
+      const [sat, lum] = theme.sl[k];
+      PURE[k] = `hsl(${(HUES[k] + off) % 360}, ${sat}%, ${lum}%)`;
+      document.documentElement.style.setProperty("--" + k, PURE[k]);
+    }
+    Object.assign(PURE, FIXED);
+    PURE.dim = theme.dim;
+    PURE.screen = theme.screen;
+    aplicarMono(monoForca);
+    document.documentElement.style.setProperty("--ball", PURE.ball);
+    document.documentElement.style.setProperty("--net", PURE.net);
+    comCoresReais(() => { paintLogo(); paintIcons(); });
+  }
+
+  /** Roda `fn` com COL apontando para as cores verdadeiras e devolve como estava. */
+  function comCoresReais(fn) {
+    const salvo = Object.assign({}, COL);
+    Object.assign(COL, PURE);
+    try { fn(); } finally { Object.assign(COL, salvo); }
+  }
+
+  /** Peça com um halo translúcido em volta, só no tema escuro. */
+  function glowFill(color, a, b, la, lb) {
+    if (theme.glow) {
+      g.globalAlpha = 0.2;
+      fill(color, a - 2, b - 2, la + 4, lb + 4);
+      g.globalAlpha = 1;
+    }
+    fill(color, a, b, la, lb);
+  }
+
+  /* Os ícones da legenda são os mesmos sprites do jogo, não desenhos à parte:
+     o que a página mostra é literalmente o que aparece em campo. */
+  function paintIcons() {
+    for (const el of document.querySelectorAll(".icon[data-item]")) {
+      const sp = SPRITES[el.dataset.item];
+      if (!sp) continue;
+      const grade = sp.grade || sp.cell;
+      const s = Math.max(1, Math.floor(30 / grade));
+      const size = grade * s;
+      const off = (grade - sp.cell) * s / 2;
+      el.width = el.height = size;
+      const c = el.getContext("2d");
+      c.imageSmoothingEnabled = false;
+      c.clearRect(0, 0, size, size);
+      drawSprite(sp.rows, off, off, s, sp.map(), c);
+    }
+  }
+
+  function paintLogo() {
+    const el = document.getElementById("logo");
+    const s1 = 5, s2 = 9, pad = 16, gap = 13;
+    const w1 = textWidth("RAINBOW", s1), w2 = textWidth("PONG", s2);
+    const w = Math.max(w1, w2);
+    el.width = w + pad * 2;
+    el.height = CH * s1 + gap + CH * s2 + pad * 2;
+    const lg = el.getContext("2d");
+    lg.imageSmoothingEnabled = false;
+
+    // RAINBOW tem sete letras — uma para cada cor do arco-íris
+    const arc = rainbow(7, 42, 62);
+    let x = pad + (w - w1) / 2;
+    "RAINBOW".split("").forEach((ch, i) => {
+      drawText(lg, ch, x, pad, s1, arc[i]);
+      x += (CW + GAP) * s1;
+    });
+
+    // PONG carrega as quatro cores em vigor na mesa
+    const four = [COL.p1, COL.ball, COL.p2, COL.star];
+    x = pad + (w - w2) / 2;
+    "PONG".split("").forEach((ch, i) => {
+      drawText(lg, ch, x, pad + CH * s1 + gap, s2, four[i]);
+      x += (CW + GAP) * s2;
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     3. Som — ondas quadradas nas frequências do Pong original
+     ══════════════════════════════════════════════════════════ */
+  const Snd = {
+    ctx: null, on: true,
+    ensure() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) this.ctx = new AC();
+      }
+      if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+      return this.ctx;
+    },
+    beep(freq, ms) {
+      if (!this.on) return;
+      const ctx = this.ensure();
+      if (!ctx) return;
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + ms / 1000 + 0.02);
+    },
+    /** Varredura de frequência: o que não é bipe do Pong passa por aqui. */
+    warp(from, to, ms, type, vol) {
+      if (!this.on) return;
+      const ctx = this.ensure();
+      if (!ctx) return;
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = type;
+      const t = ctx.currentTime, dur = ms / 1000;
+      osc.frequency.setValueAtTime(from, t);
+      osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    },
+    buzz(ms) { if (this.on && navigator.vibrate) navigator.vibrate(ms); },
+    paddle() { this.beep(459, 90); this.buzz(8); },
+    wall()   { this.beep(226, 90); },
+    point()  { this.beep(490, 240); this.buzz(30); },
+    pickup() { this.beep(784, 70); setTimeout(() => this.beep(1046, 90), 80); this.buzz(14); },
+    star()   {
+      [880, 1174, 1568, 2093].forEach((f, i) => setTimeout(() => this.beep(f, 90), i * 55));
+      this.buzz([15, 25, 15, 25, 40]);
+    },
+    arm()    { this.beep(330, 120); },
+    fire()   { this.warp(880, 140, 450, "sawtooth", 0.11); this.buzz([30, 40, 60]); },
+    slow()   { this.warp(760, 120, 700, "triangle", 0.12); this.buzz([25, 35, 25, 35, 60]); },
+    venom()  { this.warp(300, 70, 900, "square", 0.10); this.buzz([60, 50, 60]); },
+    storm()  {
+      this.warp(1600, 90, 1100, "sawtooth", 0.13);
+      setTimeout(() => this.warp(900, 120, 500, "square", 0.08), 180);
+      this.buzz([80, 40, 120]);
+    },
+    thunder(){ this.warp(150, 42, 950, "sawtooth", 0.07); },
+    heart()  { this.beep(587, 70); setTimeout(() => this.beep(880, 110), 70); this.buzz(18); },
+    heartIn(){ [523, 659, 784].forEach((f, i) => setTimeout(() => this.beep(f, 120), i * 90)); },
+    pop()    { this.warp(1500, 260, 55, "sine", 0.07); },
+    premio() {
+      [523, 784, 1046, 1568].forEach((f, i) => setTimeout(() => this.beep(f, 110), i * 60));
+      this.buzz([25, 30, 25, 30, 55]);
+    },
+    gum()    {
+      this.warp(520, 130, 380, "sine", 0.11);
+      setTimeout(() => this.beep(196, 160), 120);
+      this.buzz([40, 30, 60]);
+    },
+    rainbow(){
+      [440, 622, 880, 1244].forEach((f, i) => setTimeout(() => this.beep(f, 90), i * 45));
+      this.warp(300, 1400, 420, "triangle", 0.08);
+      this.buzz([20, 25, 20, 25, 40]);
+    },
+    block()  { this.beep(180, 200); this.buzz(45); }
+  };
+
+  /* ══════════════════════════════════════════════════════════
+     4. Quadra em coordenadas próprias
+        a = eixo dos gols (0 = campo do jogador 1)
+        b = eixo lateral
+        A orientação da tela só muda o desenho, nunca a física.
+     ══════════════════════════════════════════════════════════ */
+  const LEN = 512;         // de um gol ao outro
+  const BASE_SPAN = 320;   // largura no gabinete
+  let SPAN = BASE_SPAN;    // em tela cheia acompanha a proporção do aparelho
+  const WALL = 8;    // faixa lateral
+  const PT = 8;      // espessura da raquete
+  const PL = 52;     // comprimento inicial da raquete
+  const GROW = 10;      // o que cada defesa de bola de fogo acrescenta
+  const GROW_MAX = 3;   // teto: 52 → 82, mais da metade a mais
+  const SCORE_S = 4;       // corpo do placar no centro do campo
+  const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
+  const GLOW_TIME = 0.7;   // duração do brilho neon no rebate
+  const GROW_ANIM = 0.35;  // a raquete cresce animada, não de um quadro para o outro
+  const HIT_TIME = 0.2;    // squash da raquete no toque
+  const BHIT_TIME = 0.16;  // esticada da bola logo após sair
+  const BS = 8;          // tamanho de fábrica da bola
+  let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
+  const BOLA_MAX = BS * 4;
+  const PAD_A = 18;  // recuo da raquete em relação ao gol
+  const TARGET = 7;
+
+  /* Match point e ponto final. Faltando um ponto para TARGET, quem chegar lá
+     pode fechar na próxima bola; se os DOIS chegarem, o ponto seguinte decide
+     a partida — e aí o campo inteiro avisa. */
+  const matchPoint = i => S.score[i] === TARGET - 1;
+  const pontoFinal = () => matchPoint(0) && matchPoint(1);
+  let tremorFinal = 0;
+
+  const LEVELS = {
+    facil:   { speed: 205, err: 40, base: 235 },
+    normal:  { speed: 305, err: 20, base: 268 },
+    dificil: { speed: 445, err: 8,  base: 302 }
+  };
+
+  const cv = document.getElementById("game");
+  const g = cv.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  const screenEl = document.getElementById("screen");
+  const frameEl = document.querySelector(".screen-frame");
+  const live = document.getElementById("live");
+  const scoreline = document.getElementById("scoreline");
+  const badgeMode = document.getElementById("badge-mode");
+
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const coarse = matchMedia("(pointer: coarse)").matches;
+
+  let vertical = false;    // quadra em pé (celular na vertical)
+  let immersive = false;   // jogo ocupando a tela toda
+
+  const S = {
+    mode: "1p", diff: "normal", crt: true,
+    phase: "attract",     // attract | serve | play | pause | over
+    t: 0, blink: 0,
+    score: [0, 0], winner: null, serveTo: 1
+  };
+
+  // pads[0] = jogador 1 (a = 0). pads[1] = jogador 2 / computador.
+  /* Efeito: a raquete em movimento imprime rotação na bola, que passa a curvar
+     para o lado da força — trivela, topspin. `vb` é a velocidade da raquete no
+     instante do toque; `prevB` serve para medi-la. */
+  const MAX_SPIN = 1.15;      // rad/s na varrida cheia
+  const SPIN_REF = 230;       // meia varrida já satura o efeito
+  const SPIN_DECAY = 0.55;    // sobra por segundo: a curva dura o voo inteiro
+  const SPIN_BUDGET = 0.8;    // teto de curvatura por bolada, ~46°
+  const MAX_ANGLE = 1.05;     // ~60°: a bola nunca fica paralela às paredes
+  const EDGE_SPIN = 0.34;     // bater na quina curva um pouco mesmo parado
+  const SWING_FADE = 0.06;    // memória da varrida, para o toque não precisar ser exato
+
+  const pads = [
+    { b: SPAN / 2 - PL / 2, len: PL, vb: 0, prevB: 0, swing: 0, glow: 0, hit: 0, grow: 0, growFrom: PL, up: false, down: false, err: 0, touch: null },
+    { b: SPAN / 2 - PL / 2, len: PL, vb: 0, prevB: 0, swing: 0, glow: 0, up: false, down: false, err: 0, touch: null }
+  ];
+  const padA = i => (i === 0 ? PAD_A : LEN - PAD_A - PT);
+
+  const ball = { a: 0, b: 0, va: 0, vb: 0, speed: 268, spin: 0, budget: 0, hit: 0 };
+
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+  const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+
+  /* ── Item: bola de fogo ──
+     Surge no meio do campo. Quem mandou a bola por cima dele leva a carga, e
+     gasta quando quiser — dois toques na sua metade da tela. */
+  const ITEM_S = 3, ITEM = 7 * ITEM_S;   // no campo: alvo maior, mais fácil de pegar
+  /* O encaixe tem o tamanho do maior ícone em campo (a estrela, 11 células a
+     2 px). Antes ele desenhava numa escala menor — a chama saía a 14 px contra
+     21 em campo, a estrela a 11 contra 22 — e o item parecia encolher ao ser
+     guardado. Agora é o mesmo desenho, no mesmo tamanho. */
+  const SLOT = 22;
+
+  /* Um slot por jogador: `held[i]` é null, "fire" ou "star". Quem já carrega
+     alguma coisa passa reto pelo item seguinte. */
+  const FIRE_CHANCE = 0.62;     // entre chama e estrela, quanto sai chama
+  const item = { on: false, kind: "fire", a: 0, b: 0, life: 0 };
+  const held = [null, null];
+  const scorePop = [0, 0];     // estouro do dígito quando alguém pontua
+  const stats = { picks: [0, 0], blocks: [0, 0], used: [{ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }, { fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }] };
+  const STAR_BOOST = 1.5;   // multiplicador da estrela
+  const fire = { on: false, owner: 0 };
+  const trail = [];
+
+  /* Rastro da roleta. Guarda a COR de cada passo além da posição, e é isso que
+     faz a diferença: a roleta vira a cada 182 ms, então o borrão fica com duas
+     cores ao mesmo tempo boa parte do tempo — a nova na cabeça, a anterior na
+     cauda. É o instante que dá a sensação de arco-íris sendo puxado.
+
+     O corte é por DISTÂNCIA, não por contagem de quadros: assim o borrão mede
+     sempre o mesmo na tela, com a bola lenta ou no talo. Por contagem ele
+     virava cobra de sete bolas na velocidade máxima. De brinde, na lentidão do
+     cristal ele acumula mais história e mostra mais cores. */
+  const rastroIris = [];
+  const IRIS_RASTRO = 52;        // unidades de campo, ~4 bolas
+  const IRIS_TETO = 44;          // teto de amostras, para a lentidão não estourar
+
+  function guardarIris(a, b) {
+    if (!roleta.on) { rastroIris.length = 0; return; }
+    rastroIris.push({ a, b, cor: roletaViva() });
+    while (rastroIris.length > 2 &&
+           Math.hypot(a - rastroIris[0].a, b - rastroIris[0].b) > IRIS_RASTRO)
+      rastroIris.shift();
+    if (rastroIris.length > IRIS_TETO) rastroIris.shift();
+  }
+  const hint = { t: 0, who: 0, txt: "", col: null, arco: false };
+  let itemTimer = rand(6, 11);
+  let flash = 0;              // clarão no instante em que a paleta vira
+  let flashCol = "";
+
+  const FLAME = [
+    "...r...",
+    "..rar..",
+    ".raaar.",
+    "raaaaar",
+    "raawaar",
+    ".raaar.",
+    "..rrr.."
+  ];
+
+  const CHICLETE = [
+    "....ddd....",
+    "..ddvvvdd..",
+    ".dwwwvvvvd.",
+    ".dwwwvvvvd.",
+    "dvwwvvvvssd",
+    "dvvvvvvsssd",
+    "dvvvvvssssd",
+    ".dvvvssssd.",
+    ".dvvsssssd.",
+    "..ddsssdd..",
+    "....ddd...."
+  ];
+
+  /* Cata-vento de sete setores. As pás são levemente curvas: mesmo parada
+     a bola já parece estar girando, e na rotação as cores se fundem num
+     arco-íris em vez de piscarem uma a uma. O miolo claro é o eixo. */
+  /* Seis setores em ordem espectral, cada um em três tons que escurecem do
+     centro para a borda. O degradê é radial, não direcional: continua certo
+     em qualquer ângulo, então a bola parece uma esfera mesmo girando. Saíram
+     o contorno escuro, que a esta resolução lia como mordidas no disco, e o
+     setor branco do raio, que virava um buraco no meio do arco-íris. */
+  /* Gomos de bola de praia: a longitude vai projetada na esfera, então as
+     faixas curvam e se fecham nos polos. Parada, ela lê como bola redonda —
+     era o cata-vento que dependia do giro para fazer sentido. Sem contorno:
+     a esta resolução o cinza do contorno lê como mordidas no disco. */
+  /* Gomos de bola de praia: a longitude vai projetada na esfera, então as
+     faixas curvam e se fecham nos polos, e ela lê como bola redonda mesmo
+     parada. Grade de 10 (20 px em campo), entre a espiral e a chama — cheia
+     de 11 ela era o maior disco sólido do jogo. Sem contorno, porque a esta
+     resolução o cinza lê como mordidas no disco, e sem brilho especular, que
+     virava uma mancha pálida em cima de um gomo. */
+  /* Gomos de bola de praia: a longitude vai projetada na esfera, então as
+     faixas curvam e se fecham nos polos, e ela lê como bola redonda parada.
+     A luz vem do alto à esquerda, com sombra descendo para a direita — é a
+     mesma convenção do chiclete, da espiral e do cristal. Antes o claro ficava
+     no miolo e o escuro nas duas bordas: simétrico demais, lia como um brilho
+     no centro em vez de bola iluminada. */
+  const RAINBOW = [
+    "...BCDE...",
+    "..Bppq4E..",
+    ".Bopp445E.",
+    "Aoop34455F",
+    "Aoo33445EF",
+    "Ao23344EEF",
+    "A22334DEEF",
+    ".B233DDEE.",
+    "..B3CDDE..",
+    "...BCDE..."
+  ];
+
+  const BOLT = [
+    "....dddd...",
+    "...dwvvd...",
+    "..dwwwd....",
+    ".dwwwwd....",
+    ".dwwwvvddd.",
+    "..dvvvvsdd.",
+    "...dvvsd...",
+    "..dvvsd....",
+    "..dvsd.....",
+    "..ddd......",
+    "..........."
+  ];
+
+  const HEART = [
+    ".............",
+    "..ddd...ddd..",
+    ".dwwwd.dvvvd.",
+    "dvwwwwdvvvvsd",
+    "dvwwwwvvvvssd",
+    "dvvwwvvvvsssd",
+    ".dvvvvvvsssd.",
+    "..dvvvvsssd..",
+    "...dvvsssd...",
+    "....dsssd....",
+    ".....dsd.....",
+    "......d......",
+    "............."
+  ];
+
+  /* A estrela ocupava só 9x8 da caixa de 11x11 e por isso parecia menor que
+     o chiclete e a rainbow ball ao lado. Redesenhada de ponta a ponta. */
+  /* As pernas de baixo eram puro contorno com um pixel claro dentro, e a
+     última fileira, sem nada embaixo, virava uma barra chata — a estrela
+     ficava de botas. Agora elas vão preenchidas e afinam até uma ponta de
+     1 px, que é o que uma ponta de estrela precisa ser. */
+  const STAR = [
+    ".....d.....",
+    "....dwd....",
+    "...dwwwd...",
+    "dddwwwyyddd",
+    "dwwwwyyyssd",
+    ".dwwyyyssd.",
+    "..dyydssd..",
+    "..yyy.sss..",
+    "..yy...ss..",
+    "..y.....s..",
+    "..........."
+  ];
+
+  const CRYSTAL = [
+    "...c...",
+    "..chc..",
+    ".chwwc.",
+    "chwwwwc",
+    ".cwwwc.",
+    "..cwc..",
+    "...c..."
+  ];
+
+  const SPIRAL = [
+    "...ddd...",
+    "..dwssd..",
+    ".dwwvssd.",
+    "dvwwvssvd",
+    "dvssvssvd",
+    "dvssvvvvd",
+    ".dssvvvd.",
+    "..dssvd..",
+    "...ddd..."
+  ];
+
+  /* Cada peça tem sua própria malha e escala: a chama é grossa em 7×7, a
+     estrela precisa de 13×13 para ter curva e volume. `field` e `slot` são as
+     escalas em campo e no inventário — o desenho é centrado na caixa. */
+  const SPRITES = {
+    fire: {
+      rows: FLAME, cell: 7, field: 3,
+      map:  () => ({ r: COL.fire,     a: COL.ember, w: COL.core }),
+      dull: () => ({ r: COL.fireDark, a: COL.ember, w: COL.core })
+    },
+    gem: {
+      rows: CRYSTAL, cell: 7, field: 3,
+      map:  () => ({ c: COL.timeDark, w: COL.time,   h: COL.core }),
+      dull: () => ({ c: COL.timeDark, w: "#6fb4cd", h: COL.core })
+    },
+    poison: {
+      rows: SPIRAL, cell: 9, field: 2,
+      map:  () => ({ d: COL.venomDark, w: COL.venomHi, v: COL.venom,    s: COL.venomMid }),
+      dull: () => ({ d: COL.venomDark, w: COL.venom,   v: COL.venomMid, s: COL.venomDark })
+    },
+    gum: {
+      /* `grade` é só para a legenda: o disco do chiclete é o único sprite
+         sólido que encosta nas quatro bordas, e a legenda estica todo ícone
+         para 34px — sem margem ele parecia maior que os vizinhos. Nenhum
+         pixel do desenho muda, nem o tamanho dele em campo. */
+      rows: CHICLETE, cell: 11, grade: 13, field: 2,
+      map:  () => ({ d: COL.gumEdge, w: COL.gumHi, v: COL.gum,   s: COL.gumLo }),
+      dull: () => ({ d: COL.gumEdge, w: COL.gum,   v: COL.gumLo, s: COL.gumEdge })
+    },
+    rainbow: {
+      rows: RAINBOW, cell: 10, field: 2,
+      /* Um gomo por item, em ordem espectral: chama, estrela, coração, tempo,
+         veneno, chiclete. Três tons por gomo — letra minúscula é o foco de luz,
+         número é o corpo, maiúscula é a sombra e a borda. Só aparecem os tons
+         que a esfera de fato mostra: os gomos das pontas ficam de perfil e
+         nunca chegam ao corpo, o foco só alcança três gomos. */
+      map:  () => ({ o: COL.starHi,   p: COL.heartHi,  q: "#c9eaf6",
+                     2: COL.star,     3: COL.heart,    4: COL.time,     5: COL.venom,
+                     A: COL.fireDark, B: COL.starLo,   C: COL.heartLo,
+                     D: COL.timeDark, E: COL.venomMid, F: COL.gumLo }),
+      dull: () => ({ o: COL.star,     p: COL.heart,    q: COL.time,
+                     2: COL.starLo,   3: COL.heartLo,  4: COL.timeDark, 5: COL.venomMid,
+                     A: COL.fireDark, B: COL.starLo,   C: COL.heartLo,
+                     D: COL.timeDark, E: COL.venomMid, F: COL.gumLo })
+    },
+    bolt: {
+      rows: BOLT, cell: 11, field: 2,
+      map:  () => ({ d: COL.boltEdge, w: COL.boltHi, v: COL.bolt,   s: COL.boltLo }),
+      dull: () => ({ d: COL.boltEdge, w: COL.bolt,   v: COL.boltLo, s: COL.boltEdge })
+    },
+    heart: {
+      rows: HEART, cell: 13, field: 2,
+      map:  () => ({ d: COL.heartEdge, w: COL.heartHi, v: COL.heart,   s: COL.heartLo }),
+      dull: () => ({ d: COL.heartEdge, w: COL.heart,   v: COL.heartLo, s: COL.heartEdge })
+    },
+    star: {
+      rows: STAR, cell: 11, field: 2,
+      map:  () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,   s: COL.starLo }),
+      dull: () => ({ d: COL.starEdge, w: COL.star,   y: COL.starLo, s: COL.starEdge })
+    }
+  };
+
+  function drawItem(sp, x, y, box, scale, bright) {
+    const off = (box - sp.cell * scale) / 2;
+    drawSprite(sp.rows, x + off, y + off, scale, bright ? sp.map() : sp.dull());
+  }
+
+  /* Poeira estelar: partículas simples em coordenadas de quadra. */
+  const dust = [];
+
+  /* Rush da estrela: começa quando a bola sai da raquete armada e só termina
+     com o ponto. Enquanto dura, a bola fica solta acima do teto normal e riscos
+     de poeira correm pelas duas laterais. */
+  const star = { on: false };
+  const streaks = [];
+  let streakTimer = 0;
+
+  /* Uma peça armada, esperando a rebatida do dono. */
+  const armed = { kind: null, who: -1 };
+
+  function spark(a, b, n, spread, speed, col, opts) {
+    const o = opts || {};
+    const vidaMin = o.lifeMin ?? 0.35, vidaMax = o.lifeMax ?? 0.85;
+    for (let i = 0; i < n && dust.length < 110; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const v = speed * (0.35 + Math.random() * 0.65);
+      dust.push({
+        a: a + rand(-spread, spread),
+        b: b + rand(-spread, spread),
+        va: Math.cos(ang) * v,
+        vb: Math.sin(ang) * v,
+        life: rand(vidaMin, vidaMax),
+        max: vidaMax,
+        size: o.size ?? (Math.random() < 0.3 ? 2 : 1),
+        peak: o.peak ?? 1,
+        col: col || null
+      });
+    }
+  }
+
+  /* ── Item: cristal do tempo ──
+     Sem dono e sem carga: a bola encosta e o tempo desanda sozinho por dois
+     segundos e meio. Mesmo tamanho da chama, para os dois itens lerem como
+     peças da mesma família. */
+  const GEM_S = ITEM_S, GEM = 7 * GEM_S;
+  const gem = { on: false, a: 0, b: 0, life: 0 };
+  let gemTimer = rand(10, 18);
+
+  /* ── Item: rainbow ball ──
+     Vai para o inventário como os outros. Ao ser solta, a bola branca começa a
+     girar as cores dos seis itens; o efeito que sai é o da cor em que ela
+     estiver quando encostar na raquete de quem a soltou. É aposta com um fio
+     de perícia: dá para ver o giro e escolher a hora de bater. */
+  const ROLETA_HZ = 5.5;
+  /* Na roleta as cores saem no talo: aqui o assunto é chamar atenção, não
+     combinar com o fósforo desbotado do resto da mesa. */
+  const VIVAS = ["#ff2d55", "#ffd60a", "#ff6fb0", "#c94bff", "#0a9dff", "#ffffff", "#22e06a"];
+
+  const ROLETA = [
+    { chave: "fire",   cor: () => COL.fire,   nome: "BOLA DE FOGO" },
+    { chave: "star",   cor: () => COL.star,   nome: "ESTRELA" },
+    { chave: "gum",    cor: () => COL.gum,    nome: "CHICLETE" },
+    { chave: "poison", cor: () => COL.venom,  nome: "VENENO" },
+    { chave: "gem",    cor: () => COL.time,   nome: "TEMPO LENTO" },
+    { chave: "bolt",   cor: () => COL.boltHi, nome: "RAIO" },
+    { chave: "heart",  cor: () => COL.heart,  nome: "+ DEFESA", fala: "mais defesa" }
+  ];
+  /* ── Item: chiclete ──
+     Sem dono e sem espera: a bola encosta e incha. Cada passagem dobra o
+     tamanho, até quatro vezes o normal. Volta ao tamanho de fábrica no saque
+     seguinte, então o inchaço vale por um ponto só. */
+  const GUM_S = 2, GUM = 11 * GUM_S;
+  const chiclete = { on: false, a: 0, b: 0, life: 0 };
+  let gumTimer = rand(16, 27);
+  let gumPop = 0;              // esticadinha do inchaço, para o crescimento ter peso
+  let gumFesta = 0;            // janela em que as bolhas sobem pelas laterais
+  let bolhaTimer = 0;
+  let popTimer = 0;            // segura o som para não virar metralhadora
+  const bolhas = [];
+  const BOLHAS = ["#ff9ec4", "#ffcf9e", "#fff3a8", "#a8efc4", "#a5d8ff", "#d4b3ff"];
+
+  const IRIS_S = 2, IRIS = 10 * IRIS_S;
+  const iris = { on: false, a: 0, b: 0, life: 0 };
+  let irisTimer = rand(16, 24);      // frequência na faixa do chiclete
+  const roleta = { on: false, dono: -1, t: 0 };
+  const MOLDURA_TEMPO = 1.1;
+  const moldura = { t: 0, cor: "", arco: false };   // bordas acesas no anúncio
+  let aberr = 0;            // aberração cromática, decai sozinha
+  const ABERR_LEVE = ["#ff2d55", "#22e06a", "#0a9dff"];   // versão de três canais
+  const roletaIndice = () => (roleta.t * ROLETA_HZ | 0) % ROLETA.length;
+  const roletaCor = () => ROLETA[roletaIndice()].cor();
+  const roletaViva = () => VIVAS[roletaIndice()];
+
+  /** Entrega o prêmio da cor sorteada a quem acabou de rebater. */
+  function premioRoleta(i) {
+    const saiu = ROLETA[roletaIndice()];
+    roleta.on = false;
+    roleta.dono = -1;
+
+    /* Anuncia o que a roleta parou: as quatro bordas do campo acendem na cor
+       sorteada e o nome do prêmio aparece no meio. Sem isso o jogador levava
+       o efeito sem entender de onde veio. */
+    moldura.t = MOLDURA_TEMPO;
+    moldura.cor = saiu.cor();
+    showHint(-1, saiu.nome, saiu.cor());
+    Snd.premio();
+    announce("Arco-íris parou em " + (saiu.fala || saiu.nome.toLowerCase()) + ".");
+
+    if (saiu.chave === "fire") { ignite(i); return; }
+    if (saiu.chave === "star") { igniteStar(i); return; }
+    if (saiu.chave === "poison") { enterVenom(); return; }
+    if (saiu.chave === "gem") { enterSlow(); return; }
+    if (saiu.chave === "bolt") { enterStorm(); return; }
+    if (saiu.chave === "gum") {
+      /* Bola grande e um pouco mais lenta: o chiclete é a respirada da
+         partida. Tira um quarto da velocidade que a bola tinha na hora do
+         contato — o bastante para quebrar a aceleração de 7% por rebatida
+         sem fazer o ponto arrastar. */
+      ball.speed *= 0.75;
+      const m = Math.hypot(ball.va, ball.vb) || 1;
+      ball.va = ball.va / m * ball.speed;
+      ball.vb = ball.vb / m * ball.speed;
+      const antes = BOLA;
+      BOLA = Math.min(BOLA_MAX, Math.max(BOLA * 2, BS * 2));
+      ball.a -= (BOLA - antes) / 2;
+      ball.b = clamp(ball.b - (BOLA - antes) / 2, WALL, SPAN - WALL - BOLA);
+      gumPop = 0.45;
+      gumFesta = 3.2;
+      Snd.gum();
+      return;
+    }
+    const cresceu = growPaddle(i, 3, LEN_MAX);
+    if (!cresceu) showHint(-1, "NO LIMITE", COL.heart);
+    Snd.heart();
+  }
+
+  /* ── Item especial: coração ──
+     Aparece uma vez por partida, num instante sorteado, e fica 30 segundos no
+     mesmo lugar. Funciona como um obstáculo: devolve a bola para quem a mandou
+     e dá um tiquinho de raquete a cada acerto. Quem mira melhor, cresce mais. */
+  const HRT_CELL = 13;
+  const HRT_MIN = 26;          // encolhido, já um pouco acima dos itens comuns
+  const HRT_MAX = 52;          // inchado, o dobro
+  const HEART_LIFE = 30;
+  const HEART_GROW = 3;        // pouco por acerto, e sobe a cada acerto
+  const LEN_MAX = 96;          // teto absoluto da raquete, somando fogo e coração
+  const heart = { on: false, done: false, life: 0, t: 0, hits: [0, 0], pulse: 0 };
+
+  /* Ele vive no meio do campo e dilata devagar. A caixa é recalculada a cada
+     quadro, então acompanha a respiração e também a quadra mudando de largura. */
+  function heartSize() {
+    if (reduceMotion) return (HRT_MIN + HRT_MAX) / 2;
+    const w = (1 - Math.cos(heart.t * 2.4)) / 2;
+    return HRT_MIN + (HRT_MAX - HRT_MIN) * w;
+  }
+  function heartBox() {
+    const s = heartSize();
+    return { a: LEN / 2 - s / 2, b: SPAN / 2 - s / 2, s };
+  }
+  let heartAt = 0;             // segundo de jogo em que ele entra
+  let playTime = 0;
+
+  /* ── Item: raio ──
+     Raro. A bola encosta e o campo inteiro perde a cor por dez segundos,
+     enquanto relâmpagos riscam a tela e a câmera não para de tremer. */
+  const BLT_S = 2, BLT = 11 * BLT_S;
+  const STORM_TIME = 10;
+  const bolt = { on: false, a: 0, b: 0, life: 0 };
+  let boltTimer = rand(55, 95);
+  const storm = { t: 0, next: 0, pedir: false, trovao: 0 };
+  const bolts = [];
+  const arcos = [];            // faíscas curtas saindo da bola eletrocutada
+  let arcoTimer = 0;
+  const RAIOS = ["#ffffff", "#ffe680", "#9fd8ff"];
+
+  /* ── Item: espiral do veneno ──
+     Também sem dono. A bola encosta e as DUAS raquetes encolhem à metade por
+     cinco segundos, com contagem na tela. */
+  const POI_S = 2, POI = 9 * POI_S;
+  const VENOM_TIME = 5;
+  const poison = { on: false, a: 0, b: 0, life: 0 };
+  let poisonTimer = rand(28, 43);
+  const venom = { t: 0 };
+  let venomVis = 0;      // 0 = placar à mostra, 1 = contador no meio
+  const smoke = [];
+  let smokeTimer = 0;
+
+  /** Comprimento em vigor: o veneno corta pela metade. É o que a física usa. */
+  const padLen = i => (venom.t > 0 ? pads[i].len * 0.5 : pads[i].len);
+
+  /* Só para o desenho: ao ganhar tamanho a raquete estica do valor antigo até o
+     novo, com uma barriga no meio do caminho. A colisão já vale imediatamente —
+     o buff é do jogador desde o instante do acerto. */
+  function padDrawLen(i) {
+    const p = pads[i];
+    const alvo = padLen(i);
+    if (p.grow <= 0) return alvo;
+    const u = 1 - p.grow / GROW_ANIM;
+    const e = 1 - Math.pow(1 - u, 3);
+    const de = venom.t > 0 ? p.growFrom * 0.5 : p.growFrom;
+    return (de + (alvo - de) * e) * (1 + Math.sin(u * Math.PI) * 0.09);
+  }
+
+  /** Marca o começo da animação de crescimento. */
+  function growPaddle(i, quanto, teto) {
+    const p = pads[i];
+    if (p.len >= teto) return false;
+    p.growFrom = p.len;
+    p.len = Math.min(teto, p.len + quanto);
+    p.b = clamp(p.b - quanto / 2, WALL, SPAN - WALL - padLen(i));
+    p.grow = GROW_ANIM;
+    p.glow = GLOW_TIME;
+    return true;
+  }
+
+  const SLOW_TIME = 2.5;     // segundos reais em câmera lenta
+  const SLOW_RATE = 0.34;    // o mundo anda a um terço
+  const ZOOM = 0.34;         // o quanto a câmera fecha no auge do cristal
+  const ZOOM_STORM = 0.13;   // fecho discreto do raio, bem abaixo do cristal
+  const slow = { t: 0 };
+
+  /* Impacto de câmera, compartilhado pelo cristal e pela bola de fogo. */
+  const fx = { shake: 0, shakeDur: 1, sides: 0, sidesDur: 1, col: "", force: 1 };
+
+  function kick(shakeDur, sidesDur, color, force) {
+    if (reduceMotion) return;
+    fx.shake = fx.shakeDur = shakeDur;
+    fx.sides = fx.sidesDur = sidesDur;
+    fx.col = color;
+    fx.force = force;
+  }
+
+  /** Fator de tempo do mundo. Volta suave no último meio segundo. */
+  function timeScale() {
+    if (slow.t <= 0) return 1;
+    if (slow.t < 0.5) return SLOW_RATE + (1 - SLOW_RATE) * (1 - slow.t / 0.5);
+    return SLOW_RATE;
+  }
+
+  /** Quanto da tempestade está em vigor, de 0 a 1. Rege a cor e a câmera. */
+  function stormRamp() {
+    if (storm.t <= 0) return 0;
+    return Math.min(1, (STORM_TIME - storm.t) / 0.35, storm.t / 0.7);
+  }
+
+  /** Quanto da câmera lenta está em vigor, de 0 a 1, com entrada e saída. */
+  function slowRamp() {
+    if (slow.t <= 0) return 0;
+    if (slow.t > SLOW_TIME - 0.3) return (SLOW_TIME - slow.t) / 0.3;
+    if (slow.t < 0.5) return slow.t / 0.5;
+    return 1;
+  }
+
+  function spawnClock() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.28, LEN * 0.72 - GEM);
+      const b = rand(WALL + 12, SPAN - WALL - GEM - 12);
+      if (!livre(a, b, GEM)) continue;
+      gem.a = a; gem.b = b; gem.life = 12; gem.on = true;
+      return;
+    }
+    gemTimer = 3;
+  }
+
+  function spawnHeart() {
+    heart.life = HEART_LIFE;
+    heart.t = 0;
+    heart.hits = [0, 0];
+    heart.pulse = 0;
+    heart.on = true;
+    Snd.heartIn();
+    showHint(-1, "CORAÇÃO", COL.heart);
+    announce("Um coração apareceu no meio do campo por trinta segundos. Acerte-o para crescer.");
+  }
+
+  function spawnBolt() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.26, LEN * 0.74 - BLT);
+      const b = rand(WALL + 12, SPAN - WALL - BLT - 12);
+      if (!livre(a, b, BLT)) continue;
+      bolt.a = a; bolt.b = b; bolt.life = 12; bolt.on = true;
+      return;
+    }
+    boltTimer = 6;
+  }
+
+  function enterStorm() {
+    storm.t = STORM_TIME;
+    storm.next = 0;
+    storm.trovao = 1.2;
+    arcos.length = 0;
+
+    /* Varre o campo inteiro: chama, estrela, cristal, espiral, chiclete e a
+       rainbow ball são fulminados, junto com a festa de bolhas que o chiclete
+       deixa subindo. Só o coração resiste, e o inventário não se perde. */
+    item.on = false;     itemTimer = rand(8, 14);
+    gem.on = false;      gemTimer = rand(14, 23);
+    poison.on = false;   poisonTimer = rand(33, 53);
+    chiclete.on = false; gumTimer = rand(18, 31);
+    iris.on = false;     irisTimer = rand(22, 35);
+    gumFesta = 0;        gumPop = 0;
+    bolhas.length = 0;
+    kick(0.7, 0.7, "#ffffff", 1.5);
+    Snd.storm();
+    showHint(-1, "RAIO", COL.boltHi);
+    announce("Raio: o campo perdeu a cor por dez segundos.");
+  }
+
+  /** Um relâmpago: tronco quebrado da borda de cima à de baixo, com ramos
+      curtos saindo dele. Preso às laterais — o meio do campo fica limpo. */
+  function novoRaio(cw, ch) {
+    const esquerda = Math.random() < 0.5;
+    const lo = esquerda ? cw * 0.015 : cw * 0.80;
+    const hi = esquerda ? cw * 0.20 : cw * 0.985;
+    const n = 8;
+
+    const tronco = [];
+    let x = rand(lo, hi);
+    for (let k = 0; k <= n; k++) {
+      tronco.push([x, (ch * k) / n]);
+      x = clamp(x + rand(-cw * 0.06, cw * 0.06), lo, hi);
+    }
+
+    const ramos = [];
+    const quantos = 1 + (Math.random() * 2 | 0);
+    for (let r = 0; r < quantos; r++) {
+      const de = 1 + (Math.random() * (n - 2) | 0);
+      const lado = Math.random() < 0.5 ? -1 : 1;
+      let [bx, by] = tronco[de];
+      const ramo = [[bx, by]];
+      const passos = 2 + (Math.random() * 2 | 0);
+      for (let s = 0; s < passos; s++) {
+        bx += lado * rand(cw * 0.02, cw * 0.055);
+        by += ch * rand(0.05, 0.1);
+        ramo.push([bx, by]);
+      }
+      ramos.push(ramo);
+    }
+
+    bolts.push({
+      tronco, ramos,
+      life: rand(0.12, 0.26),
+      max: 0.26,
+      cor: RAIOS[(Math.random() * RAIOS.length) | 0],
+      grosso: 2 + (Math.random() * 2 | 0)
+    });
+    if (bolts.length > 6) bolts.shift();
+  }
+
+  /** Faísca curta partindo da bola, em coordenadas de quadra. */
+  function novoArco() {
+    let a = ball.a + BOLA / 2, b = ball.b + BOLA / 2;
+    let dir = Math.random() * Math.PI * 2;
+    const pts = [[a, b]];
+    const segs = 2 + (Math.random() * 2 | 0);
+    for (let k = 0; k < segs; k++) {
+      dir += rand(-1, 1);
+      const comp = rand(4, 10);
+      a += Math.cos(dir) * comp;
+      b += Math.sin(dir) * comp;
+      pts.push([a, b]);
+    }
+    arcos.push({
+      pts,
+      life: rand(0.05, 0.12),
+      max: 0.12,
+      cor: RAIOS[(Math.random() * RAIOS.length) | 0]
+    });
+    if (arcos.length > 16) arcos.shift();
+  }
+
+  function spawnChiclete() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.26, LEN * 0.74 - GUM);
+      const b = rand(WALL + 12, SPAN - WALL - GUM - 12);
+      if (!livre(a, b, GUM)) continue;
+      chiclete.a = a; chiclete.b = b; chiclete.life = 13; chiclete.on = true;
+      return;
+    }
+    gumTimer = 3;
+  }
+
+  function spawnIris() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.26, LEN * 0.74 - IRIS);
+      const b = rand(WALL + 12, SPAN - WALL - IRIS - 12);
+      if (!livre(a, b, IRIS)) continue;
+      iris.a = a; iris.b = b; iris.life = 11; iris.on = true;
+      return;
+    }
+    irisTimer = 3;
+  }
+
+  function spawnPoison() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.26, LEN * 0.74 - POI);
+      const b = rand(WALL + 12, SPAN - WALL - POI - 12);
+      if (!livre(a, b, POI)) continue;
+      poison.a = a; poison.b = b; poison.life = 13; poison.on = true;
+      return;
+    }
+    poisonTimer = 4;
+  }
+
+  function enterVenom() {
+    // o centro das raquetes fica onde estava; só o corpo encolhe
+    for (let i = 0; i < 2; i++) {
+      pads[i].b = clamp(pads[i].b + pads[i].len * 0.25, WALL, SPAN - WALL - pads[i].len * 0.5);
+    }
+    venom.t = VENOM_TIME;
+    kick(0.4, 0.55, COL.venom, 0.95);
+    Snd.venom();
+    showHint(-1, "VENENO", COL.venom, false, 2);
+    announce("Veneno: as duas raquetes encolheram por cinco segundos.");
+  }
+
+  function endVenom() {
+    for (let i = 0; i < 2; i++) {
+      pads[i].b = clamp(pads[i].b - pads[i].len * 0.25, WALL, SPAN - WALL - pads[i].len);
+    }
+    venom.t = 0;
+  }
+
+  function enterSlow() {
+    slow.t = SLOW_TIME;
+    kick(0.45, 0.6, COL.time, 1);
+    Snd.slow();
+    showHint(-1, "SLOW");
+    announce("Tempo lento por dois segundos e meio.");
+  }
+
+  /** A bola encosta numa caixa quadrada de lado `size`? */
+  const hits = (a, b, size, o) => {
+    const x = o || ball;
+    return x.a < a + size && x.a + BOLA > a && x.b < b + size && x.b + BOLA > b;
+  };
+
+  /* Nenhum item nasce em cima de outro. O coração reserva a área do seu tamanho
+     MÁXIMO, porque ele respira — se reservasse o tamanho de agora, o próximo
+     inchaço engoliria o vizinho. */
+  function livre(a, b, tam) {
+    const M = 10;
+    const alvos = [];
+    if (item.on) alvos.push([item.a, item.b, ITEM]);
+    if (gem.on) alvos.push([gem.a, gem.b, GEM]);
+    if (poison.on) alvos.push([poison.a, poison.b, POI]);
+    if (bolt.on) alvos.push([bolt.a, bolt.b, BLT]);
+    if (iris.on) alvos.push([iris.a, iris.b, IRIS]);
+    if (chiclete.on) alvos.push([chiclete.a, chiclete.b, GUM]);
+    if (heart.on) alvos.push([LEN / 2 - HRT_MAX / 2, SPAN / 2 - HRT_MAX / 2, HRT_MAX]);
+    return alvos.every(([oa, ob, os]) =>
+      a + tam + M <= oa || oa + os + M <= a ||
+      b + tam + M <= ob || ob + os + M <= b);
+  }
+
+  function spawnItem() {
+    for (let t = 0; t < 20; t++) {
+      const a = rand(LEN * 0.26, LEN * 0.74 - ITEM);
+      const b = rand(WALL + 12, SPAN - WALL - ITEM - 12);
+      if (!livre(a, b, ITEM)) continue;
+      item.kind = Math.random() < FIRE_CHANCE ? "fire" : "star";
+      item.a = a; item.b = b; item.life = 14; item.on = true;
+      return;
+    }
+    itemTimer = 3;      // campo cheio; tenta de novo daqui a pouco
+  }
+
+  function showHint(who, txt, col, arco, esc) {
+    hint.who = who; hint.txt = txt; hint.col = col || null; hint.arco = !!arco; hint.esc = esc || 0; hint.t = 2.4;
+  }
+
+  /** Acende a bola. `i` é quem lançou. */
+  function ignite(i) {
+    fire.on = true;
+    fire.owner = i;
+    trail.length = 0;
+    rastroIris.length = 0;
+    ball.speed = Math.min(ball.speed * 1.8, 1150);
+    const m = Math.hypot(ball.va, ball.vb) || 1;
+    ball.va = ball.va / m * ball.speed;
+    ball.vb = ball.vb / m * ball.speed;
+    Snd.fire();
+    kick(0.3, 0.45, COL.fire, 0.65);   // mais curto e mais leve que o do cristal
+
+    // O disparo vira a mesa: todo o esquema anda uma casa no arco-íris
+    turnWheel(1);
+    flashCol = COL.fire;
+    flash = reduceMotion ? 0 : 0.4;
+    showHint(i, "BOLA DE FOGO", COL.fire);
+    sincronizar("fogo");
+  }
+
+  function douse() {
+    fire.on = false;
+    trail.length = 0;
+    rastroIris.length = 0;
+  }
+
+  function endRush() {
+    star.on = false;
+    streaks.length = 0;
+  }
+
+  /** Estrela: acende na rebatida do dono, como a chama. */
+  function igniteStar(i) {
+    const before = ball.speed;
+    ball.speed = Math.min(before * STAR_BOOST, 900);
+    const m = Math.hypot(ball.va, ball.vb) || 1;
+    ball.va = ball.va / m * ball.speed;
+    ball.vb = ball.vb / m * ball.speed;
+    star.on = true;
+    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 30, 5, 160, null, { size: 2 });
+    Snd.star();
+    kick(0.3, 0.45, COL.star, 0.7);       // mesmo impacto do disparo de fogo
+
+    // E também vira a mesa de cor, como a chama faz
+    turnWheel(1);
+    flashCol = COL.star;
+    flash = reduceMotion ? 0 : 0.4;
+    showHint(i, "ESTRELA", COL.star);
+    sincronizar("estrela");
+    announce(i === 0 ? "Estrela: a bola acelerou até o fim do ponto."
+                     : foeName() + " soltou a estrela.");
+  }
+
+  /** Gasta a carga e deixa a raquete armada. O fogo só nasce no instante em que
+      a bola encosta nessa raquete — o disparo é sempre uma rebatida, nunca um
+      efeito à distância. A carga fica armada o tempo que for preciso, mesmo
+      atravessando pontos, até a rebatida acontecer. */
+  function useItem(i, fromAI) {
+    if (S.phase !== "play" || !held[i] || armed.who === i) return;
+    if (i === 1 && S.mode === "1p" && !fromAI) return;   // o item do computador é dele
+    armed.kind = held[i];
+    armed.who = i;
+    stats.used[i][armed.kind]++;
+    held[i] = null;
+    Snd.arm();
+
+    const estrela = armed.kind === "star";
+    showHint(i, estrela ? "ESTRELA PRONTA" : "ARMADA", estrela ? COL.star : COL.fire);
+    announce(i === 0
+      ? (estrela ? "Estrela armada. Ela acende na sua próxima rebatida."
+                 : "Bola de fogo armada. Ela acende na sua próxima rebatida.")
+      : foeName() + (estrela ? " armou a estrela." : " armou a bola de fogo."));
+  }
+
+  /* ── Conversão quadra ⇄ tela ── */
+  function rect(a, b, la, lb) {
+    return vertical
+      ? [b, LEN - a - la, lb, la]
+      : [a, b, la, lb];
+  }
+  function fill(color, a, b, la, lb) {
+    const r = rect(a, b, la, lb);
+    g.fillStyle = color;
+    g.fillRect(r[0], r[1], r[2], r[3]);
+  }
+  function toCourt(clientX, clientY) {
+    const r = cv.getBoundingClientRect();
+    const x = (clientX - r.left) / r.width * cv.width;
+    const y = (clientY - r.top) / r.height * cv.height;
+    return vertical ? { a: LEN - y, b: x } : { a: x, b: y };
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5. Estado do jogo
+     ══════════════════════════════════════════════════════════ */
+  function resetBall(dir) {
+    ball.speed = LEVELS[S.diff].base;
+    ball.a = LEN / 2 - BOLA / 2;
+    ball.b = SPAN / 2 - BOLA / 2;
+    const ang = Math.random() * 0.6 - 0.3;
+    ball.va = Math.cos(ang) * ball.speed * dir;
+    ball.vb = Math.sin(ang) * ball.speed;
+    ball.spin = 0;
+    ball.budget = 0;
+    BOLA = BS;
+    gumPop = 0;
+    pads[0].err = pads[1].err = 0;
+    sincronizar("saque");
+  }
+
+  function newRally(dir) { resetBall(dir); S.phase = "serve"; S.t = 0; }
+
+  function newGame(phase) {
+    S.score = [0, 0];
+    S.winner = null;
+    held[0] = held[1] = null;
+    dust.length = 0;
+    item.on = false;
+    itemTimer = rand(6, 11);
+    gem.on = false;
+    gemTimer = rand(10, 18);
+    slow.t = fx.shake = fx.sides = 0;
+    venomVis = 0;
+    chiclete.on = false;
+    gumTimer = rand(16, 27);
+    BOLA = BS;
+    gumPop = 0;
+    gumFesta = 0;
+    bolhas.length = 0;
+    iris.on = false;
+    irisTimer = rand(16, 24);
+    bolt.on = false;
+    boltTimer = rand(55, 95);
+    storm.t = 0;
+    bolts.length = 0;
+    arcos.length = 0;
+    heart.on = false;
+    heart.done = false;
+    heart.hits = [0, 0];
+    heart.t = 0;
+    playTime = 0;
+    heartAt = rand(16, 42);
+    poison.on = false;
+    poisonTimer = rand(28, 43);
+    venom.t = 0;
+    smoke.length = 0;
+    hint.t = 0;
+    douse();
+    endRush();
+    armed.kind = null;
+    armed.who = -1;
+    roleta.on = false;
+    roleta.dono = -1;
+    roleta.t = 0;
+    moldura.t = 0;
+    aberr = 0;
+    pads[0].len = pads[1].len = PL;
+    pads[0].swing = pads[1].swing = 0;
+    pads[0].glow = pads[1].glow = 0;
+    pads[0].hit = pads[1].hit = 0;
+    pads[0].grow = pads[1].grow = 0;
+    pads[0].growFrom = pads[1].growFrom = PL;
+    ball.hit = 0;
+    scorePop[0] = scorePop[1] = 0;
+    stats.picks = [0, 0];
+    stats.blocks = [0, 0];
+    stats.used = [{ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }, { fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }];
+    pads[0].b = pads[1].b = SPAN / 2 - PL / 2;
+    S.serveTo = Math.random() < 0.5 ? 1 : -1;
+    resetBall(S.serveTo);
+    S.phase = phase;
+    S.t = 0;
+    updateScoreline();
+  }
+
+  const foeName = () => (S.mode === "2p" ? "Jogador 2" : "Computador");
+
+  function updateScoreline() {
+    scoreline.innerHTML =
+      `Jogador 1 <b>${S.score[0]}</b> · <b>${S.score[1]}</b> ${foeName()} — até ${TARGET} pontos`;
+  }
+  const announce = m => { live.textContent = m; };
+
+  /* ── Computador ── */
+  function driveAI(i, dt, level, always) {
+    const lv = LEVELS[level];
+    const p = pads[i];
+    const coming = i === 1 ? ball.va > 0 : ball.va < 0;
+    const target = (coming || always)
+      ? ball.b + BOLA / 2 + p.err - padLen(i) / 2
+      : SPAN / 2 - padLen(i) / 2;
+    const max = lv.speed * (coming ? 1 : 0.55) * dt;
+    p.b += clamp(target - p.b, -max, max);
+  }
+
+  /* ── Física ── */
+  function step(dt) {
+    const keySpeed = 430 * dt;
+    const dragSpeed = 1200 * dt;
+
+    for (let i = 0; i < 2; i++) {
+      const p = pads[i];
+      p.prevB = p.b;
+      const isAI = i === 1 && S.mode === "1p";
+      if (isAI) { driveAI(i, dt, S.diff, false); }
+      else {
+        if (p.touch !== null) {
+          const want = p.touch - padLen(i) / 2;
+          p.b += clamp(want - p.b, -dragSpeed, dragSpeed);
+        }
+        if (p.up) p.b -= keySpeed;
+        if (p.down) p.b += keySpeed;
+      }
+      p.b = clamp(p.b, WALL, SPAN - WALL - padLen(i));
+      p.vb = (p.b - p.prevB) / dt;
+      if (p.glow > 0) p.glow = Math.max(0, p.glow - dt);
+      if (p.hit > 0) p.hit = Math.max(0, p.hit - dt);
+      if (p.grow > 0) p.grow = Math.max(0, p.grow - dt);
+      if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
+
+      /* A varrida fica na memória por uns instantes. Sem isso o jogador
+         precisaria estar em movimento no quadro exato do toque — e a gente
+         costuma chegar na bola e parar. */
+      if (Math.abs(p.vb) > Math.abs(p.swing)) p.swing = p.vb;
+      else p.swing *= Math.pow(SWING_FADE, dt);
+    }
+
+    if (S.phase !== "play") return;
+
+    if (ball.hit > 0) ball.hit = Math.max(0, ball.hit - dt);
+
+    // O item aparece e some sozinho, enquanto alguém ainda puder carregá-lo
+    if (item.on) {
+      item.life -= dt;
+      if (item.life <= 0) { item.on = false; itemTimer = rand(6, 11); }
+    } else if (storm.t <= 0 && (!held[0] || !held[1])) {
+      itemTimer -= dt;
+      if (itemTimer <= 0) spawnItem();
+    }
+
+    if (gem.on) {
+      gem.life -= dt;
+      if (gem.life <= 0) { gem.on = false; gemTimer = rand(10, 18); }
+    } else if (storm.t <= 0) {
+      gemTimer -= dt;
+      if (gemTimer <= 0) spawnClock();
+    }
+
+    /* O coração entra uma vez só, no instante sorteado, e some depois dos 20s */
+    playTime += dt;
+    if (!heart.on && !heart.done && playTime >= heartAt) spawnHeart();
+    if (heart.on) {
+      heart.life -= dt;
+      heart.t += dt;
+      if (heart.pulse > 0) heart.pulse = Math.max(0, heart.pulse - dt);
+      if (heart.life <= 0) { heart.on = false; heart.done = true; }
+    }
+
+    if (chiclete.on) {
+      chiclete.life -= dt;
+      if (chiclete.life <= 0) { chiclete.on = false; gumTimer = rand(16, 27); }
+    } else if (storm.t <= 0) {
+      gumTimer -= dt;
+      if (gumTimer <= 0) spawnChiclete();
+    }
+    if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
+
+    /* No ponto final a câmera não fica parada. Pulso a cada 1,2 s em vez de
+       tremor contínuo: marca a tensão sem embrulhar o estômago de ninguém. */
+    if (pontoFinal() && S.phase === "play" && !reduceMotion) {
+      tremorFinal -= dt;
+      if (tremorFinal <= 0) { tremorFinal = 1.2; kick(0.26, 0.3, VIVAS, 0.85); }
+    } else {
+      tremorFinal = 0;
+    }
+
+    if (iris.on) {
+      iris.life -= dt;
+      if (iris.life <= 0) { iris.on = false; irisTimer = rand(19, 30); }
+    } else if (!roleta.on && storm.t <= 0) {
+      irisTimer -= dt;
+      if (irisTimer <= 0) spawnIris();
+    }
+
+    if (bolt.on) {
+      bolt.life -= dt;
+      if (bolt.life <= 0) { bolt.on = false; boltTimer = rand(75, 115); }
+    } else if (storm.t <= 0) {
+      boltTimer -= dt;
+      if (boltTimer <= 0) spawnBolt();
+    }
+
+    if (storm.t > 0) {
+      storm.t -= dt;
+      if (storm.t <= 0) { storm.t = 0; bolts.length = 0; arcos.length = 0; }
+      else {
+        // a tempestade não deixa a câmera assentar
+        // não deixa a câmera assentar em momento nenhum dos dez segundos
+        if (fx.shake <= 0.09 && !reduceMotion) kick(0.34, 0.36, RAIOS[(Math.random() * 3) | 0], 0.95);
+        storm.next -= dt;
+        if (storm.next <= 0) { storm.next = rand(0.18, 0.5); storm.pedir = true; }
+
+        storm.trovao -= dt;
+        if (storm.trovao <= 0) { storm.trovao = rand(1.6, 3.2); Snd.thunder(); }
+
+        if (arcoTimer <= 0 && !reduceMotion) {
+          arcoTimer = 0.045;
+          const quantos = 2 + (Math.random() * 2 | 0);
+          for (let k = 0; k < quantos; k++) novoArco();
+        }
+      }
+    }
+
+    if (poison.on) {
+      poison.life -= dt;
+      if (poison.life <= 0) { poison.on = false; poisonTimer = rand(25, 40); }
+    } else if (venom.t <= 0 && storm.t <= 0) {
+      poisonTimer -= dt;
+      if (poisonTimer <= 0) spawnPoison();
+    }
+
+    if (venom.t > 0) {
+      venom.t -= dt;
+      if (venom.t <= 0) endVenom();
+      else {
+        smokeTimer -= dt;
+        while (smokeTimer <= 0) {
+          smokeTimer += 0.05;
+          const perto = Math.random() < 0.5;
+          smoke.push({
+            a: rand(0, LEN),
+            b: perto ? rand(-2, WALL + 6) : rand(SPAN - WALL - 8, SPAN + 2),
+            va: rand(-14, 14),
+            vb: (perto ? 1 : -1) * rand(5, 16),
+            size: rand(3, 7),
+            life: rand(0.8, 1.6),
+            max: 1.6,
+            rosa: Math.random() < 0.42
+          });
+          if (smoke.length > 90) smoke.shift();
+        }
+      }
+    }
+
+    atualizarEnfeites(dt);
+
+    // Um passo de física da bola; se ela sair de campo, o ponto é marcado
+    const fim1 = moverBola(ball, dt);
+    if (fim1 >= 0) { point(fim1); return; }
+  }
+
+  /* Envelhecimento de tudo que é enfeite: avisos, faíscas, fumaça, riscos.
+     Roda para os dois lados da sala — o convidado não simula a partida, mas
+     precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
+  function atualizarEnfeites(dt) {
+    if (hint.t > 0) hint.t -= dt;
+    if (roleta.on) roleta.t += dt;
+
+    if (gumFesta > 0) {
+      gumFesta -= dt;
+      bolhaTimer -= dt;
+      while (bolhaTimer <= 0) {
+        bolhaTimer += 0.055;
+        const perto = Math.random() < 0.5;
+        bolhas.push({
+          a: rand(0, LEN),
+          b: perto ? rand(-2, WALL + 8) : rand(SPAN - WALL - 10, SPAN + 2),
+          va: rand(-18, 18),
+          vb: (perto ? 1 : -1) * rand(9, 28),
+          r: rand(4, 9),
+          life: rand(0.8, 1.8),
+          pop: 0,
+          cor: BOLHAS[(Math.random() * BOLHAS.length) | 0]
+        });
+        if (bolhas.length > 80) bolhas.shift();
+      }
+    }
+    if (popTimer > 0) popTimer -= dt;
+
+    for (let i = bolhas.length - 1; i >= 0; i--) {
+      const o = bolhas[i];
+      if (o.pop > 0) {
+        o.pop -= dt;
+        if (o.pop <= 0) bolhas.splice(i, 1);
+        continue;
+      }
+      o.life -= dt;
+      o.a += o.va * dt;
+      o.b += o.vb * dt;
+      o.r += dt * 2.2;
+      o.va *= Math.pow(0.6, dt);
+      if (o.life <= 0) {
+        o.pop = 0.16;                    // estoura em vez de sumir
+        if (popTimer <= 0) { popTimer = 0.12; Snd.pop(); }
+      }
+    }
+
+    for (let i = arcos.length - 1; i >= 0; i--) {
+      arcos[i].life -= dt;
+      if (arcos[i].life <= 0) arcos.splice(i, 1);
+    }
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      bolts[i].life -= dt;
+      if (bolts[i].life <= 0) bolts.splice(i, 1);
+    }
+    for (let i = smoke.length - 1; i >= 0; i--) {
+      const f = smoke[i];
+      f.life -= dt;
+      if (f.life <= 0) { smoke.splice(i, 1); continue; }
+      f.a += f.va * dt;
+      f.b += f.vb * dt;
+      f.size += dt * 3;
+    }
+    for (let i = streaks.length - 1; i >= 0; i--) {
+      const st = streaks[i];
+      st.a += st.va * dt;
+      st.life -= dt;
+      if (st.life <= 0 || st.a < -90 || st.a > LEN + 90) streaks.splice(i, 1);
+    }
+    for (let i = dust.length - 1; i >= 0; i--) {
+      const d = dust[i];
+      d.life -= dt;
+      if (d.life <= 0) { dust.splice(i, 1); continue; }
+      d.a += d.va * dt;
+      d.b += d.vb * dt;
+      d.va *= Math.pow(0.12, dt);      // a poeira desacelera e fica boiando
+      d.vb *= Math.pow(0.12, dt);
+    }
+  }
+
+  /* Um passo de física da bola: curvatura, itens, paredes e raquetes.
+     Devolve quem pontuou, ou -1 se a jogada continua. */
+  function moverBola(b, dt) {
+    /* Curvatura: a rotação gira o vetor de velocidade sem mexer no módulo, e
+       vai se perdendo. A bola sai reta e vai abrindo para o lado do efeito. */
+    if (b.spin !== 0 && b.budget > 0) {
+      const want = b.spin * dt;
+      const mag = Math.min(Math.abs(want), b.budget);
+      const w = want < 0 ? -mag : mag;
+      b.budget -= mag;
+
+      const c = Math.cos(w), s = Math.sin(w);
+      const nva = b.va * c - b.vb * s;
+      const nvb = b.va * s + b.vb * c;
+      b.va = nva;
+      b.vb = nvb;
+
+      b.spin *= Math.pow(SPIN_DECAY, dt);
+      if (Math.abs(b.spin) < 0.02 || b.budget <= 0) b.spin = 0;
+
+      /* Trava de segurança: sem isso uma curva cheia deixa a bola quase
+         paralela às paredes, quicando de lado sem nunca chegar ao gol. */
+      const ang = Math.atan2(b.vb, Math.abs(b.va));
+      if (Math.abs(ang) > MAX_ANGLE) {
+        const sp = Math.hypot(b.va, b.vb);
+        const lim = ang < 0 ? -MAX_ANGLE : MAX_ANGLE;
+        b.va = Math.cos(lim) * sp * (b.va < 0 ? -1 : 1);
+        b.vb = Math.sin(lim) * sp;
+        b.spin = 0;
+        b.budget = 0;
+      }
+    }
+
+    const pa = b.a;
+    b.a += b.va * dt;
+    b.b += b.vb * dt;
+
+    if (fire.on) {
+      trail.push({ a: b.a, b: b.b });
+      if (trail.length > 4) trail.shift();
+    }
+
+    guardarIris(b.a, b.b);
+
+    // A bola estrelada perde poeira pelo caminho e joga riscos nas laterais
+    if (star.on) {
+      spark(b.a + BOLA / 2, b.b + BOLA / 2, 2, 3, 40);
+      streakTimer -= dt;
+      while (streakTimer <= 0) {
+        streakTimer += 0.028;
+        const dir = b.va >= 0 ? 1 : -1;
+        const perto = Math.random() < 0.5;
+        streaks.push({
+          a: dir > 0 ? rand(-60, -10) : rand(LEN + 10, LEN + 60),
+          b: perto ? rand(1, WALL + 7) : rand(SPAN - WALL - 9, SPAN - 3),
+          va: dir * rand(780, 1500),
+          len: rand(12, 34),
+          life: 1.4,
+          big: Math.random() < 0.35
+        });
+        if (streaks.length > 70) streaks.shift();
+      }
+    }
+
+    if (chiclete.on && hits(chiclete.a, chiclete.b, GUM, b)) {
+      chiclete.on = false;
+      gumTimer = rand(18, 31);
+      stats.used[b.va > 0 ? 0 : 1].gum++;
+      /* Bola grande e um pouco mais lenta: o chiclete é a respirada da
+         partida. Tira um quarto da velocidade que a bola tinha na hora do
+         contato — o bastante para quebrar a aceleração de 7% por rebatida
+         sem fazer o ponto arrastar. */
+      b.speed *= 0.75;
+      const dir = Math.hypot(b.va, b.vb) || 1;
+      b.va = b.va / dir * b.speed;
+      b.vb = b.vb / dir * b.speed;
+      const antes = BOLA;
+      BOLA = Math.min(BOLA_MAX, Math.max(BOLA * 2, BS * 2));
+      // recentra e tira das paredes, já que ela cresceu pelos quatro lados
+      b.a -= (BOLA - antes) / 2;
+      b.b = clamp(b.b - (BOLA - antes) / 2, WALL, SPAN - WALL - BOLA);
+      gumPop = 0.45;
+      gumFesta = 3.2;
+      kick(0.26, 0.75, COL.gum, 1.0);
+      spark(b.a + BOLA / 2, b.b + BOLA / 2, 14, 5, 110, COL.gum,
+            { lifeMin: 0.25, lifeMax: 0.55, peak: 0.85 });
+      Snd.gum();
+      showHint(-1, "CHICLETE", COL.gum);
+      announce("Chiclete: a bola inchou e desacelerou um pouco.");
+    }
+
+    /* Rainbow ball: dispara no contato, sem passar pelo inventário. A bola
+       começa a girar as cores na hora; o prêmio sai na rebatida de quem a
+       acertou. */
+    if (iris.on && hits(iris.a, iris.b, IRIS, b)) {
+      const quem = b.va > 0 ? 0 : 1;
+      iris.on = false;
+      irisTimer = rand(19, 30);
+      stats.used[quem].rainbow++;
+      roleta.on = true;
+      roleta.dono = quem;
+      roleta.t = 0;
+      aberr = reduceMotion ? 0 : 0.85;
+      kick(0.32, 0.62, VIVAS, 1.15);
+      spark(b.a + BOLA / 2, b.b + BOLA / 2, 20, 5, 140, null, { lifeMin: 0.2, lifeMax: 0.5, peak: 0.9 });
+      Snd.rainbow();
+      showHint(-1, "ARCO-ÍRIS", COL.core);
+      announce(quem === 0 ? "Você girou o arco-íris. O efeito sai na sua próxima rebatida."
+                          : foeName() + " girou o arco-íris.");
+    }
+
+    if (bolt.on && hits(bolt.a, bolt.b, BLT, b)) {
+      bolt.on = false;
+      boltTimer = rand(100, 160);
+      stats.used[b.va > 0 ? 0 : 1].bolt++;
+      enterStorm();
+    }
+
+    /* O coração devolve qualquer bola. Só conta quando ela está indo na
+       direção do centro dele — senão a dilatação reengoliria a recém-devolvida
+       e inverteria a rota a cada quadro. */
+    const hbox = heart.on ? heartBox() : null;
+    const indoAoCoracao = hbox &&
+      (b.va > 0 ? b.a + BOLA / 2 < hbox.a + hbox.s / 2
+                : b.a + BOLA / 2 > hbox.a + hbox.s / 2);
+    if (indoAoCoracao && hits(hbox.a, hbox.b, hbox.s, b)) {
+      b.a = b.va > 0 ? hbox.a - BOLA : hbox.a + hbox.s;
+      b.va = -b.va;
+      b.spin *= -0.5;
+      b.hit = BHIT_TIME;
+
+      const quem = b.va < 0 ? 0 : 1;      // já invertida: quem mandou está atrás
+      heart.hits[quem]++;
+      stats.used[quem].heart++;
+      heart.pulse = 0.35;
+
+      // Cada acerto rende mais que o anterior: 2, 3, 4, 5...
+      const ganho = HEART_GROW + (heart.hits[quem] - 1);
+      const cresceu = growPaddle(quem, ganho, LEN_MAX);
+      showHint(quem, cresceu ? "+" + ganho : "NO LIMITE", COL.heart);
+      spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 4, 90, COL.heart, { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
+      kick(0.14, 0.26, COL.heart, 0.4);
+      Snd.heart();
+      announce(quem === 0 ? "Você acertou o coração." : foeName() + " acertou o coração.");
+      sincronizar("coracao");
+    }
+
+    if (poison.on && hits(poison.a, poison.b, POI, b)) {
+      poison.on = false;
+      poisonTimer = rand(33, 53);
+      stats.used[b.va > 0 ? 0 : 1].poison++;
+      enterVenom();
+    }
+
+    if (gem.on && hits(gem.a, gem.b, GEM, b)) {
+      gem.on = false;
+      gemTimer = rand(14, 23);
+      stats.used[b.va > 0 ? 0 : 1].gem++;
+      enterSlow();
+    }
+
+    // Quem mandou a bola por cima da chama leva a carga
+    if (item.on && hits(item.a, item.b, ITEM, b)) {
+      const owner = b.va > 0 ? 0 : 1;
+      if (!held[owner]) {                       // slot ocupado passa reto
+        held[owner] = item.kind;
+        stats.picks[owner]++;
+        item.on = false;
+        itemTimer = rand(8, 14);
+        Snd.pickup();
+        showHint(owner, coarse ? "2 TOQUES" : (owner === 0 ? "TECLA E" : "TECLA /"));
+        const nome = item.kind === "star" ? "a estrela" : "a bola de fogo";
+        announce(owner === 0 ? "Você pegou " + nome + "." : foeName() + " pegou " + nome + ".");
+      }
+    }
+
+    // A parede espelha a trajetória, então o sentido da curva se inverte
+    if (b.b <= WALL) {
+      b.b = WALL; b.vb = Math.abs(b.vb); b.spin *= -0.65; Snd.wall();
+    }
+    if (b.b + BOLA >= SPAN - WALL) {
+      b.b = SPAN - WALL - BOLA; b.vb = -Math.abs(b.vb); b.spin *= -0.65; Snd.wall();
+    }
+
+    // Teste varrido: a bola rápida não atravessa a raquete
+    const face0 = padA(0) + PT, face1 = padA(1);
+    if (b.va < 0 && pa >= face0 && b.a <= face0 && overlaps(0, b)) bounce(0, +1, b);
+    else if (b.va > 0 && pa + BOLA <= face1 && b.a + BOLA >= face1 && overlaps(1, b)) bounce(1, -1, b);
+
+    if (b.a + BOLA < 0) return 1;
+    if (b.a > LEN) return 0;
+    return -1;
+  }
+
+  const overlaps = (i, o) => {
+    const x = o || ball;
+    return x.b + BOLA > pads[i].b && x.b < pads[i].b + padLen(i);
+  };
+
+  function bounce(i, dir, o) {
+    const b = o || ball;
+    const p = pads[i];
+    const rel = ((b.b + BOLA / 2) - (p.b + padLen(i) / 2)) / (padLen(i) / 2);
+    const ang = clamp(rel, -1, 1) * 0.95;
+
+    // Devolver a bola estrelada encerra o impulso e a poeira
+    if (star.on) spark(b.a + BOLA / 2, b.b + BOLA / 2, 12, 4, 110, null, { size: 2 });
+
+    // Defender uma bola de fogo apaga o fogo, devolve a bola ao ritmo normal
+    // e alarga um pouco a raquete de quem defendeu
+    if (fire.on) {
+      douse();
+      b.speed = LEVELS[S.diff].base * 1.2;
+      Snd.block();
+      stats.blocks[i]++;
+      p.glow = GLOW_TIME;
+      const grew = growPaddle(i, GROW, PL + GROW * GROW_MAX);
+      // Em campo só "DEFENDEU": o "+ DEFESA" é a marca do prêmio da rainbow
+      // ball. O crescimento aqui já se vê na raquete, que anima ao aumentar.
+      showHint(i, "DEFENDEU", COL.fire);
+      announce(grew
+        ? (i === 0 ? "Defendeu. Sua raquete aumentou." : "O adversário defendeu e aumentou a raquete.")
+        : "Defendeu.");
+    }
+
+    b.speed = Math.min(b.speed * 1.07, star.on ? 900 : 640);
+    b.va = Math.cos(ang) * b.speed * dir;
+    b.vb = Math.sin(ang) * b.speed;
+    b.a = dir > 0 ? padA(0) + PT : padA(1) - BOLA;
+
+    // Varrida manda no efeito; a quina da raquete acrescenta um pouco
+    b.spin = clamp(p.swing / SPIN_REF, -1, 1) * MAX_SPIN
+           + clamp(rel, -1, 1) * EDGE_SPIN;
+    b.budget = SPIN_BUDGET;
+
+    const e = LEVELS[S.diff].err;
+    pads[1].err = (Math.random() * 2 - 1) * e;
+    pads[0].err = (Math.random() * 2 - 1) * e * 1.4;
+    Snd.paddle();
+    p.hit = HIT_TIME;
+    b.hit = BHIT_TIME;
+    spark(b.a + BOLA / 2, b.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
+          { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
+
+    sincronizar("pad" + i);
+
+    if (roleta.on && roleta.dono === i) premioRoleta(i);
+
+    if (armed.who === i) {
+      const kind = armed.kind;
+      armed.kind = null; armed.who = -1;
+      if (kind === "star") igniteStar(i); else ignite(i);
+    }
+    else if (i === 1 && S.mode === "1p" && held[1] && Math.random() < AI_FIRE[S.diff]) {
+      useItem(1, true);
+    }
+  }
+
+  const AI_FIRE = { facil: 0.35, normal: 0.6, dificil: 0.9 };
+
+  function point(who) {
+    if (S.phase === "attract") { resetBall(who === 0 ? 1 : -1); return; }
+    douse();
+    endRush();
+    S.score[who]++;
+    scorePop[who] = 0.9;
+    Snd.point();
+    updateScoreline();
+
+    if (S.score[who] >= TARGET) {
+      S.winner = who;
+      registrarPartida(who);
+      S.phase = "over";
+      S.t = 0;
+      releaseWake();
+      announce(who === 0
+        ? `Jogador 1 venceu por ${S.score[0]} a ${S.score[1]}`
+        : `${foeName()} venceu por ${S.score[1]} a ${S.score[0]}`);
+    } else {
+      announce(`Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
+      if (matchPoint(who)) {
+        const decisivo = pontoFinal();
+        moldura.t = MOLDURA_TEMPO;
+        moldura.arco = decisivo;
+        moldura.cor = who === 0 ? COL.p1 : COL.p2;
+        showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
+                 null, decisivo);
+        if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
+        announce(decisivo
+          ? "Ponto final: o próximo ponto decide a partida."
+          : (who === 0 ? "Match point para o jogador 1." : `Match point para ${foeName().toLowerCase()}.`));
+      }
+      S.serveTo = who === 0 ? 1 : -1;
+      newRally(S.serveTo);
+    }
+    syncPlayButton();
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5a. Sala entre janelas
+     Conversa por BroadcastChannel: comunicação entre abas do mesmo navegador,
+     sem rede e sem servidor. O anfitrião roda a física e transmite o estado;
+     o convidado só manda a posição da própria raquete e desenha o que recebe.
+     ══════════════════════════════════════════════════════════ */
+  const TEM_CANAL = typeof BroadcastChannel !== "undefined";
+  const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";   // sem I e O, que viram 1 e 0
+  const sala = { ws: null, canal: null, codigo: "", papel: "", via: "", conectado: false, visto: 0, atraso: 60, ping: 0 };
+  let mundoEm = 0;
+  let bolaEm = 0;
+  let padEm = 0;
+  let pingEm = 0;
+  const r1 = v => Math.round(v * 10) / 10;
+  const r2 = v => Math.round(v * 100) / 100;
+
+  const naSala = () => !!(sala.ws || sala.canal);
+
+  function novoCodigo() {
+    let c = "";
+    for (let i = 0; i < 4; i++) c += ALFABETO[(Math.random() * ALFABETO.length) | 0];
+    return c;
+  }
+
+  function enviar(msg) {
+    if (sala.ws && sala.ws.readyState === 1) sala.ws.send(JSON.stringify(msg));
+    else if (sala.canal) sala.canal.postMessage(msg);
+  }
+
+  /* Tenta primeiro o servidor: é o que atravessa aparelhos. Se não houver um
+     (ou a página proibir a conexão), cai para o canal entre abas do mesmo
+     navegador, que não precisa de nada. */
+  function abrirSala(codigo, papel) {
+    fecharSala(true);
+    sala.codigo = codigo;
+    sala.papel = papel;
+    sala.conectado = false;
+    sala.visto = performance.now();
+    sala.via = "tentando";
+    if (sala.tentativas === undefined) sala.tentativas = 0;
+
+    let decidido = false;
+    const cairParaAbas = () => {
+      if (decidido) return;
+      decidido = true;
+      if (sala.ws) { try { sala.ws.close(); } catch (_) {} sala.ws = null; }
+      if (!TEM_CANAL) { sala.via = "sem-jeito"; pintarSala(); return; }
+      sala.via = "abas";
+      sala.canal = new BroadcastChannel("rainbow-pong-sala-" + codigo);
+      sala.canal.onmessage = e => receber(e.data);
+      if (papel === "convidado") enviar({ t: "ola" });
+      pintarSala();
+      announce("Não achei o servidor. A sala vale só entre janelas deste navegador.");
+    };
+
+    try {
+      /* O endereço é relativo à página: se o jogo está em /pong/, a sala fica
+         em /pong/ws. Assim ele funciona atrás de qualquer proxy de subcaminho. */
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const base = location.pathname.replace(/[^\/]*$/, "");
+      const ws = new WebSocket(`${proto}//${location.host}${base}ws`);
+      sala.ws = ws;
+      ws.onopen = () => {
+        decidido = true;
+        sala.via = "rede";
+        sala.tentativas = 0;
+        ws.send(JSON.stringify({ t: "sala", codigo }));
+        pintarSala();
+      };
+      ws.onmessage = e => { try { receber(JSON.parse(e.data)); } catch (_) {} };
+      ws.onerror = cairParaAbas;
+      ws.onclose = () => {
+        if (sala.via !== "rede") { cairParaAbas(); return; }
+        sala.conectado = false;
+        sala.ws = null;
+        pintarSala();
+        // reabre sozinho: o servidor pode ter reiniciado no meio da partida
+        sala.tentativas = (sala.tentativas || 0) + 1;
+        if (sala.codigo && sala.tentativas <= 4) {
+          setTimeout(() => { if (sala.codigo && !sala.ws) abrirSala(sala.codigo, sala.papel); }, 1200);
+        } else if (sala.codigo) {
+          announce("Não consegui voltar para a sala. Saindo.");
+          fecharSala(false);
+        }
+      };
+      setTimeout(() => { if (ws.readyState !== 1) cairParaAbas(); }, 1400);
+    } catch (_) {
+      cairParaAbas();
+    }
+
+    S.mode = "2p";
+    document.querySelectorAll("[data-mode]").forEach(o =>
+      o.setAttribute("aria-pressed", String(o.dataset.mode === "2p")));
+    newGame("attract");
+    syncBadge();
+    syncPlayButton();
+    pintarSala();
+  }
+
+  function fecharSala(silencioso) {
+    try { enviar({ t: "tchau" }); } catch (_) {}
+    if (sala.ws) { try { sala.ws.close(); } catch (_) {} }
+    if (sala.canal) sala.canal.close();
+    sala.ws = null;
+    sala.canal = null;
+    sala.codigo = "";
+    sala.papel = "";
+    sala.via = "";
+    sala.conectado = false;
+    sala.tentativas = 0;
+    if (!silencioso) { pintarSala(); announce("Você saiu da sala."); }
+  }
+
+  function receber(m) {
+    if (!m || !naSala()) return;
+    sala.visto = performance.now();
+
+    // O servidor avisa os dois lados com a mesma mensagem
+    if (m.t === "par") {
+      if (!sala.conectado) {
+        sala.conectado = true;
+        pintarSala();
+        announce("Sala conectada.");
+      }
+      return;
+    }
+    if (m.t === "ola" && sala.papel === "anfitriao") {
+      sala.conectado = true;
+      enviar({ t: "bemvindo" });
+      pintarSala();
+      announce("Jogador 2 entrou na sala.");
+      return;
+    }
+    if (m.t === "bemvindo" && sala.papel === "convidado") {
+      sala.conectado = true;
+      pintarSala();
+      announce("Conectado à sala.");
+      return;
+    }
+    if (m.t === "cheia") {
+      announce("Essa sala já tem dois jogadores.");
+      fecharSala(false);
+      return;
+    }
+    if (m.t === "tchau") {
+      sala.conectado = false;
+      pintarSala();
+      announce("O outro jogador saiu da sala.");
+      return;
+    }
+    if (m.t === "ping") { enviar({ t: "pong", ts: m.ts }); return; }
+    if (m.t === "pong") {
+      sala.atraso = sala.atraso * 0.7 + (performance.now() - m.ts) * 0.3;
+      return;
+    }
+
+    if (m.t === "pad") {
+      if (sala.papel === "anfitriao") {
+        pads[1].touch = m.alvo === null ? null : m.alvo;
+        pads[1].up = !!m.u;
+        pads[1].down = !!m.d;
+      } else {
+        pads[0].destino = m.b;   // o desenho alcança sem saltar
+      }
+      return;
+    }
+
+    if (sala.papel !== "convidado") return;
+    if (m.t === "bola") { adotarBola(m.b, false); return; }
+    if (m.t === "ev") {
+      const duro = m.m === "saque" || m.m === "ponto";
+      adotarBola(m.bola, duro);
+      reagirAoEvento(m.m);
+      return;
+    }
+    if (m.t === "mundo") aplicarMundo(m);
+  }
+
+  /* ── Sincronização ──
+     Nada de transmitir a bola quadro a quadro. Os dois lados integram a mesma
+     bola localmente; o anfitrião só avisa quando a trajetória MUDA — saque,
+     rebatida, parede especial, item. Cada aviso carrega o estado exato da bola
+     naquele instante, e o convidado adianta esse estado pelo atraso medido
+     antes de adotá-lo, para a correção não puxar a bola para trás.
+
+     Fora isso corre só um fio fino: a raquete de cada um a 20 Hz e um resumo
+     do mundo a 4 Hz, que serve de rede de segurança contra desvios. */
+  const estadoBola = () => [
+    r1(ball.a), r1(ball.b), r1(ball.va), r1(ball.vb),
+    r2(ball.spin), r2(ball.budget), r1(ball.speed)
+  ];
+
+  /* Com a rotação morta, `spin` e `budget` são zero e param de mudar: mandá-los
+     vinte vezes por segundo é papel queimado. O pacote curto omite os dois, e
+     quem recebe sabe preencher. `speed` fica: ela só muda em evento, mas um
+     evento perdido deixaria o convidado com a bola errada para sempre. */
+  const estadoBolaCurto = () => [
+    r1(ball.a), r1(ball.b), r1(ball.va), r1(ball.vb), r1(ball.speed)
+  ];
+
+  /** Chamado a cada descontinuidade da trajetória. */
+  function sincronizar(motivo) {
+    if (!sala.conectado || sala.papel !== "anfitriao") return;
+    enviar({ t: "ev", m: motivo, bola: estadoBola(), ts: Math.round(performance.now()) });
+  }
+
+  /** Resumo do que muda devagar: placar, itens, efeitos, raquetes. */
+  function transmitirMundo() {
+    if (!sala.conectado || sala.papel !== "anfitriao") return;
+    enviar({
+      t: "mundo",
+      fase: S.phase, ct: r2(S.t), placar: S.score, venc: S.winner, roda: spoke,
+      lens: [pads[0].len, pads[1].len],
+      fogo: [fire.on ? 1 : 0, star.on ? 1 : 0, armed.who, armed.kind || ""],
+      guard: [held[0] || "", held[1] || ""],
+      item: item.on ? [r1(item.a), r1(item.b), item.kind, r1(item.life)] : null,
+      gem: gem.on ? [r1(gem.a), r1(gem.b), r1(gem.life)] : null,
+      poi: poison.on ? [r1(poison.a), r1(poison.b), r1(poison.life)] : null,
+      ray: bolt.on ? [r1(bolt.a), r1(bolt.b), r1(bolt.life)] : null,
+      cor: heart.on ? [r2(heart.t), r1(heart.life), heart.hits[0], heart.hits[1], r2(heart.pulse)] : null,
+      efe: [r2(venom.t), r2(slow.t), r2(storm.t)],
+      rol: roleta.on ? [roleta.dono, r2(roleta.t)] : null,
+      iris: iris.on ? [r1(iris.a), r1(iris.b), r1(iris.life)] : null,
+      gum: chiclete.on ? [r1(chiclete.a), r1(chiclete.b), r1(chiclete.life)] : null,
+      tam: BOLA,
+      bola: estadoBola()
+    });
+  }
+
+  /** A bola oficial. O convidado já integra a mesma física, então isto não
+      transporta a trajetória — só corrige o desvio que a compensação de atraso
+      deixou no último evento. Por isso o fio pode afinar quando a rota já é
+      reta: ali os dois lados calculam exatamente o mesmo, e não há o que
+      corrigir além daquele desencontro inicial. */
+  function transmitirBola() {
+    if (!sala.conectado || sala.papel !== "anfitriao" || S.phase !== "play") return;
+    enviar({ t: "bola", b: ball.spin !== 0 ? estadoBola() : estadoBolaCurto() });
+  }
+
+  /* A raquete é o outro fluxo contínuo, e cada lado manda apenas o
+     que o outro precisa: o convidado manda a INTENÇÃO (para o anfitrião
+     simular), o anfitrião manda a POSIÇÃO (para o convidado desenhar). E
+     ninguém manda nada enquanto a raquete está parada. */
+  const ultimoPad = { b: null, alvo: null, u: false, d: false };
+
+  function transmitirRaquete() {
+    if (!sala.conectado) return;
+    if (sala.papel === "convidado") {
+      const p = pads[1];
+      const alvo = p.touch === null ? null : r1(p.touch);
+      if (alvo === ultimoPad.alvo && p.up === ultimoPad.u && p.down === ultimoPad.d) return;
+      ultimoPad.alvo = alvo; ultimoPad.u = p.up; ultimoPad.d = p.down;
+      enviar({ t: "pad", alvo, u: p.up, d: p.down });
+    } else {
+      const b = r1(pads[0].b);
+      if (b === ultimoPad.b) return;
+      ultimoPad.b = b;
+      enviar({ t: "pad", b });
+    }
+  }
+
+  /** Adota o estado recebido, adiantado pelo meio-caminho do atraso medido. */
+  function adotarBola(bola, duro) {
+    const adiante = Math.min(0.25, Math.max(0, (sala.atraso / 2) / 1000));
+    let [a, b, va, vb, spin, budget, speed] = bola;
+    if (bola.length === 5) { speed = spin; spin = 0; budget = 0; }   // pacote curto
+    a += va * adiante;
+    b += vb * adiante;
+    if (b <= WALL) { b = WALL + (WALL - b); vb = Math.abs(vb); }
+    if (b + BOLA >= SPAN - WALL) { b = 2 * (SPAN - WALL - BOLA) - b; vb = -Math.abs(vb); }
+    b = clamp(b, WALL, SPAN - WALL - BOLA);
+
+    // A velocidade é sempre a oficial; a posição só salta se já divergiu muito
+    ball.va = va; ball.vb = vb;
+    ball.spin = spin; ball.budget = budget; ball.speed = speed;
+    const longe = Math.hypot(a - ball.a, b - ball.b);
+    if (duro || longe > 60) { ball.a = a; ball.b = b; }
+    else { ball.a += (a - ball.a) * 0.35; ball.b += (b - ball.b) * 0.35; }
+  }
+
+  /* O convidado devolve a bola na raquete com a mesma conta do anfitrião. Sem
+     isso a bola atravessa a raquete até o aviso chegar e depois salta de volta
+     — era o pior defeito da sincronização, meia quadra de teletransporte. O
+     aviso oficial ainda vem e corrige, mas de mansinho. */
+  function rebaterLocal(i, dir) {
+    const p = pads[i];
+    const rel = ((ball.b + BOLA / 2) - (p.b + padLen(i) / 2)) / (padLen(i) / 2);
+    const ang = clamp(rel, -1, 1) * 0.95;
+    ball.speed = Math.min(ball.speed * 1.07, star.on ? 900 : 640);
+    ball.va = Math.cos(ang) * ball.speed * dir;
+    ball.vb = Math.sin(ang) * ball.speed;
+    ball.a = dir > 0 ? padA(0) + PT : padA(1) - BOLA;
+    ball.spin = clamp(p.swing / SPIN_REF, -1, 1) * MAX_SPIN + clamp(rel, -1, 1) * EDGE_SPIN;
+    ball.budget = SPIN_BUDGET;
+    p.hit = HIT_TIME;
+    ball.hit = BHIT_TIME;
+    Snd.paddle();
+    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
+          { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
+  }
+
+  /** O convidado anda a bola sozinho: giro, deslocamento, paredes e raquetes. */
+  function andarBolaLocal(dt) {
+    if (S.phase !== "play") return;
+    const antes = ball.a;
+    if (ball.spin !== 0 && ball.budget > 0) {
+      const want = ball.spin * dt;
+      const mag = Math.min(Math.abs(want), ball.budget);
+      const w = want < 0 ? -mag : mag;
+      ball.budget -= mag;
+      const c = Math.cos(w), s = Math.sin(w);
+      const nva = ball.va * c - ball.vb * s;
+      ball.vb = ball.va * s + ball.vb * c;
+      ball.va = nva;
+      ball.spin *= Math.pow(SPIN_DECAY, dt);
+      if (Math.abs(ball.spin) < 0.02 || ball.budget <= 0) ball.spin = 0;
+    }
+    ball.a += ball.va * dt;
+    ball.b += ball.vb * dt;
+
+    guardarIris(ball.a, ball.b);
+    if (ball.b <= WALL) { ball.b = WALL; ball.vb = Math.abs(ball.vb); ball.spin *= -0.65; Snd.wall(); }
+    if (ball.b + BOLA >= SPAN - WALL) {
+      ball.b = SPAN - WALL - BOLA; ball.vb = -Math.abs(ball.vb); ball.spin *= -0.65; Snd.wall();
+    }
+
+    const face0 = padA(0) + PT, face1 = padA(1);
+    if (ball.va < 0 && antes >= face0 && ball.a <= face0 && overlaps(0)) rebaterLocal(0, +1);
+    else if (ball.va > 0 && antes + BOLA <= face1 && ball.a + BOLA >= face1 && overlaps(1)) rebaterLocal(1, -1);
+  }
+
+  /** Efeitos locais de um aviso, para o convidado ver e ouvir o que houve. */
+  function reagirAoEvento(motivo) {
+    if (motivo === "saque" || motivo === "ponto") return;
+    if (motivo.startsWith("pad")) {
+      // a previsão local já bateu e já tocou; aqui só garante o realce
+      const i = +motivo.slice(3);
+      if (pads[i].hit < HIT_TIME * 0.4) {
+        pads[i].hit = HIT_TIME;
+        ball.hit = BHIT_TIME;
+        Snd.paddle();
+      }
+      return;
+    }
+    if (motivo === "coracao") {
+      ball.hit = BHIT_TIME;
+      heart.pulse = 0.35;
+      Snd.heart();
+      spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 4, 90, COL.heart,
+            { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
+      kick(0.14, 0.26, COL.heart, 0.4);
+    }
+  }
+
+  function aplicarMundo(m) {
+    S.phase = m.fase; S.t = m.ct; S.winner = m.venc;
+    if (S.score[0] !== m.placar[0] || S.score[1] !== m.placar[1]) {
+      const quem = m.placar[0] > S.score[0] ? 0 : 1;
+      scorePop[quem] = 0.9;
+      Snd.point();
+      S.score = m.placar.slice();
+      updateScoreline();
+      syncPlayButton();
+      /* O aviso não trafega: o convidado o deduz do placar que acabou de
+         receber, e assim os dois lados veem a mesma coisa sem gastar rede. */
+      if (matchPoint(quem) && S.phase !== "over") {
+        const decisivo = pontoFinal();
+        moldura.t = MOLDURA_TEMPO;
+        moldura.arco = decisivo;
+        moldura.cor = quem === 0 ? COL.p1 : COL.p2;
+        showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
+                 null, decisivo);
+        if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
+      }
+    }
+    if (m.roda !== spoke) { spoke = m.roda; applyColors(); }
+
+    pads[0].len = m.lens[0];
+    pads[1].len = m.lens[1];
+
+    if (!fire.on && m.fogo[0]) trail.length = 0;
+    fire.on = !!m.fogo[0];
+    star.on = !!m.fogo[1];
+    armed.who = m.fogo[2];
+    armed.kind = m.fogo[3] || null;
+    held[0] = m.guard[0] || null;
+    held[1] = m.guard[1] || null;
+
+    const põe = (o, d) => { if (d) { o.on = true; o.a = d[0]; o.b = d[1]; o.life = d[2]; } else o.on = false; };
+    if (m.item) { item.on = true; item.a = m.item[0]; item.b = m.item[1]; item.kind = m.item[2]; item.life = m.item[3]; }
+    else item.on = false;
+    põe(gem, m.gem); põe(poison, m.poi); põe(bolt, m.ray); põe(iris, m.iris); põe(chiclete, m.gum);
+    if (m.tam !== undefined && m.tam !== BOLA) {
+      if (m.tam > BOLA) { gumPop = 0.45; gumFesta = 3.2; }
+      BOLA = m.tam;
+    }
+    if (m.cor) {
+      heart.on = true; heart.t = m.cor[0]; heart.life = m.cor[1];
+      heart.hits = [m.cor[2], m.cor[3]]; heart.pulse = Math.max(heart.pulse, m.cor[4]);
+    } else heart.on = false;
+
+    if (m.efe[0] > venom.t + 0.5) { kick(0.4, 0.55, COL.venom, 0.95); Snd.venom(); }
+    if (m.efe[1] > slow.t + 0.5) { kick(0.45, 0.6, COL.time, 1); Snd.slow(); }
+    if (m.efe[2] > storm.t + 0.5) { kick(0.7, 0.7, "#ffffff", 1.5); Snd.storm(); }
+    venom.t = m.efe[0]; slow.t = m.efe[1]; storm.t = m.efe[2];
+
+    if (m.rol) { roleta.on = true; roleta.dono = m.rol[0]; roleta.t = m.rol[1]; }
+    else roleta.on = false;
+
+    // rede de segurança: só corrige se a bola já divergiu de verdade
+    adotarBola(m.bola, false);
+  }
+
+  function pintarSala() {
+    const est = document.getElementById("sala-estado");
+    const criar = document.getElementById("sala-criar");
+    const entrar = document.getElementById("sala-entrar");
+    const campo = document.getElementById("sala-codigo");
+    const sair = document.getElementById("sala-sair");
+    if (!est) return;
+
+    if (!TEM_CANAL) {
+      est.textContent = "indisponível";
+      criar.disabled = entrar.disabled = true;
+      return;
+    }
+    const dentro = naSala();
+    criar.hidden = dentro;
+    entrar.hidden = dentro;
+    sair.hidden = !dentro;
+    campo.hidden = dentro || campo.dataset.aberto !== "1";
+
+    est.classList.toggle("ligada", sala.conectado);
+    const onde = { rede: "rede", abas: "só nesta janela", tentando: "ligando", "sem-jeito": "sem transporte" }[sala.via] || "";
+    est.textContent = !dentro ? "desligada"
+      : `${sala.codigo} · ${sala.conectado ? "conectada" : "esperando"} · ${onde}`;
+
+    const nota = document.getElementById("sala-nota");
+    if (nota) {
+      nota.hidden = !dentro || sala.via !== "abas";
+      nota.textContent = "Sem servidor nesta página: a sala só alcança outra janela deste mesmo navegador. "
+        + "Para jogar entre aparelhos, abra o jogo pelo endereço da sua rede.";
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5b. Histórico de partidas
+     Guardado no navegador. Se o armazenamento estiver bloqueado — o que
+     acontece em algumas páginas embutidas — o histórico vale só pela sessão,
+     e a nota embaixo avisa.
+     ══════════════════════════════════════════════════════════ */
+  const HIST_KEY = "rainbow-pong-historico-v1";
+  const HIST_MAX = 40;
+  let historico = [];
+  let histPersistente = true;
+
+  function carregarHistorico() {
+    try {
+      const bruto = localStorage.getItem(HIST_KEY);
+      historico = bruto ? JSON.parse(bruto) : [];
+      if (!Array.isArray(historico)) historico = [];
+    } catch (_) {
+      historico = [];
+      histPersistente = false;
+    }
+  }
+
+  function gravarHistorico() {
+    try {
+      localStorage.setItem(HIST_KEY, JSON.stringify(historico.slice(-HIST_MAX)));
+    } catch (_) {
+      histPersistente = false;
+    }
+  }
+
+  function registrarPartida(vencedor) {
+    historico.push({
+      v: vencedor,
+      a: S.score[0],
+      b: S.score[1],
+      t: Math.round(playTime),
+      m: S.mode,
+      d: S.diff,
+      ts: Date.now()
+    });
+    if (historico.length > HIST_MAX) historico = historico.slice(-HIST_MAX);
+    gravarHistorico();
+    desenharHistorico();
+  }
+
+  const duracao = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  function quandoFoi(ts) {
+    const min = Math.floor((Date.now() - ts) / 60000);
+    if (min < 1) return "agora";
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h} h`;
+    const d = Math.floor(h / 24);
+    return d === 1 ? "ontem" : `há ${d} dias`;
+  }
+
+  function desenharHistorico() {
+    const lista = document.getElementById("matches");
+    if (!lista) return;
+
+    // O confronto direto conta só as partidas contra o computador
+    const contraCPU = historico.filter(p => p.m === "1p");
+    document.getElementById("tally-1").textContent = contraCPU.filter(p => p.v === 0).length;
+    document.getElementById("tally-2").textContent = contraCPU.filter(p => p.v === 1).length;
+
+    const NIVEL = { facil: "Fácil", normal: "Normal", dificil: "Difícil" };
+    lista.innerHTML = "";
+    const recentes = historico.slice(-10).reverse();
+
+    for (const p of recentes) {
+      const li = document.createElement("li");
+      const dupla = p.m === "2p";
+      const venceu = p.v === 0;
+      const rotulo = dupla ? (venceu ? "Jogador 1" : "Jogador 2") : (venceu ? "Vitória" : "Derrota");
+
+      li.innerHTML =
+        `<span class="res ${venceu ? "win" : "loss"}">${rotulo}</span>` +
+        `<span class="meta">${p.a}–${p.b} · ${dupla ? "2 jogadores" : NIVEL[p.d] || p.d}</span>` +
+        `<span class="dur">${duracao(p.t)}</span>` +
+        `<span class="ago">${quandoFoi(p.ts)}</span>`;
+      lista.appendChild(li);
+    }
+
+    const nota = document.getElementById("hist-note");
+    if (!historico.length) {
+      nota.textContent = "Nenhuma partida registrada ainda. Termine um jogo e ele aparece aqui.";
+    } else if (!histPersistente) {
+      nota.textContent = "Este navegador não deixou guardar o histórico, então ele vale só nesta sessão.";
+    } else {
+      const total = historico.length;
+      const soma = historico.reduce((s, p) => s + p.t, 0);
+      nota.textContent = `${total} ${total === 1 ? "partida" : "partidas"} · ${duracao(Math.round(soma))} de jogo no total.`;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     6. Desenho
+     ══════════════════════════════════════════════════════════ */
+  function draw() {
+    const cw = cv.width, ch = cv.height;
+    const maxTextW = cw - 24;
+
+    if (S.crt && !reduceMotion) {          // persistência de fósforo
+      g.fillStyle = theme.fade;
+      g.fillRect(0, 0, cw, ch);
+    } else {
+      g.fillStyle = COL.screen;
+      g.fillRect(0, 0, cw, ch);
+    }
+
+    // Contagem do veneno, ao fundo e no centro: a bola sempre passa por cima
+    /* O contador grande do veneno mora no meio do campo — exatamente onde o
+       coração fica. Os dois juntos viravam uma pilha ilegível. Com o coração
+       em campo o veneno passa a se contar numa barra sob ele, e o meio da tela
+       fica livre para o placar voltar. */
+    if (venomVis > 0.01 && !heart.on) drawVenomTimer(cw, ch);
+
+    /* Câmera: fecha na bola durante a lentidão e treme no impacto. Só o mundo
+       entra na transformação — placar e avisos ficam onde estão. */
+    g.save();
+
+    const fecho = ZOOM * slowRamp() + ZOOM_STORM * stormRamp();
+    if (fecho > 0.001) {
+      const z = 1 + fecho;
+      const bp = rect(ball.a, ball.b, BOLA, BOLA);
+      const half = [cw / (2 * z), ch / (2 * z)];
+      // trava a câmera dentro da quadra, senão apareceria o vazio de fora
+      const camX = clamp(bp[0] + bp[2] / 2, half[0], cw - half[0]);
+      const camY = clamp(bp[1] + bp[3] / 2, half[1], ch - half[1]);
+      g.translate(cw / 2, ch / 2);
+      g.scale(z, z);
+      g.translate(-camX, -camY);
+    }
+
+    const sh = fx.shake / fx.shakeDur;
+    if (sh > 0) {
+      const amp = 4 * sh * fx.force;
+      g.translate(Math.round((Math.random() * 2 - 1) * amp),
+                  Math.round((Math.random() * 2 - 1) * amp));
+    }
+
+    // Faixas laterais
+    fill(COL.dim, 0, 0, LEN, WALL - 2);
+    fill(COL.dim, 0, SPAN - WALL + 2, LEN, WALL - 2);
+    if (pontoFinal() && S.phase !== "over") flancosArcoIris();
+
+    // Rede — também marca onde a tela se divide entre os dois jogadores
+    for (let b = WALL + 6; b < SPAN - WALL; b += 20) fill(COL.net, LEN / 2 - 2, b, 4, 12);
+
+    // Item no meio do campo — pisca quando está prestes a sumir
+    const fading = item.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (item.on && !fading) {
+      const r = rect(item.a, item.b, ITEM, ITEM);
+      const sp = SPRITES[item.kind];
+      const pulse = reduceMotion ? 1 : (S.blink * 7) % 2 | 0;
+      drawItem(sp, r[0], r[1], ITEM, sp.field, pulse);
+    }
+
+    /* Coração: respira no meio do campo, pulsa ao ser acertado, pisca no fim
+       dos 20s e carrega o placar de acertos de cada lado. */
+    const hrtFading = heart.life < 3.5 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (heart.on && !hrtFading) {
+      const hb = heartBox();
+      const r = rect(hb.a, hb.b, hb.s, hb.s);
+      const bate = heart.pulse > 0 ? heart.pulse / 0.35 : 0;
+      if (bate > 0) {                       // anel verde curto a cada acerto
+        const e = 7 * bate;
+        g.globalAlpha = 0.3 * bate;
+        fill(COL.heart, hb.a - e, hb.b - e, hb.s + e * 2, hb.s + e * 2);
+        g.globalAlpha = 1;
+      }
+      const sp = SPRITES.heart;
+      const vivo = reduceMotion ? 1 : (S.blink * 2.2) % 2 | 0;
+      drawSprite(sp.rows, r[0], r[1], hb.s / HRT_CELL, vivo ? sp.map() : sp.dull());
+
+      // barra dos 30 segundos, logo abaixo
+      const bw = Math.round(hb.s), bx = r[0], by = r[1] + hb.s + 3;
+      g.globalAlpha = 0.25;
+      g.fillStyle = COL.heartEdge;
+      g.fillRect(bx, by, bw, 2);
+      g.globalAlpha = 0.85;
+      g.fillStyle = COL.heart;
+      g.fillRect(bx, by, Math.round(bw * (heart.life / HEART_LIFE)), 2);
+      g.globalAlpha = 1;
+
+      /* Veneno: mesma barra, mesma medida, em roxo logo abaixo. Substitui o
+         contador grande enquanto o coração ocupa o meio do campo. */
+      if (venomVis > 0.01) {
+        const vy = by + 4;
+        const pisca = !reduceMotion && venom.t < 1.5 && S.blink % 0.34 < 0.17;
+        g.globalAlpha = venomVis * 0.25;
+        g.fillStyle = COL.venomDark;
+        g.fillRect(bx, vy, bw, 2);
+        g.globalAlpha = venomVis * (pisca ? 0.35 : 0.85);
+        g.fillStyle = COL.venom;
+        g.fillRect(bx, vy, Math.round(bw * (venom.t / VENOM_TIME)), 2);
+        g.globalAlpha = 1;
+      }
+
+      // acertos de cada jogador, um de cada lado
+      for (let k = 0; k < 2; k++) {
+        if (!heart.hits[k]) continue;
+        const t = String(heart.hits[k]);
+        const x = k === 0 ? r[0] - 5 - textWidth(t, 1) : r[0] + hb.s + 5;
+        drawText(g, t, x, r[1] + hb.s / 2 - CH / 2, 1, k === 0 ? COL.p1 : COL.p2);
+      }
+    }
+
+    // Chiclete
+    const gumFading = chiclete.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (chiclete.on && !gumFading) {
+      const r = rect(chiclete.a, chiclete.b, GUM, GUM);
+      const infla = reduceMotion ? 1 : (S.blink * 3) % 2 | 0;
+      drawItem(SPRITES.gum, r[0], r[1], GUM, SPRITES.gum.field, infla);
+    }
+
+    // Rainbow ball
+    const irisFading = iris.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (iris.on && !irisFading) {
+      const r = rect(iris.a, iris.b, IRIS, IRIS);
+      const viva = reduceMotion ? 1 : (S.blink * 3) % 2 | 0;
+      drawItem(SPRITES.rainbow, r[0], r[1], IRIS, SPRITES.rainbow.field, viva);
+    }
+
+    // Raio
+    const bltFading = bolt.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (bolt.on && !bltFading) {
+      const r = rect(bolt.a, bolt.b, BLT, BLT);
+      const faisca = reduceMotion ? 1 : (S.blink * 9) % 2 | 0;
+      drawItem(SPRITES.bolt, r[0], r[1], BLT, SPRITES.bolt.field, faisca);
+    }
+
+    // Espiral do veneno
+    const poiFading = poison.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (poison.on && !poiFading) {
+      const r = rect(poison.a, poison.b, POI, POI);
+      const gira = reduceMotion ? 1 : (S.blink * 6) % 2 | 0;
+      drawItem(SPRITES.poison, r[0], r[1], POI, SPRITES.poison.field, gira);
+    }
+
+    // Cristal do tempo
+    const gemFading = gem.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
+    if (gem.on && !gemFading) {
+      const r = rect(gem.a, gem.b, GEM, GEM);
+      const lit = reduceMotion ? 1 : (S.blink * 5) % 2 | 0;
+      drawItem(SPRITES.gem, r[0], r[1], GEM, SPRITES.gem.field, lit);
+    }
+
+    /* Bolhas de sabão nas laterais: anel translúcido com um ponto de luz,
+       nas cores do arco-íris em tom leitoso. Ao morrer, cada uma incha e some
+       num estouro — o "pop" do chiclete. */
+    for (const o of bolhas) {
+      const estourando = o.pop > 0;
+      const k = estourando ? o.pop / 0.16 : 1;
+      const s = Math.max(3, Math.round(estourando ? o.r * (1 + (1 - k) * 0.9) : o.r));
+      const x = o.a - s / 2, y = o.b - s / 2;
+      g.globalAlpha = (estourando ? 0.55 * k : 0.4) * Math.min(1, o.life * 3 + 0.4);
+      fill(o.cor, x, y, s, 1);
+      fill(o.cor, x, y + s - 1, s, 1);
+      fill(o.cor, x, y, 1, s);
+      fill(o.cor, x + s - 1, y, 1, s);
+      if (!estourando) {
+        g.globalAlpha *= 0.8;
+        const b2 = Math.max(1, s >> 2);
+        fill("#ffffff", x + 1, y + 1, b2, b2);
+      }
+    }
+    g.globalAlpha = 1;
+
+    // Fumaça roxa subindo das laterais enquanto o veneno dura
+    for (const f of smoke) {
+      const k = f.life / f.max;
+      g.globalAlpha = Math.min(0.55, k * 0.7);
+      const s = Math.round(f.size);
+      fill(f.rosa ? COL.smokeB : COL.smokeA, f.a - s / 2, f.b - s / 2, s, s);
+    }
+    g.globalAlpha = 1;
+
+    // Riscos de poeira varrendo as laterais durante o rush
+    for (const st of streaks) {
+      g.globalAlpha = Math.min(0.9, st.life) * 0.75;
+      fill(st.big ? COL.starHi : COL.star, st.a, st.b, st.len, st.big ? 3 : 2);
+    }
+    g.globalAlpha = 1;
+
+    // Poeira estelar
+    for (const d of dust) {
+      const k = d.life / d.max;
+      g.globalAlpha = Math.min(1, k * 1.4) * d.peak;
+      fill(d.col || (k > 0.55 ? COL.starHi : COL.star), d.a, d.b, d.size, d.size);
+    }
+    g.globalAlpha = 1;
+
+    // Rastro do fogo
+    if (fire.on) {
+      for (let i = 0; i < trail.length; i++) {
+        const k = i / trail.length;
+        const size = Math.max(2, Math.round(BOLA * (0.35 + k * 0.65)));
+        const off = (BOLA - size) / 2;
+        g.globalAlpha = 0.16 + k * 0.42;
+        fill(k > 0.62 ? COL.ember : COL.fire, trail[i].a + off, trail[i].b + off, size, size);
+      }
+      g.globalAlpha = 1;
+    }
+
+    desenharMiras();
+
+    /* Inventário, no canto do campo de cada jogador. Vai antes das raquetes:
+       em tamanho real o encaixe alcança a faixa da raquete, e a sobreposição
+       só lê bem se o ícone ficar por baixo — encaixado atrás dela. */
+    drawInventory();
+
+    // Raquetes: quem acabou de rebater fogo solta um halo neon na própria cor
+    for (let i = 0; i < 2; i++) {
+      const p = pads[i], col = i === 0 ? COL.p1 : COL.p2;
+
+      /* Squash & stretch: no toque a raquete engorda e encolhe no comprimento,
+         passa do ponto ao voltar e assenta. A curva é um cosseno amortecido —
+         positiva no impacto, ligeiramente negativa no repique. */
+      const base = padDrawLen(i);
+      let th = PT, ln = base, pa = padA(i), pb = p.b + (padLen(i) - base) / 2;
+      if (p.hit > 0) {
+        const u = 1 - p.hit / HIT_TIME;
+        const k = Math.cos(u * Math.PI * 1.5) * Math.exp(-u * 3);
+        ln = base * (1 - 0.15 * k);
+        th = PT * (1 + 0.85 * k);
+        pb = p.b + (padLen(i) - ln) / 2;
+        pa = i === 0 ? padA(0) : padA(1) - (th - PT);
+      }
+
+      if (p.glow > 0) {
+        const k = p.glow / GLOW_TIME;
+        for (let ring = 1; ring <= 3; ring++) {
+          const pad = ring * 4 * (0.5 + k);
+          g.globalAlpha = (0.30 * k) / ring;
+          fill(col, pa - pad, pb - pad, th + pad * 2, ln + pad * 2);
+        }
+        g.globalAlpha = 1;
+      }
+      glowFill(col, pa, pb, th, ln);
+    }
+    if (S.phase !== "over") {
+      if (fire.on) {
+        fill(COL.fire, Math.round(ball.a) - 2, Math.round(ball.b) - 2, BOLA + 4, BOLA + 4);
+        fill(COL.core, Math.round(ball.a), Math.round(ball.b), BOLA, BOLA);
+      } else if (ball.hit > 0) {
+        // Smear: sai da raquete esticada no eixo em que viaja, e volta ao quadrado
+        const k = ball.hit / BHIT_TIME;
+        const sa = BOLA * (1 + 0.65 * k), sb = BOLA * (1 - 0.3 * k);
+        glowFill(COL.ball, ball.a - (sa - BOLA) / 2, ball.b - (sb - BOLA) / 2, sa, sb);
+      } else if (roleta.on) {
+        // Borrão de movimento: cada amostra na cor que a roleta tinha ali
+        for (let i = 0; i < rastroIris.length; i++) {
+          const r = rastroIris[i], k = i / rastroIris.length;
+          const size = Math.max(2, Math.round(BOLA * (0.3 + k * 0.7)));
+          const off = (BOLA - size) / 2;
+          g.globalAlpha = 0.08 + k * 0.34;
+          fill(r.cor, r.a + off, r.b + off, size, size);
+        }
+        g.globalAlpha = 1;
+
+        // vibra: halo largo na cor da vez, anel na seguinte, miolo branco
+        const c = roletaViva();
+        const prox = VIVAS[(roletaIndice() + 1) % VIVAS.length];
+        fill(prox, Math.round(ball.a) - 4, Math.round(ball.b) - 4, BOLA + 8, BOLA + 8);
+        fill(c, Math.round(ball.a) - 2, Math.round(ball.b) - 2, BOLA + 4, BOLA + 4);
+        fill("#ffffff", Math.round(ball.a) + 1, Math.round(ball.b) + 1, BOLA - 2, BOLA - 2);
+      } else if (BOLA > BS) {
+        /* Bola de chiclete: casca rosa, miolo claro quase transparente e um
+           ponto de luz em cima à esquerda — a mesma gramática das outras peças.
+           Ela ainda pulsa um pouco logo depois de inchar. */
+        const q = gumPop > 0 ? Math.sin(gumPop / 0.45 * Math.PI) * 2.5 : 0;
+        const t = BOLA + q;
+        const x = Math.round(ball.a - q / 2), y = Math.round(ball.b - q / 2);
+        const m = Math.max(2, Math.round(t / 4));
+        fill(COL.gumEdge, x, y, t, t);
+        fill(COL.gum, x + 1, y + 1, t - 2, t - 2);
+        fill(COL.gumHi, x + m, y + m, t - m * 2, t - m * 2);
+        fill("#ffffff", x + m, y + m, Math.max(1, m - 1), Math.max(1, m - 1));
+      } else {
+        // No ponto final ela segue branca, mas com um halo que respira
+        if (pontoFinal()) {
+          const k = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
+          g.globalAlpha = 0.14 + 0.16 * k;
+          fill(COL.ball, ball.a - 6, ball.b - 6, BOLA + 12, BOLA + 12);
+          g.globalAlpha = 0.26 + 0.26 * k;
+          fill(COL.ball, ball.a - 3, ball.b - 3, BOLA + 6, BOLA + 6);
+          g.globalAlpha = 1;
+        }
+        glowFill(COL.ball, Math.round(ball.a), Math.round(ball.b), BOLA, BOLA);
+      }
+    }
+
+    g.restore();
+    drawSideFlash();
+
+    // Placar: fora da câmera, para não sair de quadro nem borrar no tremor.
+    // Durante o veneno ele sai de cena e o contador toma o meio da tela.
+    const dim = S.phase === "attract";
+    for (let i = 0; i < 2; i++) {
+      /* O dígito vive discreto ao fundo. Ao pontuar ele fica sólido, pula uma
+         escala e volta em dois degraus — estouro que respeita a malha de pixels
+         em vez de escalar por transformação — e então desbota de novo. */
+      const pop = scorePop[i];
+      const ss = SCORE_S + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
+      const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : (i === 0 ? COL.p1 : COL.p2));
+      const forca = pop > 0.45 ? 1 : pop / 0.45;
+      g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
+      const txt = String(S.score[i]);
+      const w = textWidth(txt, ss);
+      if (vertical) {
+        const y = i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss;
+        drawText(g, txt, cw / 2 - w / 2, y, ss, cor);
+      } else {
+        const x = i === 0 ? cw / 2 - 38 - w : cw / 2 + 38;
+        drawText(g, txt, x, 24, ss, cor);
+      }
+    }
+    g.globalAlpha = 1;
+
+    // Aviso curto na metade de quem acabou de mexer com o item
+    if (hint.t > 0 && S.phase === "play") {
+      const middle = hint.who < 0;
+      const p = middle ? [cw / 2, ch / 2 - 46]
+                       : rect(hint.who === 0 ? LEN * 0.26 : LEN * 0.74, SPAN / 2, 0, 0);
+      const col = hint.col || (middle ? COL.time : (hint.who === 0 ? COL.p1 : COL.p2));
+      g.globalAlpha = Math.min(1, hint.t * 2);
+      const esc = hint.esc || (middle ? 3 : 2);
+      if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
+      else centered(g, hint.txt, p[0], p[1] - 10, esc, col, maxTextW);
+      g.globalAlpha = 1;
+    }
+
+    // Etiquetas das metades, quando dois jogadores dividem a tela
+    if (coarse && S.mode === "2p" && S.phase !== "play") halfLabels();
+
+    if (S.phase === "attract") {
+      veil(0.55);
+      const y = ch / 2 - 84;
+      const sr = fitScale("RAINBOW", maxTextW, 4);
+      rainbowWord("RAINBOW", cw / 2, y, sr);
+      const hp = centered(g, "PONG", cw / 2, y + CH * sr + 12, 8, COL.ball, maxTextW);
+      const y2 = y + CH * sr + 12 + hp;
+      if (S.blink % 1.2 < 0.75) {
+        centered(g, coarse ? "TOQUE PARA JOGAR" : "APERTE ESPACO PARA JOGAR",
+                 cw / 2, y2 + 26, 3, COL.net, maxTextW);
+      }
+      centered(g, S.mode === "2p" ? "DOIS JOGADORES" : "UM JOGADOR",
+               cw / 2, y2 + 58, 2, COL.dim, maxTextW);
+    }
+    else if (S.phase === "serve") {
+      const n = Math.max(1, Math.ceil(1.5 - S.t));
+      centered(g, String(n), cw / 2, ch / 2 - 28, 8, COL.ball, maxTextW);
+    }
+    else if (S.phase === "pause") {
+      veil(0.5);
+      centered(g, "PAUSA", cw / 2, ch / 2 - 40, 6, COL.ball, maxTextW);
+      if (S.blink % 1.2 < 0.75) {
+        centered(g, coarse ? "TOQUE PARA VOLTAR" : "ESPACO PARA VOLTAR",
+                 cw / 2, ch / 2 + 24, 2, COL.net, maxTextW);
+      }
+    }
+    else if (S.phase === "over") {
+      drawEndScreen(cw, ch, maxTextW);
+    }
+
+    if (storm.t > 0) drawStorm(cw, ch);
+    if (moldura.t > 0) drawMoldura(cw, ch);
+    // Só o piso do ponto final usa a passada barata; o estouro da roleta segue cheio
+    if (aberr > 0) aberracaoCromatica(cw, ch, aberr, aberr <= 0.21 ? ABERR_LEVE : null);
+    drawFlash();
+  }
+
+  /* A tempestade rouba a cor na fonte: a paleta do canvas é recalculada
+     dessaturada a cada quadro. Assim o apagamento vale para tudo que o jogo
+     desenha, sem depender de filtro de canvas. */
+  function tracar(pts, cor, largura, alfa) {
+    g.globalAlpha = alfa;
+    g.strokeStyle = cor;
+    g.lineWidth = largura;
+    g.lineJoin = "round";
+    g.beginPath();
+    g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+    g.stroke();
+    g.globalAlpha = 1;
+  }
+
+  function drawStorm(cw, ch) {
+    const forca = stormRamp();
+
+    if (storm.pedir) { storm.pedir = false; if (!reduceMotion) novoRaio(cw, ch); }
+
+    // A tempestade escurece o ambiente para os relâmpagos saltarem
+    g.globalAlpha = 0.24 * forca;
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, cw, ch);
+    g.globalAlpha = 1;
+
+    /* Cada relâmpago sai em três camadas: halo largo e fraco, corpo na cor
+       sorteada e um fio branco no miolo. É o que separa um raio de um risco. */
+    for (const r of bolts) {
+      const k = Math.min(1, (r.life / r.max) * 1.6) * forca;
+      tracar(r.tronco, r.cor, r.grosso + 5, k * 0.16);
+      for (const ramo of r.ramos) tracar(ramo, r.cor, r.grosso + 3, k * 0.11);
+      tracar(r.tronco, r.cor, r.grosso, k * 0.95);
+      for (const ramo of r.ramos) tracar(ramo, r.cor, Math.max(1, r.grosso - 1), k * 0.75);
+      tracar(r.tronco, COL.boltHi, 1, k);
+    }
+
+    // a bola fica eletrocutada: núcleo colorido e faíscas curtas em volta
+    if (S.phase === "play" || S.phase === "serve") {
+      const bp = rect(ball.a, ball.b, BOLA, BOLA);
+      const cor = RAIOS[(S.blink * 14 | 0) % RAIOS.length];
+      g.globalAlpha = 0.9 * forca;
+      g.fillStyle = cor;
+      g.fillRect(bp[0] + 1, bp[1] + 1, bp[2] - 2, bp[3] - 2);
+      g.globalAlpha = 1;
+    }
+    for (const arco of arcos) {
+      const tela = arco.pts.map(([a, b]) => {
+        const r = rect(a, b, 0, 0);
+        return [r[0], r[1]];
+      });
+      tracar(tela, arco.cor, 1, Math.min(1, (iris.life / arco.max) * 1.5) * forca);
+    }
+
+    // clarão geral quando um raio acaba de nascer
+    const novo = bolts.length ? bolts[bolts.length - 1] : null;
+    if (novo && novo.life > novo.max * 0.55 && !reduceMotion) {
+      g.globalAlpha = 0.3 * forca * (novo.life / novo.max);
+      g.fillStyle = novo.cor;
+      g.fillRect(0, 0, cw, ch);
+      g.globalAlpha = 1;
+    }
+  }
+
+  /** Palavra com uma cor da roda por letra. */
+  function rainbowWord(str, cx, y, s) {
+    const cols = rainbow(str.length, 44, 64);
+    let x = cx - textWidth(str, s) / 2;
+    str.split("").forEach((ch, i) => {
+      drawText(g, ch, x, y, s, cols[i]);
+      x += (CW + GAP) * s;
+    });
+  }
+
+  /** Desenha um sprite em coordenadas de tela, para o fogo apontar sempre
+      para cima, mesmo com a quadra em pé. */
+  /* Cada pixel do sprite vira um retângulo de bordas inteiras. Assim a escala
+     pode ser fracionária — o coração respira — sem que o canvas suavize nada. */
+  function drawSprite(rows, x, y, s, map, ctx) {
+    const c2 = ctx || g;
+    for (let r = 0; r < rows.length; r++) {
+      const y0 = Math.round(y + r * s), y1 = Math.round(y + (r + 1) * s);
+      for (let c = 0; c < rows[r].length; c++) {
+        const k = rows[r][c];
+        if (k === ".") continue;
+        const x0 = Math.round(x + c * s), x1 = Math.round(x + (c + 1) * s);
+        c2.fillStyle = map[k];
+        c2.fillRect(x0, y0, x1 - x0, y1 - y0);
+      }
+    }
+  }
+
+  /* Inventário: um encaixe no fundo do campo de cada jogador, atrás da própria
+     raquete. Fica em posições simétricas, então a leitura vale nas duas
+     orientações da quadra. */
+  const SLOTS = [
+    () => [0, WALL + 3],
+    () => [LEN - SLOT, SPAN - WALL - 3 - SLOT]
+  ];
+
+  function drawInventory() {
+    if (S.phase === "attract") return;
+    for (let i = 0; i < 2; i++) {
+      const [a, b] = SLOTS[i]();
+      const r = rect(a, b, SLOT, SLOT);
+      if (held[i]) {
+        const sp = SPRITES[held[i]];
+        const bright = !reduceMotion && S.blink % 0.9 < 0.45;
+        drawItem(sp, r[0], r[1], SLOT, sp.field, bright);
+      } else {
+        drawSlot(r[0], r[1], i === 0 ? COL.p1 : COL.p2);
+      }
+    }
+  }
+
+  /** Encaixe vazio: quatro cantos, para o jogador saber que ali cabe algo. */
+  function drawSlot(x, y, color) {
+    const t = 2, arm = 7, far = SLOT - arm, near = SLOT - t;
+    g.globalAlpha = 0.3;
+    g.fillStyle = color;
+    const bars = [
+      [0, 0, arm, t],       [0, 0, t, arm],              // canto superior esquerdo
+      [far, 0, arm, t],     [near, 0, t, arm],           // superior direito
+      [0, near, arm, t],    [0, far, t, arm],            // inferior esquerdo
+      [far, near, arm, t],  [near, far, t, arm]          // inferior direito
+    ];
+    for (const [dx, dy, w, h] of bars) g.fillRect(x + dx, y + dy, w, h);
+    g.globalAlpha = 1;
+  }
+
+  function halfLabels() {
+    const marks = [
+      { a: LEN * 0.22, txt: "J1", col: COL.p1 },
+      { a: LEN * 0.78, txt: "J2", col: COL.p2 }
+    ];
+    for (const m of marks) {
+      const r = rect(m.a, SPAN / 2, 0, 0);
+      const s = 3;
+      g.globalAlpha = 0.5;
+      drawText(g, m.txt, r[0] - textWidth(m.txt, s) / 2, r[1] - CH * s / 2, s, m.col);
+      g.globalAlpha = 1;
+    }
+  }
+
+  function veil(a) {
+    g.fillStyle = "rgba(" + theme.veil + "," + a + ")";
+    g.fillRect(0, 0, cv.width, cv.height);
+  }
+
+  /* Tela final: além do placar, o retrato da partida. As duas raquetes lado a
+     lado no tamanho real com que terminaram — quem defendeu mais bolas de fogo
+     acabou maior — e quantos itens cada um recolheu. */
+  function drawEndScreen(cw, ch, maxTextW) {
+    veil(0.76);
+    const won = S.winner === 0;
+    const winCol = won ? COL.p1 : COL.p2;
+    const nomes = ["JOGADOR 1", S.mode === "2p" ? "JOGADOR 2" : "COMPUTADOR"];
+
+    // A barra sobe do zero até o tamanho final, desacelerando no fim
+    const cresce = Math.min(1, S.t / 1.2);
+    const eased = 1 - Math.pow(1 - cresce, 3);
+    const revela = clamp((S.t - 1.25) / 0.4, 0, 1);   // números e log entram depois
+
+    let y = Math.max(8, ch * 0.03);
+    const umaLinha = nomes[S.winner] + " VENCEU";
+    if (textWidth(umaLinha, 3) <= maxTextW) {
+      y += centered(g, umaLinha, cw / 2, y, 3, winCol, maxTextW) + 8;
+    } else {
+      y += centered(g, nomes[S.winner], cw / 2, y, 3, winCol, maxTextW) + 5;
+      y += centered(g, "VENCEU", cw / 2, y, 3, winCol, maxTextW) + 8;
+    }
+    y += centered(g, S.score[0] + " A " + S.score[1], cw / 2, y, 5, COL.ball, maxTextW) + 12;
+    y += centered(g, "RAQUETES", cw / 2, y, 2, COL.dim, maxTextW) + 10;
+
+    const maiorLen = Math.max(pads[0].len, pads[1].len);
+
+    /* As barras são o único bloco elástico: elas encolhem juntas para o que
+       vem depois caber. Como as duas encolhem na mesma proporção, a comparação
+       entre elas continua honesta. */
+    const linhas = Math.max(1, ...[0, 1].map(k =>
+      ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"].filter(n => stats.used[k][n] > 0).length));
+    // Em tela baixa com log comprido, o corpo do log cai um degrau
+    const logSt = (ch < 320 && linhas > 4) ? 1 : 2;
+    const abaixo = 8 + CH * 2 + 5 + CH + 7 + linhas * (CH * logSt + 1);
+    const escalaBarra = clamp(((ch - 26) - y - abaixo) / maiorLen, 0.35, 1);
+    const base = y + maiorLen * escalaBarra;
+    const gap = Math.min(62, cw * 0.19);
+    const lider = pads[0].len === pads[1].len ? -1 : (pads[0].len > pads[1].len ? 0 : 1);
+
+    for (let i = 0; i < 2; i++) {
+      const col = i === 0 ? COL.p1 : COL.p2;
+      const len = pads[i].len;
+      const agora = Math.max(2, Math.round(len * escalaBarra * eased));
+      const cx = Math.round(cw / 2 + (i === 0 ? -gap : gap));
+      const x = Math.round(cx - PT / 2);
+
+      if (i === lider && revela > 0) {              // marca em quem cresceu mais
+        g.globalAlpha = 0.28 * revela;
+        g.fillStyle = col;
+        g.fillRect(x - 3, base - agora - 3, PT + 6, agora + 6);
+        g.globalAlpha = 1;
+      }
+      g.fillStyle = col;
+      g.fillRect(x, base - agora, PT, agora);
+
+      let ty = base + 8;
+      const tam = String(Math.round(len * eased));
+      drawText(g, tam, cx - textWidth(tam, 2) / 2, ty, 2, col);
+      ty += CH * 2 + 5;
+
+      g.globalAlpha = revela;
+      const dif = len - PL;
+      const marca = dif > 0 ? "+" + dif : "-";
+      drawText(g, marca, cx - textWidth(marca, 1) / 2, ty, 1, dif > 0 ? col : COL.dim);
+      ty += CH + 7;
+      drawUseLog(cx, ty, i, logSt);
+      g.globalAlpha = 1;
+    }
+
+    if (S.blink % 1.2 < 0.75) {
+      centered(g, coarse ? "TOQUE PARA JOGAR DE NOVO" : "ESPACO PARA JOGAR DE NOVO",
+               cw / 2, ch - 24, 2, COL.net, maxTextW);
+    }
+  }
+
+  /** Log da partida, em coluna: um item por linha. Os de inventário contam o
+      que foi gasto; cristal e espiral contam quem os acertou com a bola, ainda
+      que o efeito atinja os dois. */
+  function drawUseLog(cx, y, i, st) {
+    const si = 1;
+    const entradas = ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"]
+      .filter(k => stats.used[i][k] > 0)
+      .map(k => ({ sp: SPRITES[k], txt: "×" + stats.used[i][k] }));
+
+    if (!entradas.length) {
+      const nada = "SEM ITENS";
+      drawText(g, nada, cx - textWidth(nada, 1) / 2, y + 4, 1, COL.dim);
+      return;
+    }
+
+    const alt = CH * st;
+    const icone = Math.max(...entradas.map(e => e.sp.cell * si));
+    const larg = icone + 5 + textWidth("×9", st);   // mesma medida em todas as linhas
+
+    let yy = y;
+    for (const e of entradas) {
+      const ih = e.sp.cell * si;
+      const x = cx - larg / 2;
+      drawSprite(e.sp.rows, x + (icone - ih) / 2, yy + (alt - ih) / 2, si, e.sp.map());
+      drawText(g, e.txt, x + icone + 5, yy, st, COL.core);
+      yy += alt + 1;
+    }
+  }
+
+  /** Contagem do veneno: ocupa o meio da tela no lugar do placar, desenhada
+      antes do mundo para nunca cobrir a bola nem atrapalhar quem está em cima. */
+  function drawVenomTimer(cw, ch) {
+    const k = venomVis;
+    const sp = SPRITES.poison;
+    const seg = String(Math.max(1, Math.ceil(venom.t)));
+    const st = Math.max(2, Math.round(Math.min(cw, ch) / 64));
+    const si = 2;
+    const ic = sp.cell * si;
+
+    const alturaTotal = ic + 10 + CH * st + 8 + 3;
+    const topo = Math.round(ch / 2 - alturaTotal / 2);
+
+    const pisca = !reduceMotion && venom.t < 1.5 && S.blink % 0.34 < 0.17;
+    g.globalAlpha = k * (pisca ? 0.35 : 0.9);
+    drawSprite(sp.rows, Math.round(cw / 2 - ic / 2), topo, si, sp.map());
+
+    const tw = textWidth(seg, st);
+    g.globalAlpha = k * (pisca ? 0.4 : 1);
+    drawText(g, seg, cw / 2 - tw / 2, topo + ic + 10, st, COL.venom);
+
+    const bw = Math.round(Math.min(cw * 0.3, 104));
+    const bx = Math.round(cw / 2 - bw / 2);
+    const by = topo + ic + 10 + CH * st + 8;
+    g.globalAlpha = k * 0.25;
+    g.fillStyle = COL.venomDark;
+    g.fillRect(bx, by, bw, 3);
+    g.globalAlpha = k * 0.85;
+    g.fillStyle = COL.venom;
+    g.fillRect(bx, by, Math.round(bw * (venom.t / VENOM_TIME)), 3);
+    g.globalAlpha = 1;
+  }
+
+  /* A rainbow ball roda no próprio eixo. O rastro é feito por cópias em
+     ângulos ligeiramente atrasados, com opacidade caindo — é isso que faz as
+     sete cores se fundirem num arco-íris em vez de piscarem uma a uma. */
+
+  /** As quatro bordas do campo acesas na cor que a roleta sorteou. */
+  /* Ponto final: as duas laterais viram uma corrida de arco-íris. Cada trecho
+     pega uma cor de VIVAS e o conjunto anda ao longo do campo, então há sempre
+     várias cores acesas ao mesmo tempo. Vai da parede para dentro com o alfa
+     caindo, para ler como brilho de borda e não como tarja por cima do jogo.
+     Em coordenadas de campo, para valer nas duas orientações. E não apaga:
+     enquanto o ponto decide a partida, as luzes ficam. */
+  /* Seis faixas sobrepostas, da parede para dentro, com o alfa caindo. Somadas
+     em modo `lighter` no tema escuro elas viram um halo contínuo em vez de três
+     degraus visíveis — é o que dá o borrado. No tema claro somar estouraria
+     para branco, então ali entram normais. */
+  const FINAL_FAIXAS = [[WALL - 2, 0.42], [WALL + 3, 0.18], [WALL + 8, 0.12],
+                        [WALL + 15, 0.075], [WALL + 24, 0.045], [WALL + 36, 0.025]];
+  const FINAL_TRECHO = 26;
+
+  function flancosArcoIris() {
+    const volta = FINAL_TRECHO * VIVAS.length;
+    const desl = reduceMotion ? 0 : (S.blink * 96) % volta;
+
+    /* Vibração de luz: duas senoides fora de fase somadas ao pulso lento. Uma
+       só faria o brilho respirar redondo; duas em frequências que não se
+       dividem fazem a luz tremer, que é o que se vê num tubo de neon. */
+    const vib = reduceMotion ? 0
+      : 0.07 * Math.sin(S.blink * 29) + 0.05 * Math.sin(S.blink * 17.3);
+    const pulso = Math.max(0, (reduceMotion ? 0.62 : 0.74 + 0.18 * Math.sin(S.blink * 4.2)) + vib);
+
+    /* Gradiente contínuo no lugar de faixas chapadas: as cores se derretem umas
+       nas outras e o conjunto lê como arco-íris, não como código de barras. Ele
+       cobre uma volta inteira além do campo dos dois lados, então o
+       deslocamento roda sem emenda visível. */
+    const ini = desl - volta;
+    const ciclos = Math.ceil((LEN + volta * 2) / volta);
+    const p0 = rect(ini, 0, 0, 0), p1 = rect(ini + volta * ciclos, 0, 0, 0);
+    const grad = g.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
+    const total = ciclos * VIVAS.length;
+    for (let k = 0; k <= total; k++) grad.addColorStop(k / total, VIVAS[k % VIVAS.length]);
+
+    g.save();
+    if (theme.glow) g.globalCompositeOperation = "lighter";
+    g.fillStyle = grad;
+    for (const [grossura, alfa] of FINAL_FAIXAS) {
+      g.globalAlpha = pulso * alfa;
+      let r = rect(0, 0, LEN, grossura);
+      g.fillRect(r[0], r[1], r[2], r[3]);
+      r = rect(0, SPAN - grossura, LEN, grossura);
+      g.fillRect(r[0], r[1], r[2], r[3]);
+    }
+    g.restore();
+    g.globalAlpha = 1;
+  }
+
+  /* Texto em arco-íris: uma cor por letra, andando devagar. Mesma ideia do
+     logo, que dá uma cor a cada letra de RAINBOW. */
+  function centradoArcoIris(g, str, cx, y, desejado, maxW) {
+    const s = fitScale(str, maxW, desejado);
+    let x = cx - textWidth(str, s) / 2, k = 0;
+    const anda = reduceMotion ? 0 : Math.floor(S.blink * 6);
+    for (const ch of str) {
+      if (ch !== " ") drawText(g, ch, x, y, s, VIVAS[(k + anda) % VIVAS.length]);
+      x += (CW + GAP) * s;
+      k++;
+    }
+    return CH * s;
+  }
+
+  /* ── Previsão e mira ────────────────────────────────────────────────────
+     A trajetória da bola tem duas fases bem distintas, e isso é o que torna a
+     previsão exata possível:
+
+       1. Enquanto o efeito Magnus vive, o vetor de velocidade gira e a rota é
+          curva. Dura pouco: o teto de curvatura por bolada (SPIN_BUDGET) se
+          esgota em ~0,65 s mesmo na varrida cheia. Esta fase precisa ser
+          integrada.
+       2. Gasto o efeito, a bola anda em RETA a velocidade constante. Aqui não
+          se integra nada: o instante em que ela cruza o plano da raquete sai
+          de uma divisão, e a coordenada lateral sai de um desdobramento das
+          reflexões nas paredes — as duas em tempo constante.
+
+     Com isso dá para saber, antes de acontecer, ONDE a bola vai encostar na
+     raquete. A mira nasce nesse ponto, não no centro da raquete. E o mesmo
+     conhecimento paga o sync: quando a rota já é reta, os dois lados calculam
+     exatamente a mesma coisa e o fio da bola pode afinar. */
+
+  /** Dobra x de volta para a faixa [lo, hi] refletindo nas bordas, que é o que
+      as paredes fazem com a coordenada lateral. Fecha em O(1) qualquer número
+      de quiques. */
+  function refletirFaixa(x, lo, hi) {
+    const larg = hi - lo;
+    if (larg <= 0) return lo;
+    let u = (x - lo) % (2 * larg);
+    if (u < 0) u += 2 * larg;
+    return lo + (u <= larg ? u : 2 * larg - u);
+  }
+
+  const PREV_PASSO = 1 / 360;      // passo da fase curva
+
+  /** Onde e quando a bola encosta na raquete de quem a está recebendo.
+      Devolve { i, b, t } ou null se ela não estiver indo para ninguém. */
+  function preverImpacto() {
+    if (S.phase !== "play" || ball.va === 0) return null;
+    const i = ball.va < 0 ? 0 : 1;
+    const plano = i === 0 ? padA(0) + PT : padA(1) - BOLA;
+    const lo = WALL, hi = SPAN - WALL - BOLA;
+
+    const o = { a: ball.a, b: ball.b, va: ball.va, vb: ball.vb,
+                spin: ball.spin, budget: ball.budget };
+    let t = 0, giros = 0;
+
+    // Fase 1: curva. Só enquanto o efeito tem fôlego.
+    while (o.spin !== 0 && o.budget > 0 && giros++ < 900) {
+      const want = o.spin * PREV_PASSO;
+      const mag = Math.min(Math.abs(want), o.budget);
+      const w = want < 0 ? -mag : mag;
+      o.budget -= mag;
+      const c = Math.cos(w), s = Math.sin(w);
+      const nva = o.va * c - o.vb * s;
+      o.vb = o.va * s + o.vb * c;
+      o.va = nva;
+      o.spin *= Math.pow(SPIN_DECAY, PREV_PASSO);
+      if (Math.abs(o.spin) < 0.02 || o.budget <= 0) o.spin = 0;
+      const at = Math.atan2(o.vb, Math.abs(o.va));
+      if (Math.abs(at) > MAX_ANGLE) {
+        const sp = Math.hypot(o.va, o.vb);
+        const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
+        o.va = Math.cos(lim) * sp * (o.va < 0 ? -1 : 1);
+        o.vb = Math.sin(lim) * sp;
+        o.spin = 0; o.budget = 0;
+      }
+
+      const antes = o.a;
+      o.a += o.va * PREV_PASSO;
+      o.b += o.vb * PREV_PASSO;
+      t += PREV_PASSO;
+      if (o.b <= lo) { o.b = lo; o.vb = Math.abs(o.vb); o.spin *= -0.65; }
+      if (o.b >= hi) { o.b = hi; o.vb = -Math.abs(o.vb); o.spin *= -0.65; }
+
+      // cruzou o plano da raquete durante a curva
+      if (i === 0 ? (antes > plano && o.a <= plano) : (antes < plano && o.a >= plano))
+        return { i, b: o.b, t };
+    }
+
+    // Fase 2: reta. Sem integrar.
+    if (i === 0 ? o.va >= 0 : o.va <= 0) return null;
+    const dt = (plano - o.a) / o.va;
+    if (dt < 0) return null;
+    return { i, b: refletirFaixa(o.b + o.vb * dt, lo, hi), t: t + dt };
+  }
+
+  /* A mira: nasce no ponto de impacto previsto e mostra por onde a bola sai
+     dali. O ângulo de saída vem da MESMA conta da rebatida — a distância entre
+     o centro da raquete e o ponto de encontro —, e o traçado roda a mesma
+     física (Magnus, teto de ângulo, reflexão). O que ela desenha é o que vai
+     acontecer, desde que a raquete continue onde está. */
+  const MIRA_ALCANCE = 250;
+  const MIRA_TRACO = 7, MIRA_VAO = 6;
+
+  function simularSaida(i, impactoB) {
+    const p = pads[i];
+    const dir = i === 0 ? 1 : -1;
+    const meio = padLen(i) / 2;
+    const rel = clamp(((impactoB + BOLA / 2) - (p.b + meio)) / meio, -1, 1);
+    const ang = rel * 0.95;
+    const partida = fire.on ? LEVELS[S.diff].base * 1.2 : ball.speed;
+    const vel = Math.min(partida * 1.07, star.on ? 900 : 640);
+
+    const o = {
+      a: dir > 0 ? padA(0) + PT : padA(1) - BOLA,
+      b: impactoB,
+      va: Math.cos(ang) * vel * dir,
+      vb: Math.sin(ang) * vel,
+      spin: clamp(p.swing / SPIN_REF, -1, 1) * MAX_SPIN + rel * EDGE_SPIN,
+      budget: SPIN_BUDGET
+    };
+
+    const pts = [];
+    let andou = 0;
+    while (andou < MIRA_ALCANCE && pts.length < 1200) {
+      if (o.spin !== 0 && o.budget > 0) {
+        const want = o.spin * PREV_PASSO;
+        const mag = Math.min(Math.abs(want), o.budget);
+        const w = want < 0 ? -mag : mag;
+        o.budget -= mag;
+        const c = Math.cos(w), s = Math.sin(w);
+        const nva = o.va * c - o.vb * s;
+        o.vb = o.va * s + o.vb * c;
+        o.va = nva;
+        o.spin *= Math.pow(SPIN_DECAY, PREV_PASSO);
+        if (Math.abs(o.spin) < 0.02 || o.budget <= 0) o.spin = 0;
+        const at = Math.atan2(o.vb, Math.abs(o.va));
+        if (Math.abs(at) > MAX_ANGLE) {
+          const sp = Math.hypot(o.va, o.vb);
+          const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
+          o.va = Math.cos(lim) * sp * (o.va < 0 ? -1 : 1);
+          o.vb = Math.sin(lim) * sp;
+        }
+      }
+      const pa = o.a, pb = o.b;
+      o.a += o.va * PREV_PASSO;
+      o.b += o.vb * PREV_PASSO;
+      if (o.b <= WALL) { o.b = WALL; o.vb = Math.abs(o.vb); o.spin *= -0.65; }
+      if (o.b + BOLA >= SPAN - WALL) { o.b = SPAN - WALL - BOLA; o.vb = -Math.abs(o.vb); o.spin *= -0.65; }
+      andou += Math.hypot(o.a - pa, o.b - pb);
+      if (o.a < -BOLA || o.a > LEN) break;
+      pts.push([o.a + BOLA / 2, o.b + BOLA / 2, andou]);
+    }
+    return pts;
+  }
+
+  /** Quem enxerga a própria mira: só quem está de fato controlando a raquete. */
+  function mirasVisiveis() {
+    if (S.phase !== "play") return [];
+    if (naSala()) return [sala.papel === "anfitriao" ? 0 : 1];
+    return S.mode === "2p" ? [0, 1] : [0];
+  }
+
+  function desenharMiras() {
+    const alvo = preverImpacto();
+    if (!alvo) return;
+    if (mirasVisiveis().indexOf(alvo.i) < 0) return;
+
+    const i = alvo.i, p = pads[i];
+    const cor = i === 0 ? COL.p1 : COL.p2;
+    const face = i === 0 ? padA(0) + PT : padA(1) - BOLA;
+    // a raquete alcança? o ponto de encontro precisa cair sobre ela
+    const pega = alvo.b + BOLA > p.b && alvo.b < p.b + padLen(i);
+
+    // Marca do encontro: um risco curto atravessado no plano da raquete
+    g.globalAlpha = pega ? 0.8 : 0.4;
+    fill(pega ? cor : COL.dim, face - (i === 0 ? 1 : 2), alvo.b, 3, BOLA);
+    g.globalAlpha = 1;
+    if (!pega) return;              // vai passar: não há saída para mostrar
+
+    for (const [a, b, d] of simularSaida(i, alvo.b)) {
+      if (d % (MIRA_TRACO + MIRA_VAO) > MIRA_TRACO) continue;
+      // decai devagar no começo e só morre de vez na ponta
+      g.globalAlpha = 0.5 * (1 - (d / MIRA_ALCANCE) ** 1.6);
+      fill(cor, a - 1.5, b - 1.5, 3, 3);
+    }
+    g.globalAlpha = 1;
+  }
+
+  function drawMoldura(cw, ch) {
+    const k = moldura.t / MOLDURA_TEMPO;
+    const pulso = reduceMotion ? k : k * (0.75 + 0.25 * Math.sin(S.blink * 26));
+    const faixas = [[10, 0.85], [8, 0.45], [10, 0.2], [14, 0.08]];
+    let borda = 0, faixa = 0;
+    for (const [grossura, alfa] of faixas) {
+      g.globalAlpha = pulso * alfa;
+      // no ponto final cada anel pega uma cor: a moldura sai em arco-íris
+      g.fillStyle = moldura.arco
+        ? VIVAS[(faixa + Math.floor(S.blink * 6)) % VIVAS.length]
+        : moldura.cor;
+      faixa++;
+      g.fillRect(0, borda, cw, grossura);                    // topo
+      g.fillRect(0, ch - borda - grossura, cw, grossura);     // base
+      g.fillRect(borda, 0, grossura, ch);                     // esquerda
+      g.fillRect(cw - borda - grossura, 0, grossura, ch);     // direita
+      borda += grossura;
+    }
+    g.globalAlpha = pulso * 0.07;
+    g.fillRect(0, 0, cw, ch);
+    g.globalAlpha = 1;
+  }
+
+  /** Luz varrendo as duas laterais. Azul no cristal, vermelha no disparo. */
+  function drawSideFlash() {
+    if (fx.sides <= 0) return;
+    const k = (fx.sides / fx.sidesDur) * fx.force;
+    const bands = [[WALL, 0.9], [6, 0.4], [10, 0.16]];
+    const arco = Array.isArray(fx.col);          // a rainbow ball manda as seis
+    const n = arco ? fx.col.length : 1;
+    const seg = LEN / n;
+    const desl = arco ? (S.blink * 260) % (seg * n) : 0;
+
+    let edge = 0;
+    for (const [thick, alpha] of bands) {
+      g.globalAlpha = k * alpha;
+      if (arco) {
+        // faixas correndo pelas duas laterais, uma cor por trecho
+        for (let s = -1; s <= n; s++) {
+          const cor = fx.col[((s % n) + n) % n];
+          const x = s * seg - desl;
+          fill(cor, x, edge, seg + 1, thick);
+          fill(cor, x, SPAN - edge - thick, seg + 1, thick);
+        }
+      } else {
+        fill(fx.col, 0, edge, LEN, thick);
+        fill(fx.col, 0, SPAN - edge - thick, LEN, thick);
+      }
+      edge += thick;
+    }
+
+    g.globalAlpha = k * 0.10;
+    fill(arco ? fx.col[(S.blink * 12 | 0) % n] : fx.col, 0, 0, LEN, SPAN);
+    g.globalAlpha = 1;
+  }
+
+  /* Aberração cromática à moda dos anos 80, em espectro inteiro: o quadro é
+     redesenhado uma vez por cor do arco-íris, cada uma deslocada para um lado,
+     somando luz. Feito por composição — sem depender de filtro de canvas. */
+  let abBuf = null;
+  function aberracaoCromatica(cw, ch, k, canais) {
+    if (k <= 0.02) return;
+    const cores = canais || VIVAS;
+    if (!abBuf) abBuf = document.createElement("canvas");
+    if (abBuf.width !== cw || abBuf.height !== ch) { abBuf.width = cw; abBuf.height = ch; }
+    const bx = abBuf.getContext("2d");
+    const largura = 7 * k;
+    const treme = Math.sin(S.blink * 70) * k * 2.5;
+
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    for (let n = 0; n < cores.length; n++) {
+      const f = (n / (cores.length - 1)) * 2 - 1;      // de -1 a +1
+      bx.globalCompositeOperation = "source-over";
+      bx.clearRect(0, 0, cw, ch);
+      bx.drawImage(cv, 0, 0);
+      bx.globalCompositeOperation = "multiply";
+      bx.fillStyle = cores[n];
+      bx.fillRect(0, 0, cw, ch);
+      g.globalAlpha = 0.42 * k;
+      g.drawImage(abBuf, Math.round(f * largura), Math.round(f * treme));
+    }
+    g.restore();
+    g.globalAlpha = 1;
+  }
+
+  /** Clarão na cor nova, no instante em que o esquema vira. */
+  function drawFlash() {
+    if (flash <= 0) return;
+    g.globalAlpha = flash * 0.45;
+    g.fillStyle = flashCol || COL.p1;
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.globalAlpha = 1;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     7. Laço principal — passo fixo de 120 Hz
+     ══════════════════════════════════════════════════════════ */
+  const DT = 1 / 120;
+  let acc = 0, last = 0;
+
+  /* Um erro em qualquer ponto do quadro não pode derrubar o laço: sem isto,
+     uma única exceção congela o jogo para sempre e o jogador não tem como
+     nem começar outra partida. O erro é registrado uma vez e a vida segue. */
+  let erroContado = false;
+
+  function frame(now) {
+    try {
+      if (!last) last = now;
+      let dt = (now - last) / 1000;
+      last = now;
+      if (dt > 0.25) dt = 0.25;
+      // O mundo desacelera; os relógios da interface seguem em tempo real
+      acc += dt * timeScale();
+      S.blink += dt;
+      if (flash > 0) flash = Math.max(0, flash - dt * 2.5);
+      /* No ponto final a aberração não zera: fica num piso baixo enquanto a
+         bola vale a partida. A passada cheia custa sete composições da tela
+         inteira por quadro, cara demais para deixar ligada — por isso o piso
+         usa a versão de três canais. */
+      const pisoAberr = pontoFinal() && S.phase === "play" && !reduceMotion ? 0.2 : 0;
+      aberr = Math.max(pisoAberr, aberr - dt * 1.4);
+      if (slow.t > 0) slow.t = Math.max(0, slow.t - dt);
+
+      // Tira e devolve a cor conforme a tempestade entra e sai
+      const alvoMono = stormRamp();
+      if (Math.abs(alvoMono - monoForca) > 0.004) aplicarMono(alvoMono);
+      venomVis += ((venom.t > 0 ? 1 : 0) - venomVis) * Math.min(1, dt * 7);
+      if (fx.shake > 0) fx.shake = Math.max(0, fx.shake - dt);
+      if (fx.sides > 0) fx.sides = Math.max(0, fx.sides - dt);
+      if (moldura.t > 0) moldura.t = Math.max(0, moldura.t - dt);
+
+      /* Numa sala o convidado não simula a partida: ele integra a bola com o
+         mesmo passo fixo do anfitrião e corrige quando chega um aviso. É isso
+         que deixa a jogada igualmente fluida dos dois lados. */
+      const convidado = sala.conectado && sala.papel === "convidado";
+      if (convidado) {
+        while (acc >= DT) {
+          /* A própria raquete anda aqui mesmo, com a mesma conta do anfitrião.
+             Sem isto o convidado arrasta o dedo e nada se move na tela dele:
+             ele só mandava a intenção e esperava uma posição que nunca voltava. */
+          const meu = pads[1];
+          meu.prevB = meu.b;
+          if (meu.touch !== null) {
+            const alvo = meu.touch - padLen(1) / 2;
+            meu.b += clamp(alvo - meu.b, -1200 * DT, 1200 * DT);
+          }
+          if (meu.up) meu.b -= 430 * DT;
+          if (meu.down) meu.b += 430 * DT;
+          meu.b = clamp(meu.b, WALL, SPAN - WALL - padLen(1));
+          meu.vb = (meu.b - meu.prevB) / DT;
+
+          andarBolaLocal(DT);
+          atualizarEnfeites(DT);
+          if (ball.hit > 0) ball.hit = Math.max(0, ball.hit - DT);
+          for (const p of pads) {
+            if (p.hit > 0) p.hit = Math.max(0, p.hit - DT);
+            if (p.glow > 0) p.glow = Math.max(0, p.glow - DT);
+            if (p.grow > 0) p.grow = Math.max(0, p.grow - DT);
+          }
+          if (roleta.on) roleta.t += DT;
+          if (heart.pulse > 0) heart.pulse = Math.max(0, heart.pulse - DT);
+          if (heart.on) heart.t += DT;
+          if (venom.t > 0) venom.t = Math.max(0, venom.t - DT);
+          if (slow.t > 0) slow.t = Math.max(0, slow.t - DT);
+          if (storm.t > 0) storm.t = Math.max(0, storm.t - DT);
+          acc -= DT;
+        }
+        // a raquete do adversário alcança o último ponto recebido sem saltar
+        const outro = pads[0];
+        if (outro.destino !== undefined) {
+          outro.b += clamp(outro.destino - outro.b, -1400 * dt, 1400 * dt);
+        }
+      }
+
+      while (acc >= DT) {
+        if (S.phase === "attract") {
+          driveAI(0, DT, "normal", true);
+          driveAI(1, DT, "normal", true);
+          demoBall(DT);
+        } else {
+          step(DT);
+          if (S.phase === "serve") {
+            S.t += DT;
+            if (S.t >= 1.5) { S.phase = "play"; S.t = 0; }
+          }
+          else if (S.phase === "over") S.t += DT;
+        }
+        acc -= DT;
+      }
+
+      if (sala.conectado) {
+        padEm -= dt;
+        if (padEm <= 0) { padEm = 1 / 25; transmitirRaquete(); }
+        bolaEm -= dt;
+        /* Com a rota reta os dois lados calculam exatamente a mesma coisa —
+           não há o que corrigir, e o fio cai para 4 Hz. Só na fase curva, onde
+           a integração pode divergir no arredondamento, ele volta a 20 Hz. */
+        if (bolaEm <= 0) { bolaEm = ball.spin !== 0 ? 1 / 20 : 1 / 4; transmitirBola(); }
+        pingEm -= dt;
+        if (pingEm <= 0) { pingEm = 2; enviar({ t: "ping", ts: Math.round(performance.now()) }); }
+        if (sala.papel === "anfitriao") {
+          mundoEm -= dt;
+          if (mundoEm <= 0) { mundoEm = 0.25; transmitirMundo(); }
+        }
+      }
+      if (naSala() && !sala.conectado && now - sala.visto > 900) {
+        sala.visto = now;
+        enviar({ t: sala.papel === "convidado" ? "ola" : "bemvindo" });
+      }
+
+      draw();
+    } catch (e) {
+      if (!erroContado) {
+        erroContado = true;
+        try {
+          console.error("Rainbow Pong: erro no quadro", e);
+          if (window.relatarFalha) window.relatarFalha(e, "quadro");
+        } catch (_) {}
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function demoBall(dt) {
+    const pa = ball.a;
+    ball.a += ball.va * dt;
+    ball.b += ball.vb * dt;
+    if (ball.b <= WALL) { ball.b = WALL; ball.vb = Math.abs(ball.vb); }
+    if (ball.b + BOLA >= SPAN - WALL) { ball.b = SPAN - WALL - BOLA; ball.vb = -Math.abs(ball.vb); }
+    const face0 = padA(0) + PT, face1 = padA(1);
+    const was = Snd.on; Snd.on = false;
+    if (ball.va < 0 && pa >= face0 && ball.a <= face0 && overlaps(0)) bounce(0, +1);
+    else if (ball.va > 0 && pa + BOLA <= face1 && ball.a + BOLA >= face1 && overlaps(1)) bounce(1, -1);
+    Snd.on = was;
+    if (ball.a + BOLA < 0) resetBall(1);
+    else if (ball.a > LEN) resetBall(-1);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     8. Layout — orientação da quadra e tamanho da tela
+     ══════════════════════════════════════════════════════════ */
+  /** Muda a largura da quadra sem deslocar quem já está em jogo. */
+  function setSpan(v) {
+    const nv = Math.round(clamp(v, 216, 460));
+    if (nv === SPAN) return;
+    SPAN = nv;
+    pads[0].b = clamp(pads[0].b, WALL, SPAN - WALL - padLen(0));
+    pads[1].b = clamp(pads[1].b, WALL, SPAN - WALL - padLen(1));
+    ball.b = clamp(ball.b, WALL, SPAN - WALL - BOLA);
+  }
+
+  function layout() {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Em pé só no modo imersivo. Na home a quadra fica sempre deitada,
+    // encaixada ao lado do manual.
+    const wantVertical = immersive && vh > vw;
+
+    // Em tela cheia a quadra assume a proporção do aparelho — sem tarjas pretas
+    // Numa sala a quadra não se adapta: os dois lados precisam da mesma medida
+    setSpan(immersive && !naSala() ? LEN * (Math.min(vw, vh) / Math.max(vw, vh)) : BASE_SPAN);
+
+    vertical = wantVertical;
+    const cwNew = vertical ? SPAN : LEN;
+    const chNew = vertical ? LEN : SPAN;
+    if (cv.width !== cwNew || cv.height !== chNew) {
+      cv.width = cwNew;
+      cv.height = chNew;
+      g.imageSmoothingEnabled = false;   // o contexto reinicia ao redimensionar
+    }
+    screenEl.setAttribute("aria-label", vertical
+      ? "Mesa de jogo em pé. Jogador 1 embaixo, jogador 2 em cima. Arraste o dedo na sua metade."
+      : "Mesa de jogo deitada. Jogador 1 à esquerda, jogador 2 à direita.");
+
+    const AR = cv.width / cv.height;
+    let availW, availH;
+
+    if (immersive) {
+      availW = vw;
+      availH = vh;
+    } else {
+      const style = getComputedStyle(frameEl);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      availW = Math.max(160, frameEl.clientWidth - padX);
+      // Altura livre = janela menos o que o resto do gabinete ocupa
+      const used = Array.from(document.querySelectorAll(".masthead, .panel, .badge-row"))
+        .reduce((sum, el) => sum + el.offsetHeight, 0);
+      availH = Math.max(180, vh - used - (vertical ? 120 : 110));
+    }
+
+    let w = availW, h = w / AR;
+    if (h > availH) { h = availH; w = h * AR; }
+
+    screenEl.style.width = Math.floor(w) + "px";
+    screenEl.style.height = Math.floor(h) + "px";
+  }
+
+  addEventListener("resize", layout);
+  addEventListener("orientationchange", () => setTimeout(layout, 120));
+
+  /* ══════════════════════════════════════════════════════════
+     9. Controles
+     ══════════════════════════════════════════════════════════ */
+  const btnPlay = document.getElementById("btn-play");
+  const btnReset = document.getElementById("btn-reset");
+  const btnSom = document.getElementById("btn-som");
+  const btnCrt = document.getElementById("btn-crt");
+  const btnFull = document.getElementById("btn-full");
+  const hud = document.getElementById("hud");
+  const hudPause = document.getElementById("hud-pause");
+  const hudExit = document.getElementById("hud-exit");
+
+  /** A faixa da marca mostra a configuração em vigor, sempre à vista. */
+  function syncBadge() {
+    const modo = S.mode === "2p" ? "2 jogadores" : "1 jogador";
+    const niv = { facil: "fácil", normal: "normal", dificil: "difícil" }[S.diff];
+    badgeMode.textContent = S.mode === "2p" ? modo : modo + " · " + niv;
+  }
+
+  function syncPlayButton() {
+    const label =
+      S.phase === "play" ? "Pausar" :
+      S.phase === "pause" ? "Continuar" :
+      S.phase === "over" ? "Novo jogo" : "Jogar";
+    btnPlay.textContent = label;
+    hudPause.dataset.icon = S.phase === "play" ? "pause" : "play";
+    hudPause.setAttribute("aria-label", label);
+    hud.classList.toggle("faded", S.phase === "play");
+  }
+
+  function toggleRun() {
+    Snd.ensure();
+    // Só quem está de fato numa sala conectada cede o comando ao anfitrião.
+    // Antes bastava ter clicado em "Entrar" uma vez para nunca mais começar.
+    if (sala.conectado && sala.papel === "convidado") {
+      announce("Quem começa a partida é quem criou a sala.");
+      return;
+    }
+    if (S.phase === "attract" || S.phase === "over") {
+      newGame("serve");
+      requestWake();
+      announce("Jogo iniciado.");
+    } else if (S.phase === "play") {
+      S.phase = "pause";
+      releaseWake();
+      announce("Jogo em pausa.");
+    } else if (S.phase === "pause") {
+      S.phase = "serve"; S.t = 0.7;
+      requestWake();
+      announce("Jogo retomado.");
+    }
+    syncPlayButton();
+  }
+
+  btnPlay.addEventListener("click", toggleRun);
+  btnReset.addEventListener("click", () => {
+    newGame("attract"); releaseWake(); syncPlayButton(); announce("Placar zerado.");
+  });
+
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    b.addEventListener("click", () => {
+      S.mode = b.dataset.mode;
+      document.querySelectorAll("[data-mode]").forEach(o =>
+        o.setAttribute("aria-pressed", String(o === b)));
+      syncBadge();
+      pads[1].touch = null;
+      newGame("attract");
+      syncPlayButton();
+      announce(S.mode === "2p" ? "Modo dois jogadores." : "Modo um jogador.");
+    });
+  });
+
+  document.querySelectorAll("[data-diff]").forEach(b => {
+    b.addEventListener("click", () => {
+      S.diff = b.dataset.diff;
+      document.querySelectorAll("[data-diff]").forEach(o =>
+        o.setAttribute("aria-pressed", String(o === b)));
+      syncBadge();
+      announce("Nível " + b.textContent + ".");
+    });
+  });
+
+  btnSom.addEventListener("click", () => {
+    Snd.on = !Snd.on;
+    btnSom.setAttribute("aria-pressed", String(Snd.on));
+    if (Snd.on) { Snd.ensure(); Snd.beep(459, 90); }
+  });
+
+  const btnDark = document.getElementById("btn-dark");
+
+  function applyTheme(dark) {
+    theme = dark ? THEMES.escuro : THEMES.claro;
+    document.body.classList.toggle("dark", dark);
+    btnDark.setAttribute("aria-pressed", String(dark));
+    applyColors();
+  }
+
+  btnDark.addEventListener("click", () => {
+    const dark = btnDark.getAttribute("aria-pressed") !== "true";
+    applyTheme(dark);
+    announce(dark ? "Modo escuro, cores vibrantes." : "Modo claro, fósforo desbotado.");
+  });
+
+  document.getElementById("sala-criar").addEventListener("click", () => {
+    if (!TEM_CANAL) return;
+    const c = novoCodigo();
+    abrirSala(c, "anfitriao");
+    announce(`Sala ${c.split("").join(" ")} criada. Abra o jogo em outra janela e entre com esse código.`);
+  });
+
+  const campoSala = document.getElementById("sala-codigo");
+
+  function entrarNaSala(sozinho) {
+    if (!TEM_CANAL) return;
+    const c = campoSala.value.trim().toUpperCase();
+    if (c.length !== 4) {
+      if (sozinho) return;                    // ainda digitando: não reclama
+      const est = document.getElementById("sala-estado");
+      if (est) est.textContent = "o código tem quatro letras";
+      announce("O código tem quatro letras.");
+      campoSala.focus();
+      return;
+    }
+    campoSala.dataset.aberto = "0";
+    campoSala.blur();                          // no celular, tira o teclado da frente
+    abrirSala(c, "convidado");
+    announce(`Entrando na sala ${c.split("").join(" ")}.`);
+  }
+
+  /* Entra sozinho quando a quarta letra cai. O botão era um segundo passo
+     invisível — o primeiro clique só revelava o campo — então quem digitava o
+     código e parava ali esperava para sempre, e no celular o teclado ainda
+     cobria o botão que faltava apertar. */
+  campoSala.addEventListener("input", () => {
+    const limpo = campoSala.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+    if (limpo !== campoSala.value) campoSala.value = limpo;
+    if (limpo.length === 4 && campoSala.dataset.aberto === "1") entrarNaSala(true);
+  });
+
+  document.getElementById("sala-entrar").addEventListener("click", () => {
+    if (!TEM_CANAL) return;
+    if (campoSala.dataset.aberto !== "1") {
+      campoSala.dataset.aberto = "1";
+      campoSala.hidden = false;
+      campoSala.value = "";
+      campoSala.focus();
+      return;
+    }
+    entrarNaSala(false);
+  });
+
+  campoSala.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key === "Enter") entrarNaSala(false);
+  });
+
+  document.getElementById("sala-sair").addEventListener("click", () => {
+    fecharSala(false);
+    newGame("attract");
+    syncPlayButton();
+  });
+
+  addEventListener("beforeunload", () => fecharSala(true));
+
+  document.getElementById("hist-clear").addEventListener("click", () => {
+    historico = [];
+    gravarHistorico();
+    desenharHistorico();
+    announce("Histórico apagado.");
+  });
+
+  document.getElementById("cor").addEventListener("click", () => {
+    turnWheel(1);
+    announce(`Cores na posição ${spoke + 1} de ${WHEEL} da roda.`);
+  });
+
+  btnCrt.addEventListener("click", () => {
+    S.crt = !S.crt;
+    btnCrt.setAttribute("aria-pressed", String(S.crt));
+    screenEl.classList.toggle("plain", !S.crt);
+  });
+
+  /* ── Tela cheia ──
+     O modo imersivo é só uma classe no <body>, então funciona mesmo onde a
+     Fullscreen API não existe (Safari no iPhone) ou vem bloqueada por iframe.
+     Quando a API está disponível, ela entra por cima para tirar a barra do
+     navegador também. */
+  function setImmersive(on) {
+    immersive = on;
+    document.body.classList.toggle("immersive", on);
+    hud.hidden = !on;
+    btnFull.setAttribute("aria-pressed", String(on));
+    btnFull.lastChild.textContent = on ? "Sair da tela cheia" : "Tela cheia";
+    layout();
+  }
+
+  function toggleImmersive() {
+    if (immersive) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      setImmersive(false);
+    } else {
+      setImmersive(true);
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().then(layout, () => {});
+    }
+  }
+
+  btnFull.addEventListener("click", toggleImmersive);
+  hudExit.addEventListener("click", toggleImmersive);
+  hudPause.addEventListener("click", toggleRun);
+
+  document.addEventListener("fullscreenchange", () => {
+    // Sair pelo Esc precisa desfazer o modo imersivo junto
+    if (!document.fullscreenElement && immersive) setImmersive(false);
+    else setTimeout(layout, 80);
+  });
+
+  /* ── Teclado ── */
+  const keys = new Set();   // teclas pressionadas
+  addEventListener("keydown", e => {
+    if (e.target.closest("button, summary, a, input")) return;   // deixa o teclado operar o painel
+    const k = e.key;
+    if (k === " " || k === "Spacebar") { e.preventDefault(); toggleRun(); return; }
+    if (k === "r" || k === "R") { newGame("attract"); releaseWake(); syncPlayButton(); announce("Placar zerado."); return; }
+    if (k === "f" || k === "F") { toggleImmersive(); return; }
+    if (k === "e" || k === "E") { useItem(0, false); return; }   // lado do W/S
+    if (k === "/") { e.preventDefault(); useItem(1, false); return; }   // lado das setas
+    if (k === "ArrowUp" || k === "ArrowDown") e.preventDefault();
+    keys.add(k); applyKeys();
+  });
+  addEventListener("keyup", e => { keys.delete(e.key); applyKeys(); });
+  addEventListener("blur", () => { keys.clear(); applyKeys(); });
+
+  function applyKeys() {
+    const up1 = keys.has("w") || keys.has("W");
+    const dn1 = keys.has("s") || keys.has("S");
+    const upA = keys.has("ArrowUp"), dnA = keys.has("ArrowDown");
+    if (naSala()) {
+      const meu = sala.papel === "anfitriao" ? 0 : 1;
+      const outro = 1 - meu;
+      pads[meu].up = up1 || upA;
+      pads[meu].down = dn1 || dnA;
+      pads[outro].up = pads[outro].down = false;
+    } else if (S.mode === "2p") {
+      pads[0].up = up1; pads[0].down = dn1;
+      pads[1].up = upA; pads[1].down = dnA;
+    } else {
+      pads[0].up = up1 || upA;      // com um jogador as setas também servem
+      pads[0].down = dn1 || dnA;
+      pads[1].up = pads[1].down = false;
+    }
+    if (pads[0].up || pads[0].down) pads[0].touch = null;
+    if (pads[1].up || pads[1].down) pads[1].touch = null;
+  }
+
+  /* ── Toque e mouse: cada dedo controla a raquete da sua metade ── */
+  const owners = new Map();   // pointerId → índice da raquete
+
+  function padFor(court) {
+    if (naSala()) return sala.papel === "anfitriao" ? 0 : 1;
+    if (S.mode === "1p") return 0;
+    return court.a < LEN / 2 ? 0 : 1;
+  }
+
+  const lastTap = [0, 0];   // por raquete, para reconhecer o toque duplo
+
+  screenEl.addEventListener("pointerdown", e => {
+    const court = toCourt(e.clientX, e.clientY);
+    const i = padFor(court);
+    owners.set(e.pointerId, i);
+    pads[i].touch = clamp(court.b, WALL, SPAN - WALL);
+    try { screenEl.setPointerCapture(e.pointerId); } catch (_) {}
+
+    // Dois toques seguidos na própria metade soltam a bola de fogo
+    const now = performance.now();
+    if (now - lastTap[i] < 340) { useItem(i, false); lastTap[i] = 0; }
+    else lastTap[i] = now;
+
+    if (S.phase === "attract" || S.phase === "over" || S.phase === "pause") toggleRun();
+    e.preventDefault();
+  });
+
+  screenEl.addEventListener("pointermove", e => {
+    let i = owners.get(e.pointerId);
+    // O mouse conduz a raquete do jogador 1 só de passar por cima, como antes
+    if (i === undefined) {
+      if (e.pointerType !== "mouse" || S.mode === "2p") return;
+      i = 0;
+    }
+    const court = toCourt(e.clientX, e.clientY);
+    pads[i].touch = clamp(court.b, WALL, SPAN - WALL);
+  });
+
+  function release(e) {
+    const i = owners.get(e.pointerId);
+    if (i === undefined) return;
+    owners.delete(e.pointerId);
+    if (e.pointerType !== "mouse") pads[i].touch = null;
+  }
+  screenEl.addEventListener("pointerup", release);
+  screenEl.addEventListener("pointercancel", release);
+  screenEl.addEventListener("pointerleave", e => {
+    if (e.pointerType === "mouse" && !owners.has(e.pointerId)) pads[0].touch = null;
+  });
+
+  /* ── Tela acesa enquanto se joga ── */
+  let wake = null;
+  function requestWake() {
+    if (!navigator.wakeLock || wake) return;
+    navigator.wakeLock.request("screen").then(l => { wake = l; l.addEventListener("release", () => { wake = null; }); },
+                                              () => {});
+  }
+  function releaseWake() { if (wake) { wake.release().catch(() => {}); wake = null; } }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && S.phase === "play") { S.phase = "pause"; releaseWake(); syncPlayButton(); }
+    else if (!document.hidden && S.phase === "play") requestWake();
+  });
+
+  /* ══════════════════════════════════════════════════════════
+     10. Partida
+     ══════════════════════════════════════════════════════════ */
+  try {
+    applyTheme(matchMedia("(prefers-color-scheme: dark)").matches);   // segue o sistema, e o botão manda
+    carregarHistorico();
+    desenharHistorico();
+    pintarSala();
+    newGame("attract");
+    syncBadge();
+    syncPlayButton();
+    layout();
+    requestAnimationFrame(frame);
+  } catch (e) {
+    if (window.relatarFalha) window.relatarFalha(e, "arranque");
+    throw e;
+  }
+})();
+</script>
+
+</body>
+</html>
