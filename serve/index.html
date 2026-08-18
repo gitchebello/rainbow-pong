@@ -828,7 +828,7 @@
           <canvas class="icon" data-item="gum" role="img" aria-label="Chiclete"></canvas>
           <div>
             <h3>Chiclete</h3>
-            <p>Sem dono: a bola encosta, <em>dobra de tamanho e perde um quarto da velocidade</em> — e acumula: da terceira mordida em diante, triplica. Volta ao normal no ponto seguinte.</p>
+            <p>Sem dono: a bola encosta, <em>dobra de tamanho e perde um quarto da velocidade</em> — e acumula: cada nova mordida dobra de novo. Volta ao normal no ponto seguinte.</p>
           </div>
         </li>
         <li>
@@ -1325,15 +1325,14 @@
   const BHIT_TIME = 0.16;  // esticada da bola logo após sair
   const BS = 8;          // tamanho de fábrica da bola
   let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
-  /* O chiclete acumula sem teto de mordidas: dobra nas duas primeiras e
-     TRIPLICA da terceira em diante (8 -> 16 -> 32 -> 96 -> ...). O único
-     limite é físico: a bola precisa caber entre as paredes. */
+  /* O chiclete acumula sem teto de mordidas: cada uma DOBRA a bola
+     (8 -> 16 -> 32 -> 64 -> 128 -> ...). O único limite é físico: a bola
+     precisa caber entre as paredes. O contador zera no saque. */
   let chicles = 0;             // mordidas de chiclete no ponto corrente
   const bolaTeto = () => SPAN - WALL * 2 - 4;
   function mascarChiclete() {
     chicles++;
-    const fator = chicles >= 3 ? 3 : 2;
-    return Math.min(bolaTeto(), Math.max(BOLA * fator, BS * 2));
+    return Math.min(bolaTeto(), Math.max(BOLA * 2, BS * 2));
   }
   const PAD_A = 18;  // recuo da raquete em relação ao gol
   const TARGET = 7;
