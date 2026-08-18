@@ -1552,21 +1552,33 @@
   const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
                              s: COL.starLo, r: COL.fire });
 
-  /* Estrela de delineado fechado e segmentos parelhos: todos os cinco
-     braços com miolo dourado dentro do contorno — as pernas inclusive, que
-     em todas as versões anteriores acabavam só contorno e destoavam. */
+  /* Estrela geométrica: os cinco braços saem do MESMO pentagrama, com o
+     dobro da resolução (21 células de 1 px, mesmo tamanho final de campo).
+     Numa grade de pixels a simetria de cinco pontas nunca fecha em 11x11 —
+     nesta resolução o erro cai pela metade e os braços ficam parelhos.
+     Delineado fechado; brilho e sombra só por dentro. */
   const STAR = [
-    ".....d.....",
-    "....dwd....",
-    "...dwwwd...",
-    "dddwwwwyddd",
-    ".dwwwwyyyd.",
-    "..dwwyyyd..",
-    "..dwyyysd..",
-    ".dwyd.dysd.",
-    ".dwyd.dysd.",
-    "..ddd.ddd..",
-    "..........."
+    ".....................",
+    ".....................",
+    ".........dd..........",
+    "........dwwd.........",
+    "........dwwd.........",
+    ".......dwwwwd........",
+    ".......dwwwwd........",
+    ".ddddddwwwwwwdddddd..",
+    ".dwwwwwwwwwwyyyyysd..",
+    "..dwwwwwwwwyyyyysd...",
+    "...dwwwwwwyyyyysd....",
+    "....dwwwwyyyyysd.....",
+    ".....dwwyyyyysd......",
+    ".....dwyyyyyssd......",
+    ".....dyyyyysssd......",
+    ".....dyyyddsssd......",
+    "....dyydd..ddssd.....",
+    "....ddd......ddd.....",
+    "....d..........d.....",
+    ".....................",
+    "....................."
   ];
 
   const CRYSTAL = [
@@ -1646,7 +1658,7 @@
       dull: () => ({ d: COL.heartEdge, w: COL.heart,   v: COL.heartLo, s: COL.heartEdge })
     },
     star: {
-      rows: STAR, cell: 11, field: 2,
+      rows: STAR, cell: 21, field: 1,
       map:  () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,   s: COL.starLo }),
       dull: () => ({ d: COL.starEdge, w: COL.star,   y: COL.starLo, s: COL.starEdge })
     }
