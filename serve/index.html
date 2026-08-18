@@ -828,7 +828,7 @@
           <canvas class="icon" data-item="gum" role="img" aria-label="Chiclete"></canvas>
           <div>
             <h3>Chiclete</h3>
-            <p>Sem dono: a bola encosta, <em>dobra de tamanho e perde um quarto da velocidade</em>. Volta ao normal no ponto seguinte.</p>
+            <p>Sem dono: a bola encosta, <em>dobra de tamanho e perde um quarto da velocidade</em> — e acumula: da terceira mordida em diante, triplica. Volta ao normal no ponto seguinte.</p>
           </div>
         </li>
         <li>
@@ -1325,7 +1325,16 @@
   const BHIT_TIME = 0.16;  // esticada da bola logo após sair
   const BS = 8;          // tamanho de fábrica da bola
   let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
-  const BOLA_MAX = BS * 4;
+  /* O chiclete acumula sem teto de mordidas: dobra nas duas primeiras e
+     TRIPLICA da terceira em diante (8 -> 16 -> 32 -> 96 -> ...). O único
+     limite é físico: a bola precisa caber entre as paredes. */
+  let chicles = 0;             // mordidas de chiclete no ponto corrente
+  const bolaTeto = () => SPAN - WALL * 2 - 4;
+  function mascarChiclete() {
+    chicles++;
+    const fator = chicles >= 3 ? 3 : 2;
+    return Math.min(bolaTeto(), Math.max(BOLA * fator, BS * 2));
+  }
   const PAD_A = 18;  // recuo da raquete em relação ao gol
   const TARGET = 7;
 
@@ -1759,7 +1768,7 @@
       ball.va = ball.va / m * ball.speed;
       ball.vb = ball.vb / m * ball.speed;
       const antes = BOLA;
-      BOLA = Math.min(BOLA_MAX, Math.max(BOLA * 2, BS * 2));
+      BOLA = mascarChiclete();
       ball.a -= (BOLA - antes) / 2;
       ball.b = clamp(ball.b - (BOLA - antes) / 2, WALL, SPAN - WALL - BOLA);
       gumPop = 0.45;
@@ -2214,6 +2223,7 @@
     ball.spin = 0;
     ball.budget = 0;
     BOLA = BS;
+    chicles = 0;
     gumPop = 0;
     pads[0].err = pads[1].err = 0;
     sincronizar("saque");
@@ -2235,6 +2245,7 @@
     chiclete.on = false;
     gumTimer = rand(16, 27);
     BOLA = BS;
+    chicles = 0;
     gumPop = 0;
     gumFesta = 0;
     bolhas.length = 0;
@@ -2616,7 +2627,7 @@
       b.va = b.va / dir * b.speed;
       b.vb = b.vb / dir * b.speed;
       const antes = BOLA;
-      BOLA = Math.min(BOLA_MAX, Math.max(BOLA * 2, BS * 2));
+      BOLA = mascarChiclete();
       // recentra e tira das paredes, já que ela cresceu pelos quatro lados
       b.a -= (BOLA - antes) / 2;
       b.b = clamp(b.b - (BOLA - antes) / 2, WALL, SPAN - WALL - BOLA);
