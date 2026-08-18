@@ -4164,8 +4164,9 @@
       ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"].filter(n => stats.used[k][n] > 0).length));
     // Em tela baixa com log comprido, o corpo do log cai um degrau
     const logSt = (ch < 320 && linhas > 4) ? 1 : 2;
-    const abaixo = 8 + CH * 2 + 5 + linhas * (CH * logSt + 1);
-    const escalaBarra = clamp(((ch - 26) - y - abaixo) / maiorLen, 0.35, 1);
+    const abaixo = 8 + CH * 2 + 5 + linhas * (Math.max(CH * logSt, 14) + 1);
+    // barras informam proporção, não precisam de tamanho natural: teto em 0,7
+    const escalaBarra = clamp(((ch - 26) - y - abaixo) / maiorLen, 0.35, 0.7);
     const base = y + maiorLen * escalaBarra;
     const gap = Math.min(62, cw * 0.19);
     const lider = pads[0].len === pads[1].len ? -1 : (pads[0].len > pads[1].len ? 0 : 1);
@@ -4238,7 +4239,7 @@
       que foi gasto; cristal e espiral contam quem os acertou com a bola, ainda
       que o efeito atinja os dois. */
   function drawUseLog(cx, y, i, st) {
-    const si = 1;
+    const ICONE = 14;   // caixa única: as grades variam de 7 a 21 células
     const entradas = ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"]
       .filter(k => stats.used[i][k] > 0)
       .map(k => ({ sp: SPRITES[k], txt: "×" + stats.used[i][k] }));
@@ -4249,16 +4250,15 @@
       return;
     }
 
-    const alt = CH * st;
-    const icone = Math.max(...entradas.map(e => e.sp.cell * si));
-    const larg = icone + 5 + textWidth("×9", st);   // mesma medida em todas as linhas
+    const alt = Math.max(CH * st, ICONE);
+    const larg = ICONE + 5 + textWidth("×9", st);   // mesma medida em todas as linhas
 
     let yy = y;
     for (const e of entradas) {
-      const ih = e.sp.cell * si;
       const x = cx - larg / 2;
-      drawSprite(e.sp.rows, x + (icone - ih) / 2, yy + (alt - ih) / 2, si, e.sp.map());
-      drawText(g, e.txt, x + icone + 5, yy, st, COL.core);
+      // cada sprite entra na caixa comum, qualquer que seja a grade dele
+      drawSprite(e.sp.rows, x, yy + (alt - ICONE) / 2, ICONE / e.sp.cell, e.sp.map());
+      drawText(g, e.txt, x + ICONE + 5, yy + (alt - CH * st) / 2, st, COL.core);
       yy += alt + 1;
     }
   }
