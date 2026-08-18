@@ -1564,20 +1564,22 @@
   /* Silhueta clássica de estrela: ponta do topo cheia (não um espeto de
      1 px), braços na largura toda e pernas abrindo. Sombra na diagonal, luz
      do alto à esquerda, como os demais. */
-  /* Estrela rechonchuda, na linguagem dos outros itens: contorno completo
-     como o chiclete e o coração, braços de ponta arredondada, pernas curtas.
-     Luz do alto à esquerda, sombra na diagonal. */
+  /* Estrela pontuda com corpo cheio: a ponta do topo sobe em pirâmide
+     (1, 3, 5 pixels), os braços saem na largura toda e as pernas afiam até
+     o fim. As pontas de um pixel ficam na COR do corpo, não no contorno —
+     contorno em ponta fina apaga o espeto e foi isso que deixava as versões
+     anteriores atarracadas. */
   const STAR = [
-    ".....d.....",
+    ".....w.....",
     "....dwd....",
     "...dwwwd...",
-    ".ddwwwwydd.",
-    "dwwwwwyyysd",
-    ".dwwwyyysd.",
-    "..dwyyysd..",
-    ".dwyydsssd.",
-    ".dyyd.dssd.",
-    "..dd...dd..",
+    "wddwwwwydds",
+    ".dwwwwyyyd.",
+    "..dwwyyyd..",
+    "..dwydysd..",
+    ".dwyd.dssd.",
+    ".dyd...dsd.",
+    ".dd.....dd.",
     "..........."
   ];
 
