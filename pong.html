@@ -4155,6 +4155,76 @@
       ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"].filter(n => stats.used[k][n] > 0).length));
     // Em tela baixa com log comprido, o corpo do log cai um degrau
     const logSt = (ch < 320 && linhas > 4) ? 1 : 2;
+    const lider0 = pads[0].len === pads[1].len ? -1 : (pads[0].len > pads[1].len ? 0 : 1);
+
+    if (vertical) {
+      /* ── Em pé: a tela é estreita e alta, e a raquete desta orientação é
+         horizontal. As barras DEITAM, uma por linha na largura toda, e os
+         logs ficam lado a lado embaixo — o layout de paisagem espremia duas
+         colunas magras e deixava metade da altura vazia. ── */
+      const escala = clamp((cw - 96) / maiorLen, 0.25, 1);
+      y += 4;
+      for (let i = 0; i < 2; i++) {
+        const col = i === 0 ? COL.p1 : COL.p2;
+        const len = pads[i].len;
+        const alto = 46;
+        const topo = y + i * alto;
+        const bw = Math.max(2, Math.round(len * escala * eased));
+        const bx = Math.round(cw / 2 - bw / 2);
+        const by = topo + 24;
+
+        if (i === S.winner && revela > 0) {          // coroa sobre a barra
+          const ce = 1.6, ccw = 11 * ce, cch = 7 * ce;
+          const flutua = reduceMotion ? 0 : Math.sin(S.blink * 2.1) * 2;
+          const giro = reduceMotion ? 1 : Math.cos(S.blink * 2.6);
+          g.save();
+          g.globalAlpha = revela;
+          g.translate(cw / 2, topo + cch / 2 + 2 + flutua);
+          g.scale(Math.max(0.06, Math.abs(giro)) * (giro < 0 ? -1 : 1), 1);
+          drawSprite(COROA, -ccw / 2, -cch / 2, ce, coroaMapa());
+          g.restore();
+          g.globalAlpha = 1;
+        }
+        if (i === lider0 && revela > 0) {            // marca de quem cresceu mais
+          g.globalAlpha = 0.28 * revela;
+          g.fillStyle = col;
+          g.fillRect(bx - 3, by - 3, bw + 6, PT + 6);
+          g.globalAlpha = 1;
+        }
+        if (i === S.winner && revela > 0) {          // halo do vencedor
+          const resp = reduceMotion ? 0.6 : 0.55 + 0.45 * Math.sin(S.blink * 3.2);
+          g.fillStyle = col;
+          for (let ring = 3; ring >= 1; ring--) {
+            g.globalAlpha = revela * resp * 0.14 * (4 - ring) / 3;
+            g.fillRect(bx - ring * 3, by - ring * 3, bw + ring * 6, PT + ring * 6);
+          }
+          g.globalAlpha = 1;
+        }
+        g.fillStyle = col;
+        g.fillRect(bx, by, bw, PT);
+
+        const dif = len - PL;
+        const ganho = Math.round(dif * eased);
+        const marca = dif > 0 ? "+" + ganho : "-";
+        g.globalAlpha = Math.max(0.25, revela);
+        drawText(g, marca, cw - 12 - textWidth(marca, 2), by - 3, 2,
+                 dif > 0 ? col : COL.dim);
+        g.globalAlpha = 1;
+      }
+      y += 2 * 46 + 10;
+
+      g.globalAlpha = revela;
+      drawUseLog(Math.round(cw * 0.27), y, 0, logSt);
+      drawUseLog(Math.round(cw * 0.73), y, 1, logSt);
+      g.globalAlpha = 1;
+
+      if (S.blink % 1.2 < 0.75) {
+        centered(g, coarse ? "TOQUE PARA JOGAR DE NOVO" : "ESPACO PARA JOGAR DE NOVO",
+                 cw / 2, ch - 24, 2, COL.net, maxTextW);
+      }
+      return;
+    }
+
     const abaixo = 8 + CH * 2 + 5 + linhas * (Math.max(CH * logSt, 14) + 1);
     // barras informam proporção, não precisam de tamanho natural: teto em 0,7
     const escalaBarra = clamp(((ch - 26) - y - abaixo) / maiorLen, 0.35, 0.7);
