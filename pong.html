@@ -682,8 +682,6 @@
   .hud .key:active { transform: scale(0.88); }
   .hud .ic { width: 13px; height: 13px; fill: currentColor; display: none; }
   .hud .key.icon > .ic:only-of-type { display: block; }
-  .hud .key.icon[data-icon="play"] .ic-play { display: block; }
-  .hud .key.icon[data-icon="pause"] .ic-pause { display: block; }
 
   /* Durante o rally o HUD quase some, para não disputar espaço com a raquete */
   .hud.faded .key { opacity: 0.22; }
@@ -905,9 +903,8 @@
   </div>
 
   <div class="hud" id="hud" hidden>
-    <button class="key icon" id="hud-pause" data-icon="play" aria-label="Jogar">
-      <svg class="ic ic-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.4 13.2 8 4 13.6z"/></svg>
-      <svg class="ic ic-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.8h3.1v10.4H4zM8.9 2.8H12v10.4H8.9z"/></svg>
+    <button class="key icon" id="hud-pause" aria-label="Pausar">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.8h3.1v10.4H4zM8.9 2.8H12v10.4H8.9z"/></svg>
     </button>
     <button class="key ghost icon" id="hud-exit" aria-label="Sair da tela cheia">
       <svg class="ic" viewBox="0 0 16 16" aria-hidden="true">
@@ -4694,7 +4691,7 @@
       S.phase === "pause" ? "Continuar" :
       S.phase === "over" ? "Novo jogo" : "Jogar";
     btnPlay.textContent = label;
-    hudPause.dataset.icon = S.phase === "play" ? "pause" : "play";
+    // o glifo é sempre o de pausa: é para isso que o botão serve em jogo
     hudPause.setAttribute("aria-label", label);
     hud.classList.toggle("faded", S.phase === "play");
   }
