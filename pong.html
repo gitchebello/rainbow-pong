@@ -314,6 +314,26 @@
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.35);
   }
   .codigo::placeholder { color: var(--ink-faint); letter-spacing: 0.12em; }
+  .chat-campo {
+    flex: 1 1 100%;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    text-align: left;
+    padding-left: 10px;
+  }
+  .chat-log {
+    list-style: none;
+    margin: 7px 0 0;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--body-ink);
+    overflow-wrap: anywhere;
+  }
+  .chat-log b { font-weight: 700; }
+  .chat-log .p1 b { color: var(--p1); }
+  .chat-log .p2 b { color: var(--p2); }
   .codigo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .codigo[hidden], .key[hidden] { display: none; }
   .sala-nota {
@@ -772,6 +792,12 @@
                    enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
             <button class="key ghost" id="sala-sair" hidden>Sair</button>
           </div>
+          <div class="row" id="chat-linha" hidden>
+            <input class="codigo chat-campo" id="chat-campo" maxlength="80" autocomplete="off"
+                   spellcheck="false" enterkeyhint="send" placeholder="mensagem para o outro jogador"
+                   aria-label="Mensagem para o outro jogador">
+          </div>
+          <ul class="chat-log" id="chat-log" hidden aria-live="polite"></ul>
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
@@ -1424,6 +1450,7 @@
     if (rastroIris.length > IRIS_TETO) rastroIris.shift();
   }
   const hint = { t: 0, who: 0, txt: "", col: null, arco: false };
+  const papo = { t: 0, txt: "", quem: 0 };   // última mensagem do chat, sobre o campo
   let itemTimer = rand(6, 11);
   let flash = 0;              // clarão no instante em que a paleta vira
   let flashCol = "";
@@ -2448,6 +2475,7 @@
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
     if (hint.t > 0) hint.t -= dt;
+    if (papo.t > 0) papo.t -= dt;
     if (roleta.on) roleta.t += dt;
 
     if (gumFesta > 0) {
@@ -2852,6 +2880,24 @@
   /* Tenta primeiro o servidor: é o que atravessa aparelhos. Se não houver um
      (ou a página proibir a conexão), cai para o canal entre abas do mesmo
      navegador, que não precisa de nada. */
+  /* Batimento FORA do requestAnimationFrame. Com a aba em segundo plano o
+     navegador congela os quadros — e é exatamente o que acontece na vida
+     real: a pessoa cria a sala e troca de aplicativo para mandar o código ao
+     amigo. O anfitrião ficava mudo, o servidor o despejava como fantasma, e o
+     amigo caía numa sala vazia. O setInterval sobrevive ao segundo plano. */
+  setInterval(() => {
+    if (sala.ws && sala.ws.readyState === 1)
+      sala.ws.send(JSON.stringify({ t: "ping", ts: Math.round(performance.now()) }));
+  }, 3000);
+
+  // Ao voltar para a aba, se a sala caiu no meio tempo, religa na hora
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && naSala() && !sala.ws && sala.via !== "abas") {
+      sala.tentativas = 0;
+      abrirSala(sala.codigo, sala.papel);
+    }
+  });
+
   function abrirSala(codigo, papel) {
     fecharSala(true);
     sala.codigo = codigo;
@@ -2942,7 +2988,9 @@
       if (!sala.conectado) {
         sala.conectado = true;
         pintarSala();
-        announce("Sala conectada.");
+        showHint(-1, sala.papel === "anfitriao" ? "OPONENTE ENTROU" : "SALA CONECTADA", COL.heart);
+        Snd.premio();
+        announce(sala.papel === "anfitriao" ? "O oponente entrou na sala." : "Sala conectada.");
       }
       return;
     }
@@ -2967,7 +3015,20 @@
     if (m.t === "tchau") {
       sala.conectado = false;
       pintarSala();
+      showHint(-1, "OPONENTE SAIU", COL.dim);
       announce("O outro jogador saiu da sala.");
+      return;
+    }
+    if (m.t === "chat") {
+      // texto cru do outro lado: corta no tamanho e tira controle antes de usar
+      const txt = String(m.m || "").replace(/[\u0000-\u001f]/g, "").slice(0, 80).trim();
+      if (txt) {
+        const dele = sala.papel === "anfitriao" ? 1 : 0;
+        anotarChat(dele, txt);
+        papo.t = 4.5; papo.txt = txt; papo.quem = dele;
+        Snd.gum();
+        announce(`Mensagem do outro jogador: ${txt}`);
+      }
       return;
     }
     if (m.t === "ping") { enviar({ t: "pong", ts: m.ts }); return; }
@@ -3256,6 +3317,14 @@
     const onde = { rede: "rede", abas: "só nesta janela", tentando: "ligando", "sem-jeito": "sem transporte" }[sala.via] || "";
     est.textContent = !dentro ? "desligada"
       : `${sala.codigo} · ${sala.conectado ? "conectada" : "esperando"} · ${onde}`;
+
+    const chatLinha = document.getElementById("chat-linha");
+    const chatLog = document.getElementById("chat-log");
+    if (chatLinha) {
+      const aberto = dentro && sala.conectado;
+      chatLinha.hidden = !aberto;
+      chatLog.hidden = !aberto || !chatLog.childElementCount;
+    }
 
     const nota = document.getElementById("sala-nota");
     if (nota) {
@@ -3687,7 +3756,7 @@
     g.globalAlpha = 1;
 
     // Aviso curto na metade de quem acabou de mexer com o item
-    if (hint.t > 0 && S.phase === "play") {
+    if (hint.t > 0 && (S.phase === "play" || naSala())) {
       const middle = hint.who < 0;
       const p = middle ? [cw / 2, ch / 2 - 46]
                        : rect(hint.who === 0 ? LEN * 0.26 : LEN * 0.74, SPAN / 2, 0, 0);
@@ -3696,6 +3765,15 @@
       const esc = hint.esc || (middle ? 3 : 2);
       if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
       else centered(g, hint.txt, p[0], p[1] - 10, esc, col, maxTextW);
+      g.globalAlpha = 1;
+    }
+
+    // Balão do chat: a última mensagem cruza qualquer fase por alguns segundos
+    if (papo.t > 0 && naSala()) {
+      const corPapo = papo.quem === 0 ? COL.p1 : COL.p2;
+      g.globalAlpha = Math.min(1, papo.t * 1.6);
+      const rotulo = (papo.quem === 0 ? "J1: " : "J2: ") + papo.txt;
+      centered(g, rotulo, cw / 2, Math.max(24, ch * 0.09), 2, corPapo, maxTextW);
       g.globalAlpha = 1;
     }
 
@@ -4737,6 +4815,36 @@
   campoSala.addEventListener("keydown", e => {
     e.stopPropagation();
     if (e.key === "Enter") entrarNaSala(false);
+  });
+
+  /* ── Chat da sala ──
+     Aparece quando a conexão fecha. A mensagem vai crua pelo relay ({t:"chat"});
+     quem recebe poda e mostra em dois lugares: no histórico do painel (texto
+     completo, via textContent — nunca HTML) e num balão sobre o campo, que a
+     fonte do jogo desenha em maiúsculas. */
+  const chatCampo = document.getElementById("chat-campo");
+
+  function anotarChat(quem, txt) {
+    const log = document.getElementById("chat-log");
+    const li = document.createElement("li");
+    li.className = quem === 0 ? "p1" : "p2";
+    const b = document.createElement("b");
+    b.textContent = (quem === 0 ? "J1" : "J2") + ": ";
+    li.append(b, txt);
+    log.append(li);
+    while (log.childElementCount > 6) log.firstElementChild.remove();
+    log.hidden = false;
+  }
+
+  chatCampo.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key !== "Enter") return;
+    const txt = chatCampo.value.replace(/[\u0000-\u001f]/g, "").slice(0, 80).trim();
+    if (!txt || !sala.conectado) return;
+    enviar({ t: "chat", m: txt });
+    const eu = sala.papel === "anfitriao" ? 0 : 1;
+    anotarChat(eu, txt);
+    chatCampo.value = "";
   });
 
   document.getElementById("sala-sair").addEventListener("click", () => {

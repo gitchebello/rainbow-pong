@@ -33,7 +33,9 @@ MAX_CONEXOES = 200
 MAX_SALAS = 120
 MAX_POR_IP = 12
 OCIOSO = 45                 # segundos sem receber nada = conexão morta
-MUDO = 10                   # ...mas para segurar vaga em sala, 10 já é fantasma
+MUDO = 25                   # sem sinal por 25 s = fantasma; o cliente bate a cada 3 s
+                            # mesmo em segundo plano, então 25 s tolera o navegador
+                            # estrangulando timers sem deixar vaga presa por muito tempo
 
 conexoes = 0
 por_ip = {}
