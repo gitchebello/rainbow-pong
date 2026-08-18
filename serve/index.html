@@ -1783,7 +1783,7 @@
       sincronizar("chiclete");     // fire/star se cobrem via ignite; o chiclete não
       return;
     }
-    const cresceu = growPaddle(i, 3, LEN_MAX);
+    const cresceu = growPaddle(i, 3, raqueteTeto());
     if (!cresceu) showHint(-1, "NO LIMITE", COL.heart);
     Snd.heart();
   }
@@ -1797,7 +1797,10 @@
   const HRT_MAX = 52;          // inchado, o dobro
   const HEART_LIFE = 30;
   const HEART_GROW = 3;        // pouco por acerto, e sobe a cada acerto
-  const LEN_MAX = 96;          // teto absoluto da raquete, somando fogo e coração
+  /* O coração não tem teto: cada acerto vale mais que o anterior, e a raquete
+     cresce quanto a pontaria render. O único limite é físico — ela precisa
+     caber entre as paredes. (O fogo mantém o teto próprio de 3 defesas.) */
+  const raqueteTeto = () => SPAN - WALL * 2;
   const heart = { on: false, done: false, life: 0, t: 0, hits: [0, 0], pulse: 0 };
 
   /* Ele vive no meio do campo e dilata devagar. A caixa é recalculada a cada
@@ -2698,7 +2701,7 @@
 
       // Cada acerto rende mais que o anterior: 2, 3, 4, 5...
       const ganho = HEART_GROW + (heart.hits[quem] - 1);
-      const cresceu = growPaddle(quem, ganho, LEN_MAX);
+      const cresceu = growPaddle(quem, ganho, raqueteTeto());
       showHint(quem, cresceu ? "+" + ganho : "NO LIMITE", COL.heart);
       spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 4, 90, COL.heart, { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
       kick(0.14, 0.26, COL.heart, 0.4);
