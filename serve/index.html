@@ -1319,7 +1319,6 @@
   const PT = 8;      // espessura da raquete
   const PL = 52;     // comprimento inicial da raquete
   const GROW = 10;      // o que cada defesa de bola de fogo acrescenta
-  const GROW_MAX = 3;   // teto: 52 → 82, mais da metade a mais
   const SCORE_S = 4;       // corpo do placar no centro do campo
   const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
   const GLOW_TIME = 0.7;   // duração do brilho neon no rebate
@@ -1799,7 +1798,7 @@
   const HEART_GROW = 3;        // pouco por acerto, e sobe a cada acerto
   /* O coração não tem teto: cada acerto vale mais que o anterior, e a raquete
      cresce quanto a pontaria render. O único limite é físico — ela precisa
-     caber entre as paredes. (O fogo mantém o teto próprio de 3 defesas.) */
+     caber entre as paredes. O fogo cresce sob a mesma regra. */
   const raqueteTeto = () => SPAN - WALL * 2;
   const heart = { on: false, done: false, life: 0, t: 0, hits: [0, 0], pulse: 0 };
 
@@ -2779,7 +2778,7 @@
       Snd.block();
       stats.blocks[i]++;
       p.glow = GLOW_TIME;
-      const grew = growPaddle(i, GROW, PL + GROW * GROW_MAX);
+      const grew = growPaddle(i, GROW, raqueteTeto());
       // Em campo só "DEFENDEU": o "+ DEFESA" é a marca do prêmio da rainbow
       // ball. O crescimento aqui já se vê na raquete, que anima ao aumentar.
       showHint(i, "DEFENDEU", COL.fire);
