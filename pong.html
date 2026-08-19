@@ -763,8 +763,6 @@
         <div class="group wide sala-grupo">
           <span class="legend" id="lg-sala">Sala <span id="sala-estado">desligada</span></span>
           <div class="row" role="group" aria-labelledby="lg-sala">
-            <input class="codigo nome-campo" id="nome-jogador" maxlength="12" autocomplete="nickname"
-                   spellcheck="false" placeholder="seu nome" aria-label="Seu nome nas salas">
             <button class="key" id="sala-criar">Criar sala</button>
             <button class="key" id="sala-entrar">Entrar</button>
             <input class="codigo" id="sala-codigo" maxlength="4" autocomplete="off"
@@ -790,6 +788,10 @@
           <span class="legend" id="lg-arena">Arena</span>
           <div class="row" role="group" aria-labelledby="lg-arena">
             <button class="key primary" id="btn-viva">Arena ao vivo</button>
+            <input class="codigo nome-campo" id="nome-jogador" maxlength="12" autocomplete="nickname"
+                   spellcheck="false" enterkeyhint="go" placeholder="seu nome"
+                   aria-label="Seu nome na arena" hidden>
+            <button class="key primary" id="btn-viva-ok" hidden>Entrar</button>
           </div>
           <p class="sala-nota" id="viva-lista">Arena ao vivo: consultando…</p>
         </div>
@@ -6014,11 +6016,28 @@
   const VIVA = "ARENA";
   const nomeEl = document.getElementById("nome-jogador");
   try { nomeEl.value = localStorage.getItem("rainbow-pong-nome") || ""; } catch (_) {}
-  nomeEl.addEventListener("input", () => {
+  const btnViva = document.getElementById("btn-viva");
+  const btnVivaOk = document.getElementById("btn-viva-ok");
+
+  /* O nome só existe na arena, então ele só aparece quando você vai entrar:
+     o botão cede o lugar ao campo + "Entrar", e volta ao normal depois. */
+  function pedirNome(abrir) {
+    nomeEl.hidden = !abrir;
+    btnVivaOk.hidden = !abrir;
+    btnViva.hidden = abrir;
+    if (abrir) nomeEl.focus();
+  }
+
+  function entrarNaArena() {
     try { localStorage.setItem("rainbow-pong-nome", nomeEl.value.slice(0, 12)); } catch (_) {}
-  });
-  nomeEl.addEventListener("keydown", e => e.stopPropagation());
-  document.getElementById("btn-viva").addEventListener("click", () => {
+    pedirNome(false);
+    sala.avisouAbas = false;
+    aplicarArena(true, false);
+    abrirSala(VIVA, "auto");
+    announce("Entrando na arena ao vivo.");
+  }
+
+  btnViva.addEventListener("click", () => {
     if (S.arena && naSala()) {          // já dentro: o botão é a porta de saída
       fecharSala(false);
       aplicarArena(false, false);
@@ -6027,10 +6046,13 @@
       announce("Você saiu da arena. De volta ao jogo clássico.");
       return;
     }
-    sala.avisouAbas = false;
-    aplicarArena(true, false);
-    abrirSala(VIVA, "auto");
-    announce("Entrando na arena ao vivo.");
+    pedirNome(true);
+  });
+  btnVivaOk.addEventListener("click", entrarNaArena);
+  nomeEl.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key === "Enter") entrarNaArena();
+    if (e.key === "Escape") pedirNome(false);
   });
 
   const vivaEl = document.getElementById("viva-lista");
@@ -6147,7 +6169,17 @@
   function pintarAbas() {
     document.body.classList.toggle("arena", S.arena);
     const bv = document.getElementById("btn-viva");
-    if (bv) bv.setAttribute("aria-pressed", String(S.arena));
+    if (bv) {
+      bv.setAttribute("aria-pressed", String(S.arena));
+      bv.textContent = S.arena ? "Sair da arena" : "Arena ao vivo";
+      if (S.arena) {                       // dentro da arena, sem campo de nome
+        bv.hidden = false;
+        const nc = document.getElementById("nome-jogador");
+        const bo = document.getElementById("btn-viva-ok");
+        if (nc) nc.hidden = true;
+        if (bo) bo.hidden = true;
+      }
+    }
   }
   function aplicarArena(on, anunciar) {
     S.arena = !!on;
