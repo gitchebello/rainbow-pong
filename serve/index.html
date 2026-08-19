@@ -2995,6 +2995,10 @@
     pads[0].err = (Math.random() * 2 - 1) * e * 1.4;
     Snd.paddle();
     p.hit = HIT_TIME;
+    /* Toque comum acende um TERÇO do halo — uma menção. Defesa de fogo e
+       crescimento seguem acendendo o halo cheio por cima (GLOW_TIME inteiro),
+       então o impacto com item é sempre visivelmente mais intenso. */
+    p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
     b.hit = BHIT_TIME;
     spark(b.a + BOLA / 2, b.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
           { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
@@ -3640,6 +3644,7 @@
     ball.budget = SPIN_BUDGET;
     ball.dono = i;
     p.hit = HIT_TIME;
+    p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
     ball.hit = BHIT_TIME;
     Snd.paddle();
     spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
