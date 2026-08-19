@@ -5494,8 +5494,10 @@
       if (v.vida <= 0) vagalumes.splice(i, 1);
     }
 
-      // Tira e devolve a cor conforme a tempestade entra e sai
-      const alvoMono = stormRamp();
+      /* Tira e devolve a cor conforme a tempestade entra e sai — MENOS na
+         tela final: a partida que termina sob o raio merece seu retrato
+         colorido, com as raquetes e a coroa na cor de cada jogador. */
+      const alvoMono = S.phase === "over" ? 0 : stormRamp();
       if (Math.abs(alvoMono - monoForca) > 0.004) aplicarMono(alvoMono);
       venomVis += ((venom.t > 0 ? 1 : 0) - venomVis) * Math.min(1, dt * 7);
       if (fx.shake > 0) fx.shake = Math.max(0, fx.shake - dt);
