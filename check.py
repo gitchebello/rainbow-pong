@@ -349,9 +349,11 @@ globalThis.__erro=null; globalThis.relatarFalha=e=>{globalThis.__erro=String(e&&
     # gancho de teste: depois da abertura, forca a tela final — ela ja ficou
     # descoberta uma vez (a coroa sumiu num recorte e so quebrava no fim de jogo)
     _js2 = js.replace("function frame(now) {",
-        "globalThis.__forcarOver = (v) => { S.phase = \"over\"; S.winner = 0; S.t = 0; vertical = !!v; };\n  function frame(now) {", 1)
+        "globalThis.__forcarOver = (v) => { S.phase = \"over\"; S.winner = 0; S.t = 0; vertical = !!v; };\n  globalThis.__arena = (on) => { S.arena = !!on; };\n  function frame(now) {", 1)
     _m.eval("(function(){\n" + _js2 + "\n})()")
     _res = _m.eval("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
+                   "if(!__erro&&globalThis.__arena){__arena(true);"
+                   "for(let k=301;k<=420&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}__arena(false);}"
                    "if(!__erro&&globalThis.__forcarOver){__forcarOver(false);"
                    "for(let k=301;k<=430&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
                    "if(!__erro){__forcarOver(true);"
@@ -360,7 +362,7 @@ globalThis.__erro=null; globalThis.relatarFalha=e=>{globalThis.__erro=String(e&&
         ruim = True
         print("EXECUÇÃO: erro em quadro ->", _res.split("\n")[0][:200])
     else:
-        print("EXECUÇÃO: 560 quadros (abertura + tela final nas duas orientações) sem erro")
+        print("EXECUÇÃO: 680 quadros (abertura, arena e tela final nas duas orientações) sem erro")
 except ImportError:
     print("EXECUÇÃO: V8 indisponível — pulando")
 except Exception as _e:
