@@ -253,6 +253,8 @@ def atender_websocket(sock, chave):
                 par.enviar(json.dumps({"t": "eco"}))
 
             if msg.get("t") == "sala":
+                nome = "".join(c for c in str(msg.get("nome", "")) if c.isprintable())[:12].strip()
+                par.nome = nome
                 entrar_na_sala(par, str(msg.get("codigo", ""))[:8].upper())
                 continue
 
@@ -302,8 +304,9 @@ SALA_VIVA = "ARENA"          # a sala pública que nunca fecha
 def quem_esta_na_viva():
     with trava:
         sala = salas.get(SALA_VIVA, [])
-        ids = [getattr(p, "ident", 0) for p in sala if p.vivo]
-    return json.dumps({"n": len(ids), "ids": ids})
+        gente = [{"id": getattr(p, "ident", 0), "nome": getattr(p, "nome", "")}
+                 for p in sala if p.vivo]
+    return json.dumps({"n": len(gente), "ids": [g["id"] for g in gente], "jogadores": gente})
 
 
 def atender(sock, ip):

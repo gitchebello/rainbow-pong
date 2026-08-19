@@ -320,6 +320,7 @@
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.35);
   }
   .codigo::placeholder { color: var(--ink-faint); letter-spacing: 0.12em; }
+  .nome-campo { flex: 1 1 96px; text-transform: none; letter-spacing: 0.06em; }
   .codigo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .codigo[hidden], .key[hidden] { display: none; }
   .sala-nota {
@@ -762,6 +763,8 @@
         <div class="group wide sala-grupo">
           <span class="legend" id="lg-sala">Sala <span id="sala-estado">desligada</span></span>
           <div class="row" role="group" aria-labelledby="lg-sala">
+            <input class="codigo nome-campo" id="nome-jogador" maxlength="12" autocomplete="nickname"
+                   spellcheck="false" placeholder="seu nome" aria-label="Seu nome nas salas">
             <button class="key primary" id="btn-viva">Arena ao vivo</button>
             <button class="key" id="sala-criar">Criar sala</button>
             <button class="key" id="sala-entrar">Entrar</button>
@@ -3191,7 +3194,9 @@
         decidido = true;
         sala.via = "rede";
         sala.tentativas = 0;
-        ws.send(JSON.stringify({ t: "sala", codigo }));
+        const nomeCampo = document.getElementById("nome-jogador");
+        const nome = (nomeCampo && nomeCampo.value || "").slice(0, 12).trim();
+        ws.send(JSON.stringify({ t: "sala", codigo, nome }));
         pintarSala();
       };
       ws.onmessage = e => { try { receber(JSON.parse(e.data)); } catch (_) {} };
@@ -5542,6 +5547,12 @@
      primeiro vira anfitrião e, se ele sair, o comando migra sozinho. A home
      mostra quem está lá agora, pelo /quem do servidor. */
   const VIVA = "ARENA";
+  const nomeEl = document.getElementById("nome-jogador");
+  try { nomeEl.value = localStorage.getItem("rainbow-pong-nome") || ""; } catch (_) {}
+  nomeEl.addEventListener("input", () => {
+    try { localStorage.setItem("rainbow-pong-nome", nomeEl.value.slice(0, 12)); } catch (_) {}
+  });
+  nomeEl.addEventListener("keydown", e => e.stopPropagation());
   document.getElementById("btn-viva").addEventListener("click", () => {
     sala.avisouAbas = false;
     abrirSala(VIVA, "auto");
@@ -5555,7 +5566,8 @@
       const r = await fetch(base + "quem", { cache: "no-store" });
       const q = await r.json();
       if (!q.n) { vivaEl.textContent = "Arena ao vivo: vazia — seja o primeiro!"; return; }
-      const nomes = q.ids.slice(0, JMAX).map((_, k) => "J" + (k + 1)).join(", ");
+      const nomes = (q.jogadores || []).slice(0, 8)
+        .map((j2, k) => j2.nome || "J" + (k + 1)).join(", ");
       vivaEl.textContent = "Arena ao vivo: " + q.n +
         (q.n === 1 ? " jogador (" : " jogadores (") + nomes + ") agora";
     } catch (_) {
