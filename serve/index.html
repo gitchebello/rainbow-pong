@@ -1343,7 +1343,7 @@
   const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
   const GLOW_TIME = 0.7;   // duração do brilho neon no rebate
   const GROW_ANIM = 0.35;  // a raquete cresce animada, não de um quadro para o outro
-  const HIT_TIME = 0.2;    // squash da raquete no toque
+  const HIT_TIME = 0.28;   // squash da raquete no toque, com repique
   const BHIT_TIME = 0.16;  // esticada da bola logo após sair
   const BS = 8;          // tamanho de fábrica da bola
   let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
@@ -3117,7 +3117,7 @@
     /* Toque comum acende um TERÇO do halo — uma menção. Defesa de fogo e
        crescimento seguem acendendo o halo cheio por cima (GLOW_TIME inteiro),
        então o impacto com item é sempre visivelmente mais intenso. */
-    p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
+    p.glow = Math.max(p.glow, GLOW_TIME * 0.5);
     b.hit = BHIT_TIME;
     spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
           { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
@@ -3766,7 +3766,7 @@
     ball.budget = SPIN_BUDGET;
     ball.dono = i;
     p.hit = HIT_TIME;
-    p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
+    p.glow = Math.max(p.glow, GLOW_TIME * 0.5);
     ball.hit = BHIT_TIME;
     Snd.paddle();
     spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
@@ -4465,17 +4465,26 @@
       const base = padDrawLen(i);
       let th = PT, ln = base, pa = padA(i), pb = p.b + (padLen(i) - base) / 2;
       if (p.hit > 0) {
+        /* Duas voltas de cosseno com amortecimento mais lento: o impacto
+           achata forte, o repique passa do ponto para o outro lado e assenta
+           — squash, overshoot e settle, o tripé da animação clássica. */
         const u = 1 - p.hit / HIT_TIME;
-        const k = Math.cos(u * Math.PI * 1.5) * Math.exp(-u * 3);
-        ln = base * (1 - 0.15 * k);
-        th = PT * (1 + 0.85 * k);
+        const k = Math.cos(u * Math.PI * 2) * Math.exp(-u * 2.6);
+        ln = base * (1 - 0.24 * k);
+        th = PT * (1 + 1.25 * k);
         pb = p.b + (padLen(i) - ln) / 2;
-        pa = i === 0 ? padA(0) : padA(1) - (th - PT);
+        // recuo: o impacto empurra a raquete para trás e ela volta
+        const recuo = Math.sin(u * Math.PI) * Math.exp(-u * 2) * 3.5;
+        pa = (i === 0 ? padA(0) - recuo : padA(1) - (th - PT) + recuo);
       }
 
       if (p.glow > 0) {
         const k = p.glow / GLOW_TIME;
-        for (let ring = 1; ring <= 3; ring++) {
+        /* Os anéis externos só existem com carga alta: o toque comum (meia
+           carga) acende dois, o evento especial acende os quatro e vai bem
+           mais longe. A hierarquia fica no número de anéis, não só no alfa. */
+        const aneis = k > 0.55 ? 4 : 2;
+        for (let ring = 1; ring <= aneis; ring++) {
           const pad = ring * 4 * (0.5 + k);
           g.globalAlpha = (0.30 * k) / ring;
           fill(col, pa - pad, pb - pad, th + pad * 2, ln + pad * 2);
