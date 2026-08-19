@@ -2486,7 +2486,7 @@
     const p = pads[i];
     const coming = i === 1 ? ball.va > 0 : ball.va < 0;
     const target = S.arena
-      ? arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2) + p.err - padLen(i) / 2
+      ? arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2).s + p.err - padLen(i) / 2
       : ((coming || always)
           ? ball.b + BOLA / 2 + p.err - padLen(i) / 2
           : SPAN / 2 - padLen(i) / 2);
@@ -2505,8 +2505,12 @@
     for (let i = 0; i < jogadoresAtivos(); i++) {
       const p = pads[i];
       p.prevB = p.b;
-      const isAI = i === 1 && S.mode === "1p" && !naSala();
-      const remoto = sala.conectado && sala.papel === "anfitriao" && i >= 1;
+      /* A IA assume a raquete 1 no 1 jogador local E quando o anfitrião está
+         SOZINHO numa sala de arena (na arena ao vivo, esperando gente): o
+         treino continua, e ela entrega o posto assim que alguém entra. */
+      const isAI = i === 1 && ((S.mode === "1p" && !naSala()) ||
+                   (S.arena && naSala() && sala.papel === "anfitriao" && sala.n <= 1));
+      const remoto = !isAI && sala.conectado && sala.papel === "anfitriao" && i >= 1;
       if (isAI) { driveAI(i, dt, S.diff, false); }
       else if (remoto) {
         /* A raquete do convidado é dele: aqui só se alcança a posição que ele
@@ -3039,7 +3043,9 @@
       armed.kind = null; armed.who = -1;
       if (kind === "star") igniteStar(i); else ignite(i);
     }
-    else if (i === 1 && S.mode === "1p" && held[1] && Math.random() < AI_FIRE[S.diff]) {
+    else if (i === 1 && held[1] && Math.random() < AI_FIRE[S.diff] &&
+             ((S.mode === "1p" && !naSala()) ||
+              (S.arena && naSala() && sala.papel === "anfitriao" && sala.n <= 1))) {
       useItem(1, true);
     }
   }
