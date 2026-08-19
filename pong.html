@@ -4455,7 +4455,7 @@
       const y2 = y + CH * sr + 12 + hp;
       if (S.blink % 1.2 < 0.75) {
         centered(g, coarse ? "TOQUE PARA JOGAR" : "APERTE ESPACO PARA JOGAR",
-                 cw / 2, y2 + 26, 3, COL.net, maxTextW);
+                 cw / 2, y2 + 26, 1, COL.net, maxTextW);
       }
       centered(g, S.mode === "2p" ? "DOIS JOGADORES" : "UM JOGADOR",
                cw / 2, y2 + 58, 2, COL.dim, maxTextW);
@@ -4483,7 +4483,7 @@
       centered(g, "PAUSA", cw / 2, ch / 2 - 40, 6, COL.ball, maxTextW);
       if (S.blink % 1.2 < 0.75) {
         centered(g, coarse ? "TOQUE PARA VOLTAR" : "ESPACO PARA VOLTAR",
-                 cw / 2, ch / 2 + 24, 2, COL.net, maxTextW);
+                 cw / 2, ch / 2 + 24, 1, COL.net, maxTextW);
       }
     }
     else if (S.phase === "over") {
