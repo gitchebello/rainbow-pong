@@ -3044,8 +3044,8 @@
        então o impacto com item é sempre visivelmente mais intenso. */
     p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
     b.hit = BHIT_TIME;
-    spark(b.a + BOLA / 2, b.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
-          { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
+    spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
+          { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
 
     b.dono = i;
     sincronizar("pad" + i);
@@ -3694,8 +3694,8 @@
     p.glow = Math.max(p.glow, GLOW_TIME * 0.35);
     ball.hit = BHIT_TIME;
     Snd.paddle();
-    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
-          { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
+    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
+          { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
   }
 
   /** O convidado anda a bola sozinho: giro, deslocamento, paredes e raquetes. */
@@ -4380,10 +4380,10 @@
         const k = ball.hit / BHIT_TIME;
         const sa = BOLA * (1 + 0.65 * k), sb = BOLA * (1 - 0.3 * k);
         // glow mínimo do impacto: dois anéis que apagam junto com o smear
-        g.globalAlpha = 0.10 * k;
-        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 5, ball.b - (sb - BOLA) / 2 - 5, sa + 10, sb + 10);
-        g.globalAlpha = 0.22 * k;
-        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 2, ball.b - (sb - BOLA) / 2 - 2, sa + 4, sb + 4);
+        g.globalAlpha = 0.16 * k;
+        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 7, ball.b - (sb - BOLA) / 2 - 7, sa + 14, sb + 14);
+        g.globalAlpha = 0.34 * k;
+        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 3, ball.b - (sb - BOLA) / 2 - 3, sa + 6, sb + 6);
         g.globalAlpha = 1;
         glowFill(COL.ball, ball.a - (sa - BOLA) / 2, ball.b - (sb - BOLA) / 2, sa, sb);
       } else if (roleta.on) {
@@ -4680,8 +4680,10 @@
         y2 += centered(g, linha, cw / 2, y2, 2, corDoJogador(j), maxTextW) + 8;
       }
       if (S.blink % 1.2 < 0.75) {
+        g.globalAlpha = 0.6;
         centered(g, coarse ? "TOQUE PARA JOGAR" : "ESPACO PARA JOGAR",
-                 cw / 2, ch - 20, 1, COL.net, maxTextW);
+                 cw / 2, ch - 22, 2, COL.net, maxTextW);
+        g.globalAlpha = 1;
       }
       return;
     }
@@ -4783,8 +4785,10 @@
     }
 
     if (S.blink % 1.2 < 0.75) {
+      g.globalAlpha = 0.6;
       centered(g, coarse ? "TOQUE PARA JOGAR" : "ESPACO PARA JOGAR",
-               cw / 2, ch - 20, 1, COL.net, maxTextW);
+               cw / 2, ch - 22, 2, COL.net, maxTextW);
+      g.globalAlpha = 1;
     }
   }
 
@@ -5517,6 +5521,9 @@
           driveAI(0, DT, "normal", true);
           driveAI(1, DT, "normal", true);
           demoBall(DT);
+          /* Sem isto, faíscas e fumaças do último ponto ficavam CONGELADAS
+             no preview da página inicial — largadas no caminho, para sempre. */
+          atualizarEnfeites(DT);
         } else {
           step(DT);
           if (S.phase === "serve") {
