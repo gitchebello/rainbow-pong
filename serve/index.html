@@ -5600,9 +5600,13 @@
         .reduce((sum, el) => sum + el.offsetHeight, 0);
       caixaH = Math.max(180, vh - usado0 - 110);
     }
+    /* No desktop a adaptação só ENCOLHE a quadra (elimina as placas laterais
+       de janela baixa); engordá-la além da proporção clássica deixava o jogo
+       atarracado em monitor alto. No toque, adapta nos dois sentidos. */
+    const alvoHome = LEN * caixaH / caixaW;
     setSpan(naSala() ? BASE_SPAN
             : immersive ? LEN * (Math.min(vw, vh) / Math.max(vw, vh))
-                        : LEN * caixaH / caixaW);
+                        : (coarse ? alvoHome : Math.min(alvoHome, BASE_SPAN)));
 
     vertical = wantVertical;
     const cwNew = vertical ? SPAN : LEN;
