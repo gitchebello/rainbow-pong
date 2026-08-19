@@ -3021,6 +3021,12 @@
 
   function point(who) {
     if (S.phase === "attract") { resetBall(who === 0 ? 1 : -1); return; }
+    /* Ponto decidido: os avisos do ponto que MORREU saem de cena na hora —
+       era comum começar o saque seguinte com "BOLA DE FOGO" ainda no campo.
+       Os avisos do ponto novo (match point, etc.) são postos logo abaixo,
+       depois desta limpeza, e por isso sobrevivem. */
+    hint.t = 0;
+    moldura.t = 0;
     douse();
     endRush();
     S.score[who]++;
@@ -3720,6 +3726,8 @@
     for (let j = 0; j < m.placar.length && j < JMAX; j++)
       if (m.placar[j] !== S.score[j]) quem = j;
     if (quem >= 0) {
+      hint.t = 0;          // avisos do ponto anterior morrem com ele
+      moldura.t = 0;
       scorePop[quem] = 0.9;
       Snd.point();
       S.score = m.placar.slice();
