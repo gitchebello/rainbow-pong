@@ -1622,32 +1622,25 @@
   const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
                              s: COL.starLo, r: COL.fire });
 
-  /* Estrela geométrica: os cinco braços saem do MESMO pentagrama, em 21
-     células de 1 px, metade rasterizada e espelhada (simetria exata). O
-     delineado tem DOIS anéis do amarelo-escuro: nesta resolução um anel só
-     tem 1 px e ficava ralo perto dos outros itens, cujas células valem 2. */
+  /* Estrela na malha da FAMÍLIA: 13 células de 2 px, como o coração — os
+     outros ícones usam todos pixels gordos (grades de 7 a 13), e a versão
+     anterior, em 21 células finas, parecia de outro jogo. Contorno fechado,
+     miolo em todos os cinco braços, ~87 células acesas (o chiclete tem 89,
+     o coração 91). Luz do alto à esquerda. */
   const STAR = [
-    ".....................",
-    ".....................",
-    ".........ddd.........",
-    "........ddddd........",
-    "........ddwdd........",
-    ".......ddwwwdd.......",
-    ".......ddwwwdd.......",
-    ".dddddddwwwwwddddddd.",
-    ".ddddddwwwwwyydddddd.",
-    "..ddwwwwwwwyyyyysdd..",
-    "...ddwwwwwyyyyysdd...",
-    "....ddwwwyyyyysdd....",
-    ".....ddwyyyyysdd.....",
-    ".....ddyyyyyssdd.....",
-    ".....ddyydddssdd.....",
-    ".....ddddddddddd.....",
-    "....ddddd...ddddd....",
-    "....ddd.......ddd....",
-    "....d...........d....",
-    ".....................",
-    "....................."
+    "......d......",
+    ".....dwd.....",
+    ".....dwd.....",
+    "....dwwwd....",
+    "ddddwwwyydddd",
+    ".dwwwwyyyysd.",
+    "..dwwyyyysd..",
+    "...dyyyysd...",
+    "..dyyydsssd..",
+    "..dyyd.dssd..",
+    ".dyyd...dssd.",
+    ".dyd.....dsd.",
+    "..dd.....dd.."
   ];
 
   const CRYSTAL = [
@@ -1727,7 +1720,7 @@
       dull: () => ({ d: COL.heartEdge, w: COL.heart,   v: COL.heartLo, s: COL.heartEdge })
     },
     star: {
-      rows: STAR, cell: 21, field: 1,
+      rows: STAR, cell: 13, field: 2,
       map:  () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,   s: COL.starLo }),
       dull: () => ({ d: COL.starEdge, w: COL.star,   y: COL.starLo, s: COL.starEdge })
     }
