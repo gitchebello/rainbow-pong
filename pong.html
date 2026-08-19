@@ -1311,7 +1311,7 @@
   let SPAN = BASE_SPAN;    // em tela cheia acompanha a proporção do aparelho
   const WALL = 8;    // faixa lateral
   const PT = 8;      // espessura da raquete
-  const PL = 52;     // comprimento inicial da raquete
+  const PL = 78;     // comprimento inicial da raquete (52 de fábrica × 1,5)
   const GROW = 10;      // o que cada defesa de bola de fogo acrescenta
   const SCORE_S = 4;       // corpo do placar no centro do campo
   const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
@@ -2430,18 +2430,18 @@
     roleta.t = 0;
     moldura.t = 0;
     aberr = 0;
-    pads[0].len = pads[1].len = PL;
-    pads[0].swing = pads[1].swing = 0;
-    pads[0].glow = pads[1].glow = 0;
-    pads[0].hit = pads[1].hit = 0;
-    pads[0].grow = pads[1].grow = 0;
-    pads[0].growFrom = pads[1].growFrom = PL;
+    for (let j = 0; j < JMAX; j++) {
+      const p = pads[j];
+      p.len = PL; p.swing = 0; p.glow = 0; p.hit = 0; p.grow = 0; p.growFrom = PL;
+      p.b = S.arena ? mArco((Math.PI + j * Math.PI * 2 / JMAX) * ARENA_R() - PL / 2)
+                    : SPAN / 2 - PL / 2;
+      scorePop[j] = 0;
+    }
     ball.hit = 0;
-    scorePop[0] = scorePop[1] = 0;
     stats.picks = [0, 0];
     stats.blocks = [0, 0];
-    stats.used = [{ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }, { fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }];
-    pads[0].b = pads[1].b = SPAN / 2 - PL / 2;
+    stats.used = Array.from({ length: JMAX }, () =>
+      ({ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }));
     S.serveTo = Math.random() < 0.5 ? 1 : -1;
     resetBall(S.serveTo);
     S.phase = phase;
