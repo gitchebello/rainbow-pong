@@ -3907,8 +3907,9 @@
     }
     if (pontoFinal() && S.phase !== "over") flancosArcoIris();
 
-    // Rede — também marca onde a tela se divide entre os dois jogadores
-    for (let b = WALL + 6; b < SPAN - WALL; b += 20) fill(COL.net, LEN / 2 - 2, b, 4, 12);
+    // Rede — só no campo clássico: na arena livre não há metades a dividir
+    if (!S.arena)
+      for (let b = WALL + 6; b < SPAN - WALL; b += 20) fill(COL.net, LEN / 2 - 2, b, 4, 12);
 
     // Item no meio do campo — pisca quando está prestes a sumir
     const fading = item.life < 3 && !reduceMotion && S.blink % 0.4 < 0.2;
