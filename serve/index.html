@@ -1460,7 +1460,7 @@
      numa reta. topo ↔ topo do anel, meio ↔ ponto mais lateral, base ↔ base.
      t cresce de cima para baixo; a esquerda percorre θ de 3π/2 a π/2 pelo
      lado esquerdo, a direita idem pelo direito. */
-  const REGUA_K = 0.8;   // a régua ocupa 80% do diâmetro, centrada
+  const REGUA_K = 0.65;  // a régua ocupa 65% do diâmetro, centrada
   function arcoDaRegua(lado, tb) {
     const R = ARENA_R() * REGUA_K;
     const t = clamp((tb - (ARENA_CB() - R)) / (2 * R), 0, 1);
@@ -5180,7 +5180,7 @@
     const R = ARENA_R() * REGUA_K;
     const topo = ARENA_CB() - R, alt = 2 * R;
     for (let lado = 0; lado < 2; lado++) {
-      const ax = lado === 0 ? ARENA_CA() - R - 26 : ARENA_CA() + R + 24;
+      const ax = lado === 0 ? ARENA_CA() - ARENA_R() - 44 : ARENA_CA() + ARENA_R() + 42;
       g.globalAlpha = 0.35;
       fill(COL.dim, ax, topo, 2, alt);
       g.globalAlpha = 1;
