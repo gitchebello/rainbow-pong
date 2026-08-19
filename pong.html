@@ -2492,8 +2492,11 @@
 
   /* ── Física ── */
   function step(dt) {
-    const keySpeed = 430 * dt;
-    const dragSpeed = 1200 * dt;
+    /* Na arena a pista é ~3x mais comprida que o corredor clássico: as
+       velocidades de controle escalam junto, senão a régua parece surda —
+       o dedo aponta e a raquete leva meio segundo para obedecer. */
+    const keySpeed = (S.arena ? 820 : 430) * dt;
+    const dragSpeed = (S.arena ? 2600 : 1200) * dt;
 
     for (let i = 0; i < jogadoresAtivos(); i++) {
       const p = pads[i];
@@ -5414,10 +5417,11 @@
           meu.prevB = meu.b;
           if (meu.touch !== null) {
             const alvo = meu.touch - padLen(meuPadSlot()) / 2;
-            meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b, -1200 * DT, 1200 * DT);
+            meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b,
+                           -(S.arena ? 2600 : 1200) * DT, (S.arena ? 2600 : 1200) * DT);
           }
-          if (meu.up) meu.b -= 430 * DT;
-          if (meu.down) meu.b += 430 * DT;
+          if (meu.up) meu.b -= (S.arena ? 820 : 430) * DT;
+          if (meu.down) meu.b += (S.arena ? 820 : 430) * DT;
           meu.b = S.arena ? mArco(meu.b) : clamp(meu.b, WALL, SPAN - WALL - padLen(meuPadSlot()));
           meu.vb = (meu.b - meu.prevB) / DT;
           // a varrida (memória do movimento) alimenta o spin do rebaterLocal
