@@ -4087,7 +4087,7 @@
     if (S.arena && jogadoresAtivos() > 2) {
       /* Placar de N: uma fileira de dígitos, cada um na cor do seu dono. */
       const ativos = jogadoresAtivos();
-      const passoX = 20;
+      const passoX = 16;
       const x0 = cw / 2 - (ativos - 1) * passoX / 2;
       for (let j = 0; j < ativos; j++) {
         const pop = scorePop[j];
@@ -4115,8 +4115,11 @@
          senão a troca de esquema passa despercebida justamente no placar. */
       const gl = dim ? 0 : scoreGlow;
       if (gl > 0) g.globalAlpha = Math.max(g.globalAlpha, gl);
-      const dx = vertical ? cw / 2 - w / 2 : (i === 0 ? cw / 2 - 38 - w : cw / 2 + 38);
-      const dy = vertical ? (i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss) : 24;
+      /* Na arena os dois dígitos se aproximam do centro: o par lê como um
+         placar só, no miolo do círculo. */
+      const vao = S.arena ? 18 : 38, vaoV = S.arena ? 12 : 22;
+      const dx = vertical ? cw / 2 - w / 2 : (i === 0 ? cw / 2 - vao - w : cw / 2 + vao);
+      const dy = vertical ? (i === 0 ? ch / 2 + vaoV : ch / 2 - vaoV - CH * ss) : 24;
       if (gl > 0) {
         const salvo = g.globalAlpha;
         g.globalAlpha = gl * 0.3;
