@@ -1104,7 +1104,10 @@
 
   function turnWheel(n) {
     spoke = (spoke + n + WHEEL) % WHEEL;
+    /* O giro do sistema de cores é um EVENTO: placar e todas as raquetes
+       acendem o neon cheio, para o mundo inteiro anunciar a troca. */
     scoreGlow = 0.9;
+    for (const p of pads) p.glow = Math.max(p.glow, GLOW_TIME);
     applyColors();
   }
 
@@ -1346,6 +1349,18 @@
      pode fechar na próxima bola; se os DOIS chegarem, o ponto seguinte decide
      a partida — e aí o campo inteiro avisa. */
   const matchPoint = i => S.score[i] === TARGET - 1;
+  /** Quem está a um ponto do título (só no 1x1 clássico; −1 se ninguém). */
+  function quemNoMatchPoint() {
+    if (S.arena || jogadoresAtivos() !== 2 || pontoFinal()) return -1;
+    if (matchPoint(0)) return 0;
+    if (matchPoint(1)) return 1;
+    return -1;
+  }
+  /* Vagalumes do match point: pontos de luz que ainda não existiam no jogo —
+     sobem devagar pelas laterais, na cor de quem está a um ponto, com um
+     balanço senoidal e um halo macio. */
+  const vagalumes = [];
+  let vagalumeTimer = 0;
   const pontoFinal = () => matchPoint(0) && matchPoint(1);
   let tremorFinal = 0;
 
@@ -1638,25 +1653,22 @@
   const coroaMapa = () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,
                              s: COL.starLo, r: COL.fire });
 
-  /* Estrela na malha da FAMÍLIA: 13 células de 2 px, como o coração — os
-     outros ícones usam todos pixels gordos (grades de 7 a 13), e a versão
-     anterior, em 21 células finas, parecia de outro jogo. Contorno fechado,
-     miolo em todos os cinco braços, ~87 células acesas (o chiclete tem 89,
-     o coração 91). Luz do alto à esquerda. */
+  /* Estrela na malha e no TAMANHO da família: 11 células de 2 px (22 em
+     campo, como chiclete e raio — a versão de 13 saía 26 e estourava os
+     vizinhos). Mesma construção aprovada: pirâmide no topo, braços em fileira
+     dupla com miolo, pernas de 4 com miolo duplo. 74 células acesas. */
   const STAR = [
-    "......d......",
-    ".....dwd.....",
-    ".....dwd.....",
-    "....dwwwd....",
-    "ddddwwwyydddd",
-    ".dwwwwyyyysd.",
-    "..dwwyyyysd..",
-    "...dyyyysd...",
-    "..dyyydsssd..",
-    "..dyyd.dssd..",
-    ".dyyd...dssd.",
-    ".dyd.....dsd.",
-    "..dd.....dd.."
+    ".....d.....",
+    "....dwd....",
+    "...dwwwd...",
+    "dddwwwwyddd",
+    "dwwwwwyyssd",
+    ".dwwwyyssd.",
+    "..dwyyssd..",
+    ".dwyydsssd.",
+    ".dyyd.dssd.",
+    ".dyd...dsd.",
+    "..dd...dd.."
   ];
 
   const CRYSTAL = [
@@ -1736,7 +1748,7 @@
       dull: () => ({ d: COL.heartEdge, w: COL.heart,   v: COL.heartLo, s: COL.heartEdge })
     },
     star: {
-      rows: STAR, cell: 13, field: 2,
+      rows: STAR, cell: 11, field: 2,
       map:  () => ({ d: COL.starEdge, w: COL.starHi, y: COL.star,   s: COL.starLo }),
       dull: () => ({ d: COL.starEdge, w: COL.star,   y: COL.starLo, s: COL.starEdge })
     }
@@ -1846,6 +1858,7 @@
     moldura.cor = saiu.cor();
     showHint(-1, saiu.nome, saiu.cor());
     Snd.premio();
+    sincronizar("premio-" + saiu.chave);
     announce("Arco-íris parou em " + (saiu.fala || saiu.nome.toLowerCase()) + ".");
 
     /* Resolver a roleta também gira a roda de cores do jogo. Fogo e estrela
@@ -2848,6 +2861,7 @@
 
     if (bolt.on && hits(bolt.a, bolt.b, BLT, b)) {
       bolt.on = false;
+      turnWheel(1);                    // o raio também gira o sistema de cores
       boltTimer = rand(100, 160);
       stats.used[b.va > 0 ? 0 : 1].bolt++;
       enterStorm();
@@ -2874,6 +2888,7 @@
       // Cada acerto rende mais que o anterior: 2, 3, 4, 5...
       const ganho = HEART_GROW + (heart.hits[quem] - 1);
       const cresceu = growPaddle(quem, ganho, raqueteTeto());
+      turnWheel(1);                    // o coração também gira o sistema de cores
       showHint(quem, cresceu ? "+" + ganho : "NO LIMITE", COL.heart);
       spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 4, 90, COL.heart, { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
       kick(0.14, 0.26, COL.heart, 0.4);
@@ -3062,9 +3077,7 @@
         : `Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
       if (jogadoresAtivos() === 2 && matchPoint(who)) {
         const decisivo = pontoFinal();
-        moldura.t = MOLDURA_TEMPO;
-        moldura.arco = decisivo;
-        moldura.cor = corDoJogador(who);
+        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; }
         showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
@@ -3719,6 +3732,17 @@
   /** Efeitos locais de um aviso, para o convidado ver e ouvir o que houve. */
   function reagirAoEvento(motivo) {
     if (motivo === "saque" || motivo === "ponto") return;
+    if (motivo.indexOf("premio-") === 0) {
+      const saiu = ROLETA.find(r => r.chave === motivo.slice(7));
+      if (saiu) {
+        moldura.t = MOLDURA_TEMPO;
+        moldura.cor = saiu.cor();
+        showHint(-1, saiu.nome, saiu.cor());
+        Snd.premio();
+        announce("Arco-íris parou em " + (saiu.fala || saiu.nome.toLowerCase()) + ".");
+      }
+      return;
+    }
     if (motivo.startsWith("pad")) {
       // a previsão local já bateu e já tocou; aqui só garante o realce
       const i = +motivo.slice(3);
@@ -3756,47 +3780,89 @@
          receber, e assim os dois lados veem a mesma coisa sem gastar rede. */
       if (jogadoresAtivos() === 2 && matchPoint(quem) && S.phase !== "over") {
         const decisivo = pontoFinal();
-        moldura.t = MOLDURA_TEMPO;
-        moldura.arco = decisivo;
-        moldura.cor = corDoJogador(quem);
+        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; }
         showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
       }
     }
-    if (m.roda !== spoke) { spoke = m.roda; scoreGlow = 0.9; applyColors(); }
+    if (m.roda !== spoke) {
+      spoke = m.roda;
+      scoreGlow = 0.9;
+      for (const p of pads) p.glow = Math.max(p.glow, GLOW_TIME);
+      applyColors();
+    }
     if (m.campo !== undefined && !!m.campo !== S.arena) aplicarArena(!!m.campo, true);
 
     if (m.jog) sala.n = Math.max(sala.n, m.jog);
     if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
-    if (!fire.on && m.fogo[0]) trail.length = 0;
+    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.3, 0.45, COL.fire, 0.65); }
+    if (!star.on && m.fogo[1]) Snd.star();
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
     armed.who = m.fogo[2];
     armed.kind = m.fogo[3] || null;
-    for (let j = 0; j < m.guard.length && j < JMAX; j++) held[j] = m.guard[j] || null;
+    for (let j = 0; j < m.guard.length && j < JMAX; j++) {
+      const novoItem = m.guard[j] || null;
+      if (novoItem && !held[j]) {
+        Snd.pickup();
+        showHint(j, j === meuPadSlot()
+          ? (coarse ? "2 TOQUES" : (j === 0 ? "TECLA E" : "TECLA /"))
+          : (novoItem === "star" ? "ESTRELA" : "BOLA DE FOGO"));
+      }
+      held[j] = novoItem;
+    }
 
     const põe = (o, d) => { if (d) { o.on = true; o.a = d[0]; o.b = d[1]; o.life = d[2]; } else o.on = false; };
     if (m.item) { item.on = true; item.a = m.item[0]; item.b = m.item[1]; item.kind = m.item[2]; item.life = m.item[3]; }
     else item.on = false;
     põe(gem, m.gem); põe(poison, m.poi); põe(bolt, m.ray); põe(iris, m.iris); põe(chiclete, m.gum);
     if (m.tam !== undefined && m.tam !== BOLA) {
-      if (m.tam > BOLA) { gumPop = 0.45; gumFesta = 3.2; }
+      if (m.tam > BOLA) {
+        gumPop = 0.45; gumFesta = 3.2;
+        Snd.gum(); kick(0.26, 0.75, COL.gum, 1.0);
+        showHint(-1, "CHICLETE", COL.gum);
+      }
       BOLA = m.tam;
     }
     if (m.cor) {
+      if (!heart.on) {
+        Snd.heartIn();
+        showHint(-1, "CORAÇÃO", COL.heart);
+        announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
+      }
       heart.on = true; heart.t = m.cor[0]; heart.life = m.cor[1];
       heart.hits = [m.cor[2], m.cor[3]]; heart.pulse = Math.max(heart.pulse, m.cor[4]);
     } else heart.on = false;
 
-    if (m.efe[0] > venom.t + 0.5) { kick(0.4, 0.55, COL.venom, 0.95); Snd.venom(); }
-    if (m.efe[1] > slow.t + 0.5) { kick(0.45, 0.6, COL.time, 1); Snd.slow(); }
-    if (m.efe[2] > storm.t + 0.5) { kick(0.7, 0.7, "#ffffff", 1.5); Snd.storm(); }
+    if (m.efe[0] > venom.t + 0.5) {
+      kick(0.4, 0.55, COL.venom, 0.95); Snd.venom();
+      showHint(-1, "VENENO", COL.venom, false, 2);
+      announce("Veneno: as duas raquetes encolheram por cinco segundos.");
+    }
+    if (m.efe[1] > slow.t + 0.5) {
+      kick(0.65, 0.6, COL.time, 1.25); Snd.slow();
+      showHint(-1, "SLOW", COL.time);
+      salvaLascas(18);
+    }
+    if (m.efe[2] > storm.t + 0.5) {
+      kick(0.7, 0.7, "#ffffff", 1.5); Snd.storm();
+      showHint(-1, "RAIO", COL.boltHi);
+      announce("Raio: o campo perdeu a cor por dez segundos.");
+    }
     venom.t = m.efe[0]; slow.t = m.efe[1]; storm.t = m.efe[2];
 
-    if (m.rol) { roleta.on = true; roleta.dono = m.rol[0]; roleta.t = m.rol[1]; }
+    if (m.rol) {
+      if (!roleta.on) {
+        Snd.rainbow();
+        kick(0.32, 0.62, VIVAS, 1.15);
+        aberr = reduceMotion ? 0 : 0.85;
+        showHint(-1, "ARCO-ÍRIS", COL.core);
+      }
+      roleta.on = true; roleta.dono = m.rol[0]; roleta.t = m.rol[1];
+    }
     else roleta.on = false;
 
     // rede de segurança: só corrige se a bola já divergiu de verdade
@@ -4001,10 +4067,35 @@
     }
     if (pontoFinal() && S.phase !== "over") flancosArcoIris();
 
+    /* Match point: as LATERAIS respiram na cor de quem está a um ponto —
+       o brilho contínuo que antes era da moldura inteira, agora só nas
+       paredes — e os vagalumes sobem por elas. */
+    const mpDe2 = quemNoMatchPoint();
+    if (mpDe2 >= 0 && S.phase === "play") {
+      const corMp = corDoJogador(mpDe2);
+      const pulso = reduceMotion ? 0.5 : 0.5 + 0.34 * Math.sin(S.blink * 3.4);
+      for (const [gross, alfa] of [[WALL - 2, 0.5], [WALL + 6, 0.16], [WALL + 14, 0.07]]) {
+        g.globalAlpha = pulso * alfa;
+        fill(corMp, 0, 0, LEN, gross);
+        fill(corMp, 0, SPAN - gross, LEN, gross);
+      }
+      g.globalAlpha = 1;
+    }
+    for (const v of vagalumes) {
+      const cor = corDoJogador(v.dono);
+      const puls = 0.45 + 0.45 * Math.sin(S.blink * 4 + v.fase);
+      const a2 = v.a + Math.sin(S.blink * 1.7 + v.fase) * v.amp;
+      g.globalAlpha = Math.min(1, v.vida * 1.4) * puls * 0.5;
+      fill(cor, a2 - 2, v.b - 2, 5, 5);
+      g.globalAlpha = Math.min(1, v.vida * 1.4) * puls;
+      fill(cor, a2 - 1, v.b - 1, 2, 2);
+    }
+    g.globalAlpha = 1;
+
     // Rede — só no campo clássico: um fio fino e discreto, na estética nova
     if (!S.arena) {
-      g.globalAlpha = 0.55;
-      for (let b = WALL + 6; b < SPAN - WALL - 4; b += 24) fill(COL.net, LEN / 2 - 1, b, 2, 12);
+      g.globalAlpha = 0.6;
+      for (let b = WALL + 6; b < SPAN - WALL - 6; b += 30) fill(COL.net, LEN / 2 - 1.5, b, 3, 18);
       g.globalAlpha = 1;
     }
 
@@ -4346,7 +4437,18 @@
     }
     else if (S.phase === "serve") {
       const n = Math.max(1, Math.ceil(1.5 - S.t));
-      centered(g, String(n), cw / 2, ch / 2 - 28, 8, COL.ball, maxTextW);
+      {
+        // halo: o número da contagem respira antes do saque
+        const txt = String(n);
+        const s8 = fitScale(txt, maxTextW, 8);
+        const cx2 = cw / 2 - textWidth(txt, s8) / 2, cy2 = ch / 2 - 28;
+        const resp = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
+        g.globalAlpha = 0.16 + 0.18 * resp;
+        for (const [ox, oy] of [[2, 0], [-2, 0], [0, 2], [0, -2]])
+          drawText(g, txt, cx2 + ox, cy2 + oy, s8, COL.ball);
+        g.globalAlpha = 1;
+        drawText(g, txt, cx2, cy2, s8, COL.ball);
+      }
     }
     else if (S.phase === "pause") {
       veil(0.5);
@@ -5273,6 +5375,32 @@
         if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
       if (scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
       if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
+
+    const mpDe = quemNoMatchPoint();
+    if (mpDe >= 0 && S.phase === "play" && !reduceMotion) {
+      vagalumeTimer -= dt;
+      while (vagalumeTimer <= 0) {
+        vagalumeTimer += 0.16;
+        const perto = Math.random() < 0.5;
+        vagalumes.push({
+          a: rand(6, LEN - 6),
+          b: perto ? rand(WALL, WALL + 26) : rand(SPAN - WALL - 26, SPAN - WALL),
+          sobe: (perto ? 1 : -1) * rand(2, 6),
+          fase: rand(0, 6.28),
+          amp: rand(3, 9),
+          vida: rand(1.6, 3.2),
+          max: 0,
+          dono: mpDe
+        });
+        if (vagalumes.length > 26) vagalumes.shift();
+      }
+    }
+    for (let i = vagalumes.length - 1; i >= 0; i--) {
+      const v = vagalumes[i];
+      v.vida -= dt * (mpDe >= 0 ? 1 : 2.5);
+      v.b += v.sobe * dt;
+      if (v.vida <= 0) vagalumes.splice(i, 1);
+    }
 
       // Tira e devolve a cor conforme a tempestade entra e sai
       const alvoMono = stormRamp();
