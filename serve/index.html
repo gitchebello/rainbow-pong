@@ -5358,11 +5358,22 @@
         if (d >= -1.5 && d <= padLen(j) + 1.5) { junto = true; break; }
       }
       if (junto && theme.glow) {
+        /* Somar duas cores fortes satura em BRANCO — então em vez de brigar
+           com isso, o cruzamento VIRA um material próprio: halo largo na cor
+           de cada dona (que soma e acende) e um fio branco pulsando no miolo,
+           como uma solda de luz entre as raquetes. */
+        const pulsa = reduceMotion ? 1 : 0.72 + 0.28 * Math.sin(S.blink * 9);
         g.save();
         g.globalCompositeOperation = "lighter";
-        g.globalAlpha = 0.85;
+        for (const [ext, alfa] of [[10, 0.16], [5, 0.26]]) {
+          g.globalAlpha = alfa * pulsa;
+          fill(col, x - ext / 2, y - ext / 2, grossa + ext, grossa + ext);
+        }
+        g.globalAlpha = 0.8;
         fill(col, x, y, grossa, grossa);
         g.restore();
+        g.globalAlpha = 0.55 + 0.35 * pulsa;
+        fill(COL.core, x + grossa / 4, y + grossa / 4, grossa / 2, grossa / 2);
         g.globalAlpha = 1;
       } else fill(col, x, y, grossa, grossa);
     }
