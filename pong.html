@@ -4916,18 +4916,23 @@
     const alvo = preverImpacto();
     if (!alvo) return;
     if (alvo.arena) {
-      const dono = Math.cos(alvo.th) < 0 ? 0 : 1;
-      if (mirasVisiveis().indexOf(dono) < 0) return;
-      const cor = dono === 0 ? COL.p1 : COL.p2;
-      const pega = cobreAngulo(dono, alvo.th);
+      /* No aro livre a mira é de todos: a marca mostra onde a bola encontra a
+         borda, e o defensor é decidido EXATAMENTE como no motor — o primeiro
+         índice que cobre o ângulo rebate. Duas raquetes sobrepostas? O que se
+         desenha é o desfecho que a física vai escolher, com o desvio medido
+         do centro da raquete vencedora. */
+      let quem = -1;
+      for (let j = 0; j < jogadoresAtivos(); j++)
+        if (cobreAngulo(j, alvo.th)) { quem = j; break; }
       const meio = ARENA_R() - PT / 2 - 1;
       const ux = Math.cos(alvo.th), uy = Math.sin(alvo.th);
-      g.globalAlpha = pega ? 0.8 : 0.4;
-      fill(pega ? cor : COL.dim,
+      g.globalAlpha = quem >= 0 ? 0.8 : 0.4;
+      fill(quem >= 0 ? corDoJogador(quem) : COL.dim,
            ARENA_CA() + ux * meio - 2, ARENA_CB() + uy * meio - 2, 4, 4);
       g.globalAlpha = 1;
-      if (!pega) return;
-      for (const [a, b, d] of simularSaidaArena(dono, alvo.th)) {
+      if (quem < 0) return;
+      const cor = corDoJogador(quem);
+      for (const [a, b, d] of simularSaidaArena(quem, alvo.th)) {
         if (d % (MIRA_TRACO + MIRA_VAO) > MIRA_TRACO) continue;
         g.globalAlpha = 0.5 * (1 - (d / MIRA_ALCANCE) ** 1.6);
         fill(cor, a - 1, b - 1, 3, 3);
