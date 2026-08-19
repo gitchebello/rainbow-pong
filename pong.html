@@ -737,7 +737,6 @@
           <span class="legend" id="lg-acao">Partida</span>
           <div class="row" role="group" aria-labelledby="lg-acao">
             <button class="key primary" id="btn-play">Jogar</button>
-            <button class="key primary" id="btn-viva">Arena ao vivo</button>
             <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
           </div>
         </div>
@@ -773,7 +772,6 @@
                    enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
             <button class="key ghost" id="sala-sair" hidden>Sair</button>
           </div>
-          <p class="sala-nota" id="viva-lista">Arena ao vivo: consultando…</p>
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
@@ -786,6 +784,14 @@
             <button class="key" id="cor">Girar cores</button>
             <button class="key ghost" id="btn-reset">Reiniciar</button>
           </div>
+        </div>
+
+        <div class="group wide">
+          <span class="legend" id="lg-arena">Arena</span>
+          <div class="row" role="group" aria-labelledby="lg-arena">
+            <button class="key primary" id="btn-viva">Arena ao vivo</button>
+          </div>
+          <p class="sala-nota" id="viva-lista">Arena ao vivo: consultando…</p>
         </div>
       </div>
     </div>
