@@ -2703,6 +2703,52 @@
      Roda para os dois lados da sala — o convidado não simula a partida, mas
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
+    if (heart.on && !reduceMotion) {
+      brumaTimer -= dt;
+      while (brumaTimer <= 0) {
+        brumaTimer += 0.07;
+        const perto = Math.random() < 0.5;
+        brumaVerde.push({
+          a: rand(0, LEN),
+          b: perto ? rand(-2, WALL + 8) : rand(SPAN - WALL - 10, SPAN + 2),
+          va: rand(-12, 12),
+          vb: (perto ? 1 : -1) * rand(4, 13),
+          size: rand(3, 8),
+          vida: rand(0.9, 1.8),
+          max: 1.8,
+          claro: Math.random() < 0.4
+        });
+        if (brumaVerde.length > 70) brumaVerde.shift();
+      }
+      coracaoTimer -= dt;
+      while (coracaoTimer <= 0) {
+        coracaoTimer += 0.42;
+        const perto = Math.random() < 0.5;
+        coracoes.push({
+          a: rand(10, LEN - 10),
+          b: perto ? rand(WALL, WALL + 20) : rand(SPAN - WALL - 22, SPAN - WALL),
+          sobe: (perto ? 1 : -1) * rand(4, 9),
+          fase: rand(0, 6.28),
+          amp: rand(3, 8),
+          esc: Math.random() < 0.4 ? 2 : 1,
+          vida: rand(1.4, 2.6)
+        });
+        if (coracoes.length > 14) coracoes.shift();
+      }
+    }
+    for (let i = brumaVerde.length - 1; i >= 0; i--) {
+      const f = brumaVerde[i];
+      f.vida -= dt * (heart.on ? 1 : 2.2);
+      f.a += f.va * dt; f.b += f.vb * dt; f.size += dt * 1.6;
+      if (f.vida <= 0) brumaVerde.splice(i, 1);
+    }
+    for (let i = coracoes.length - 1; i >= 0; i--) {
+      const c2 = coracoes[i];
+      c2.vida -= dt * (heart.on ? 1 : 2.2);
+      c2.b += c2.sobe * dt;
+      if (c2.vida <= 0) coracoes.splice(i, 1);
+    }
+
     if (hint.t > 0) hint.t -= dt;
     if (roleta.on) roleta.t += dt;
 
@@ -5532,52 +5578,8 @@
       if (scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
       if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
 
-    if (heart.on && !reduceMotion) {
-      brumaTimer -= dt;
-      while (brumaTimer <= 0) {
-        brumaTimer += 0.07;
-        const perto = Math.random() < 0.5;
-        brumaVerde.push({
-          a: rand(0, LEN),
-          b: perto ? rand(-2, WALL + 8) : rand(SPAN - WALL - 10, SPAN + 2),
-          va: rand(-12, 12),
-          vb: (perto ? 1 : -1) * rand(4, 13),
-          size: rand(3, 8),
-          vida: rand(0.9, 1.8),
-          max: 1.8,
-          claro: Math.random() < 0.4
-        });
-        if (brumaVerde.length > 70) brumaVerde.shift();
-      }
-      coracaoTimer -= dt;
-      while (coracaoTimer <= 0) {
-        coracaoTimer += 0.42;
-        const perto = Math.random() < 0.5;
-        coracoes.push({
-          a: rand(10, LEN - 10),
-          b: perto ? rand(WALL, WALL + 20) : rand(SPAN - WALL - 22, SPAN - WALL),
-          sobe: (perto ? 1 : -1) * rand(4, 9),
-          fase: rand(0, 6.28),
-          amp: rand(3, 8),
-          esc: Math.random() < 0.4 ? 2 : 1,
-          vida: rand(1.4, 2.6)
-        });
-        if (coracoes.length > 14) coracoes.shift();
-      }
-    }
-    for (let i = brumaVerde.length - 1; i >= 0; i--) {
-      const f = brumaVerde[i];
-      f.vida -= dt * (heart.on ? 1 : 2.2);
-      f.a += f.va * dt; f.b += f.vb * dt; f.size += dt * 1.6;
-      if (f.vida <= 0) brumaVerde.splice(i, 1);
-    }
-    for (let i = coracoes.length - 1; i >= 0; i--) {
-      const c2 = coracoes[i];
-      c2.vida -= dt * (heart.on ? 1 : 2.2);
-      c2.b += c2.sobe * dt;
-      if (c2.vida <= 0) coracoes.splice(i, 1);
-    }
     if (estouroRosa > 0) estouroRosa = Math.max(0, estouroRosa - dt / 1.6);
+
 
     const mpDe = quemNoMatchPoint();
     if (mpDe >= 0 && S.phase === "play" && !reduceMotion) {
