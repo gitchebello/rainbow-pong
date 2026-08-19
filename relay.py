@@ -182,10 +182,14 @@ def entrar_na_sala(par, codigo):
             pass
     # Avisa os dois com a MESMA mensagem: quem é anfitrião e quem é convidado
     # já está decidido no cliente, não pode depender da ordem de chegada.
-    # o recém-chegado sabe quem é; todos ficam sabendo quantos são
-    par.enviar(json.dumps({"t": "oi", "id": getattr(par, "ident", 0), "n": len(outros) + 1}))
+    # o recém-chegado sabe quem é (e quem já estava, com nomes);
+    # todos ficam sabendo quem chegou e quantos são
+    nomes = {str(getattr(p, "ident", 0)): getattr(p, "nome", "") for p in outros}
+    par.enviar(json.dumps({"t": "oi", "id": getattr(par, "ident", 0),
+                           "n": len(outros) + 1, "nomes": nomes}))
     if outros:
-        aviso = json.dumps({"t": "par", "de": getattr(par, "ident", 0), "n": len(outros) + 1})
+        aviso = json.dumps({"t": "par", "de": getattr(par, "ident", 0),
+                            "n": len(outros) + 1, "nome": getattr(par, "nome", "")})
         par.enviar(aviso)
         for o in outros:
             o.enviar(aviso)

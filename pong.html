@@ -1311,7 +1311,7 @@
   const PL = 52;     // comprimento inicial da raquete no campo clássico
   /* Na ARENA a raquete nasce 1,5× maior: o aro é mais comprido que a lateral
      do campo clássico e o alvo é proporcionalmente menor. Só lá. */
-  const plBase = () => (S.arena ? Math.round(PL * 1.5) : PL);
+  const plBase = () => (S.arena ? Math.round(PL * 2.25) : PL);   // arena: 78 × 1,5 = 117
   const GROW = 10;      // o que cada defesa de bola de fogo acrescenta
   const SCORE_S = 4;       // corpo do placar no centro do campo
   const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
@@ -1389,6 +1389,17 @@
   /** Quantos jogadores estão de fato em campo. */
   const jogadoresAtivos = () => (S.arena && naSala() && sala.n > 2 ? Math.min(JMAX, sala.n) : 2);
   const corDoJogador = i => [COL.p1, COL.p2, COL.p3, COL.p4][i] || COL.core;
+  /** Nome curto de quem ocupa a vaga, para os rótulos em campo. */
+  function nomeDaVaga(slot) {
+    let nome = "";
+    if (naSala()) {
+      for (const [id, s] of Object.entries(sala.membros || {}))
+        if (+s === slot) { nome = (sala.nomes || {})[id] || ""; break; }
+    } else if (slot === 0) {
+      try { nome = localStorage.getItem("rainbow-pong-nome") || ""; } catch (_) {}
+    } else if (S.mode === "1p") nome = "CPU";
+    return (nome || "J" + (slot + 1)).slice(0, 8).toUpperCase();
+  }
   const padA = i => (i === 0 ? PAD_A : LEN - PAD_A - PT);
 
   /* ── Arena circular ──
@@ -1425,8 +1436,9 @@
      numa reta. topo ↔ topo do anel, meio ↔ ponto mais lateral, base ↔ base.
      t cresce de cima para baixo; a esquerda percorre θ de 3π/2 a π/2 pelo
      lado esquerdo, a direita idem pelo direito. */
+  const REGUA_K = 0.8;   // a régua ocupa 80% do diâmetro, centrada
   function arcoDaRegua(lado, tb) {
-    const R = ARENA_R();
+    const R = ARENA_R() * REGUA_K;
     const t = clamp((tb - (ARENA_CB() - R)) / (2 * R), 0, 1);
     const th = lado === 0 ? Math.PI * 1.5 - t * Math.PI : Math.PI * 1.5 + t * Math.PI;
     return mArco(th * R);
@@ -3247,6 +3259,8 @@
     // O servidor avisa os dois lados com a mesma mensagem
     if (m.t === "oi") {
       sala.id = m.id || 0; sala.n = m.n || 1;
+      sala.nomes = m.nomes || {};
+      try { sala.nomes[sala.id] = (localStorage.getItem("rainbow-pong-nome") || "").slice(0, 12); } catch (_) {}
       /* Na sala pública o papel se decide aqui: quem chega primeiro vira o
          anfitrião; os demais entram como convidados. E a sala é de ARENA por
          definição. */
@@ -3278,6 +3292,7 @@
     }
     if (m.t === "par") {
       if (m.n) sala.n = m.n;
+      if (m.de !== undefined) (sala.nomes = sala.nomes || {})[m.de] = m.nome || "";
       /* O anfitrião distribui as vagas: no clássico só existe a vaga 1; na
          arena, até JMAX − 1 convidados. Quem sobra é avisado e sai. */
       if (sala.papel === "anfitriao" && m.de !== undefined && sala.membros[m.de] === undefined) {
@@ -5051,7 +5066,7 @@
      Sulco discreto, SÓ os jogadores projetados, cada um na sua cor, e a
      bola como um tique claro — dá leitura de radar e serve de controle. */
   function desenharReguas() {
-    const R = ARENA_R();
+    const R = ARENA_R() * REGUA_K;
     const topo = ARENA_CB() - R, alt = 2 * R;
     for (let lado = 0; lado < 2; lado++) {
       const ax = lado === 0 ? ARENA_CA() - R - 26 : ARENA_CA() + R + 24;
@@ -5072,6 +5087,23 @@
           if (t < 0 || t > 1) continue;
           g.globalAlpha = 0.85;
           fill(corDoJogador(j), ax - 1, topo + t * alt - 1, 4, 3);
+        }
+        /* Nome na lateral EXTERNA da régua, na altura do centro da raquete —
+           só quando o centro está nesta metade. */
+        const thC = thetaDoArco(j, mArco(p.b + padLen(j) / 2));
+        if ((lado === 0) === (Math.cos(thC) < 0)) {
+          const tC = tDoTh(thC);
+          if (tC >= 0 && tC <= 1) {
+            const anc = rect(ax + (lado === 0 ? -4 : 6), topo + tC * alt, 0, 0);
+            const nome = nomeDaVaga(j);
+            const w = textWidth(nome, 1);
+            g.globalAlpha = 0.9;
+            if (!vertical) {
+              drawText(g, nome, lado === 0 ? anc[0] - w : anc[0], anc[1] - CH / 2, 1, corDoJogador(j));
+            } else {
+              drawText(g, nome, anc[0] - w / 2, lado === 0 ? anc[1] + 4 : anc[1] - 4 - CH, 1, corDoJogador(j));
+            }
+          }
         }
       }
       g.globalAlpha = 1;
