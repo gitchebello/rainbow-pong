@@ -4087,13 +4087,13 @@
     if (S.arena && jogadoresAtivos() > 2) {
       /* Placar de N: uma fileira de dígitos, cada um na cor do seu dono. */
       const ativos = jogadoresAtivos();
-      const passoX = 26;
+      const passoX = 20;
       const x0 = cw / 2 - (ativos - 1) * passoX / 2;
       for (let j = 0; j < ativos; j++) {
         const pop = scorePop[j];
         g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * (pop > 0.45 ? 1 : pop / 0.45));
         const txt = String(S.score[j]);
-        drawText(g, txt, x0 + j * passoX - textWidth(txt, 3) / 2, 20, 3,
+        drawText(g, txt, x0 + j * passoX - textWidth(txt, 2) / 2, 18, 2,
                  dim ? COL.dim : (pop > 0.72 ? COL.core : corDoJogador(j)));
       }
       g.globalAlpha = 1;
@@ -4103,7 +4103,9 @@
          escala e volta em dois degraus — estouro que respeita a malha de pixels
          em vez de escalar por transformação — e então desbota de novo. */
       const pop = scorePop[i];
-      const ss = SCORE_S + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
+      /* Na arena o placar mora DENTRO do círculo: um corpo menor cabe com
+         harmonia entre o aro e a bola. */
+      const ss = (S.arena ? SCORE_S - 1 : SCORE_S) + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
       const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : (i === 0 ? COL.p1 : COL.p2));
       const forca = pop > 0.45 ? 1 : pop / 0.45;
       g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
