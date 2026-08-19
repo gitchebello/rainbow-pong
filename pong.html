@@ -4766,7 +4766,7 @@
       y += centered(g, "VENCEU", cw / 2, y, 2, winCol, maxTextW) + 7;
     }
     y += centered(g, S.score[0] + " - " + S.score[1], cw / 2, y, 4, COL.ball, maxTextW) + 12;
-    y += centered(g, "RAQUETES", cw / 2, y, 2, COL.dim, maxTextW) + 10;
+    y += 8;   // as barras falam por si; o rótulo "RAQUETES" era redundante
 
     const maiorLen = Math.max(pads[0].len, pads[1].len);
 
