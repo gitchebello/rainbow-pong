@@ -269,6 +269,16 @@
     border-color: rgba(255,255,255,0.6);
   }
   .key[hidden] { display: none; }
+  .abas { display: flex; gap: 8px; }
+  .key.aba {
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    padding: 11px 10px;
+    border-radius: 4px 4px 0 0;
+    border-bottom-width: 2px;
+  }
+  body:not(.arena) .so-arena { display: none; }
+
 
   .key.toggle { display: flex; align-items: center; gap: 8px; justify-content: flex-start; }
   .led {
@@ -732,6 +742,11 @@
       </div>
 
       <div class="panel">
+        <div class="group wide abas" role="tablist" aria-label="Modo de jogo">
+          <button class="key aba" id="aba-classico" role="tab" aria-pressed="true">Clássico</button>
+          <button class="key aba" id="aba-arena" role="tab" aria-pressed="false">Arena</button>
+        </div>
+
         <div class="group wide">
           <span class="legend" id="lg-acao">Partida</span>
           <div class="row" role="group" aria-labelledby="lg-acao">
@@ -745,7 +760,6 @@
           <div class="row" role="group" aria-labelledby="lg-modo">
             <button class="key" data-mode="1p" aria-pressed="true">1 jogador</button>
             <button class="key" data-mode="2p" aria-pressed="false">2 jogadores</button>
-            <button class="key toggle" id="btn-arena" aria-pressed="false"><span class="led"></span>Arena</button>
           </div>
         </div>
 
@@ -765,7 +779,7 @@
           <div class="row" role="group" aria-labelledby="lg-sala">
             <input class="codigo nome-campo" id="nome-jogador" maxlength="12" autocomplete="nickname"
                    spellcheck="false" placeholder="seu nome" aria-label="Seu nome nas salas">
-            <button class="key primary" id="btn-viva">Arena ao vivo</button>
+            <button class="key primary so-arena" id="btn-viva">Arena ao vivo</button>
             <button class="key" id="sala-criar">Criar sala</button>
             <button class="key" id="sala-entrar">Entrar</button>
             <input class="codigo" id="sala-codigo" maxlength="4" autocomplete="off"
@@ -773,7 +787,7 @@
                    enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
             <button class="key ghost" id="sala-sair" hidden>Sair</button>
           </div>
-          <p class="sala-nota" id="viva-lista">Arena ao vivo: consultando…</p>
+          <p class="sala-nota so-arena" id="viva-lista">Arena ao vivo: consultando…</p>
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
@@ -5868,10 +5882,16 @@
      navegador; numa sala vale a escolha do anfitrião, que viaja no resumo de
      mundo. Trocar de campo zera a jogada — as coordenadas da raquete mudam
      de reta para arco. */
-  const btnArena = document.getElementById("btn-arena");
+  const abaClassico = document.getElementById("aba-classico");
+  const abaArena = document.getElementById("aba-arena");
+  function pintarAbas() {
+    abaClassico.setAttribute("aria-pressed", String(!S.arena));
+    abaArena.setAttribute("aria-pressed", String(S.arena));
+    document.body.classList.toggle("arena", S.arena);
+  }
   function aplicarArena(on, anunciar) {
     S.arena = !!on;
-    btnArena.setAttribute("aria-pressed", String(S.arena));
+    pintarAbas();
     for (let i = 0; i < JMAX; i++)
       pads[i].b = S.arena
         ? mArco((Math.PI + i * Math.PI * 2 / JMAX) * ARENA_R() - padLen(i) / 2)
@@ -5879,16 +5899,22 @@
     if (anunciar) announce(S.arena ? "Arena circular." : "Campo clássico.");
   }
   try { if (localStorage.getItem("rainbow-pong-arena") === "1") aplicarArena(true, false); } catch (_) {}
-  btnArena.addEventListener("click", () => {
+  pintarAbas();
+
+  function trocarAba(paraArena) {
+    if (S.arena === paraArena) return;
     if (naSala() && sala.conectado && sala.papel === "convidado") {
       announce("Na sala, quem criou escolhe o campo.");
+      pintarAbas();
       return;
     }
-    aplicarArena(!S.arena, true);
+    aplicarArena(paraArena, true);
     try { localStorage.setItem("rainbow-pong-arena", S.arena ? "1" : "0"); } catch (_) {}
     newGame("attract");
     syncPlayButton();
-  });
+  }
+  abaClassico.addEventListener("click", () => trocarAba(false));
+  abaArena.addEventListener("click", () => trocarAba(true));
 
   const btnMira = document.getElementById("btn-mira");
   try { if (localStorage.getItem("rainbow-pong-mira") === "0") S.mira = false; } catch (_) {}
