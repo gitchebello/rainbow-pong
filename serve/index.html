@@ -537,7 +537,7 @@
   body.dark {
     --void:        #000000;
     --void-warm:   #050506;
-    --screen:      #07080d;
+    --screen:      #050506;
     --screen-edge: #000000;
 
     --plastic:     #0a0a0c;
@@ -735,7 +735,7 @@
           <span class="legend" id="lg-acao">Partida</span>
           <div class="row" role="group" aria-labelledby="lg-acao">
             <button class="key primary" id="btn-play">Jogar</button>
-            <button class="key ghost" id="btn-reset">Reiniciar</button>
+            <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
           </div>
         </div>
 
@@ -780,8 +780,8 @@
             <button class="key toggle" id="btn-crt" aria-pressed="true"><span class="led"></span>Tubo</button>
             <button class="key toggle" id="btn-mira" aria-pressed="true"><span class="led"></span>Mira</button>
             <button class="key toggle" id="btn-som" aria-pressed="true"><span class="led"></span>Som</button>
-            <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
             <button class="key" id="cor">Girar cores</button>
+            <button class="key ghost" id="btn-reset">Reiniciar</button>
           </div>
         </div>
       </div>
@@ -1077,10 +1077,10 @@
     },
     escuro: {
       sl:   { p1: [92, 64], p2: [88, 63] },
-      dim:  "#1e2c49",
-      screen: "#080b14",
-      fade: "rgba(8,11,20,0.76)",
-      veil: "4,5,11",
+      dim:  "#27272d",
+      screen: "#050506",
+      fade: "rgba(5,5,7,0.76)",
+      veil: "3,3,4",
       glow: 1
     }
   };
