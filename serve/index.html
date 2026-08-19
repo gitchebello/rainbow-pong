@@ -1430,7 +1430,23 @@
     return d;
   };
   /** Posição no aro (centro desejado da raquete) a partir de um ponto tocado. */
+  /* Régua linear: cada calha lateral desenrola a metade mais PRÓXIMA do aro
+     numa reta. topo ↔ topo do anel, meio ↔ ponto mais lateral, base ↔ base.
+     t cresce de cima para baixo; a esquerda percorre θ de 3π/2 a π/2 pelo
+     lado esquerdo, a direita idem pelo direito. */
+  function arcoDaRegua(lado, tb) {
+    const R = ARENA_R();
+    const t = clamp((tb - (ARENA_CB() - R)) / (2 * R), 0, 1);
+    const th = lado === 0 ? Math.PI * 1.5 - t * Math.PI : Math.PI * 1.5 + t * Math.PI;
+    return mArco(th * R);
+  }
+
   function arcoDoToque(i, ta, tb) {
+    /* Nas calhas vazias ao lado do disco, o toque vale pela régua — controle
+       fino da metade próxima. Dentro do disco, vale o ângulo direto. */
+    const borda = ARENA_CA() - ARENA_R();
+    if (ta < borda + 4) return arcoDaRegua(0, tb);
+    if (ta > LEN - borda - 4) return arcoDaRegua(1, tb);
     const th = Math.atan2(tb - ARENA_CB(), ta - ARENA_CA());
     return mArco(th * ARENA_R());
   }
@@ -3901,6 +3917,7 @@
       g.strokeStyle = COL.p2;
       g.beginPath(); g.arc(c[0], c[1], ARENA_R() + 4, -Math.PI / 2 + off, Math.PI / 2 + off); g.stroke();
       g.globalAlpha = 1;
+      desenharReguas();
     } else {
       fill(COL.dim, 0, 0, LEN, WALL - 2);
       fill(COL.dim, 0, SPAN - WALL + 2, LEN, WALL - 2);
@@ -4974,6 +4991,37 @@
 
   /* Raquete da arena: um arco grosso feito de quadradinhos pela borda —
      pixel a pixel, como tudo aqui. Halo e engorda do impacto preservados. */
+  /* As réguas das calhas: a metade próxima do aro, desenrolada em linha.
+     Sulco discreto, SÓ os jogadores projetados, cada um na sua cor, e a
+     bola como um tique claro — dá leitura de radar e serve de controle. */
+  function desenharReguas() {
+    const R = ARENA_R();
+    const topo = ARENA_CB() - R, alt = 2 * R;
+    for (let lado = 0; lado < 2; lado++) {
+      const ax = lado === 0 ? ARENA_CA() - R - 26 : ARENA_CA() + R + 24;
+      g.globalAlpha = 0.35;
+      fill(COL.dim, ax, topo, 2, alt);
+      g.globalAlpha = 1;
+      const tDoTh = th => {
+        const d = difAngulo(Math.PI * 1.5, th);
+        const t = lado === 0 ? d / Math.PI : -d / Math.PI;
+        return t;
+      };
+      for (let j = 0; j < jogadoresAtivos(); j++) {
+        const p = pads[j];
+        for (let s = 0; s <= padLen(j); s += 5) {
+          const th = thetaDoArco(j, mArco(p.b + s));
+          if ((lado === 0) !== (Math.cos(th) < 0)) continue;   // metade errada
+          const t = tDoTh(th);
+          if (t < 0 || t > 1) continue;
+          g.globalAlpha = 0.85;
+          fill(corDoJogador(j), ax - 1, topo + t * alt - 1, 4, 3);
+        }
+      }
+      g.globalAlpha = 1;
+    }
+  }
+
   function desenharRaqueteArena(i, p, col) {
     const meio = ARENA_R() - PT / 2 - 1;
     const fim = p.b + padLen(i);
