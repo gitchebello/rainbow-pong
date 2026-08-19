@@ -1320,7 +1320,10 @@
   let SPAN = BASE_SPAN;    // em tela cheia acompanha a proporção do aparelho
   const WALL = 8;    // faixa lateral
   const PT = 8;      // espessura da raquete
-  const PL = 78;     // comprimento inicial da raquete (52 de fábrica × 1,5)
+  const PL = 52;     // comprimento inicial da raquete no campo clássico
+  /* Na ARENA a raquete nasce 1,5× maior: o aro é mais comprido que a lateral
+     do campo clássico e o alvo é proporcionalmente menor. Só lá. */
+  const plBase = () => (S.arena ? Math.round(PL * 1.5) : PL);
   const GROW = 10;      // o que cada defesa de bola de fogo acrescenta
   const SCORE_S = 4;       // corpo do placar no centro do campo
   const SCORE_A = 0.34;    // opacidade de repouso; sobe a 1 quando alguém pontua
@@ -2441,8 +2444,8 @@
     aberr = 0;
     for (let j = 0; j < JMAX; j++) {
       const p = pads[j];
-      p.len = PL; p.swing = 0; p.glow = 0; p.hit = 0; p.grow = 0; p.growFrom = PL;
-      p.b = S.arena ? mArco((Math.PI + j * Math.PI * 2 / JMAX) * ARENA_R() - PL / 2)
+      p.len = plBase(); p.swing = 0; p.glow = 0; p.hit = 0; p.grow = 0; p.growFrom = plBase();
+      p.b = S.arena ? mArco((Math.PI + j * Math.PI * 2 / JMAX) * ARENA_R() - plBase() / 2)
                     : SPAN / 2 - PL / 2;
       scorePop[j] = 0;
     }
@@ -4558,7 +4561,7 @@
       let ty = base + 8;
       /* Só o que a partida rendeu: a barra já mostra o tamanho, o número diz
          o ganho. O total repetido embaixo era informação duas vezes. */
-      const dif = len - PL;
+      const dif = len - plBase();
       const ganho = Math.round(dif * eased);
       const marca = dif > 0 ? "+" + ganho : "-";
       drawText(g, marca, cx - textWidth(marca, 2) / 2, ty, 2, dif > 0 ? col : COL.dim);
