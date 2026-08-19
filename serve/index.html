@@ -5343,10 +5343,28 @@
       g.globalAlpha = 1;
     }
     const grossa = p.hit > 0 ? PT + 3 : PT;
+    /* Cores que se SOMAM na sobreposição: no aro livre as raquetes passam
+       umas por cima das outras o tempo todo. Cada pedacinho pergunta quem
+       mais o cobre e, se houver companhia, sai em modo `lighter` — vermelho
+       sobre azul vira magenta, e desfaz sozinho quando elas se separam. */
     for (let s = p.b; s <= fim; s += 3) {
       const th = thetaDoArco(i, s);
-      fill(col, ARENA_CA() + Math.cos(th) * meio - grossa / 2,
-                ARENA_CB() + Math.sin(th) * meio - grossa / 2, grossa, grossa);
+      const x = ARENA_CA() + Math.cos(th) * meio - grossa / 2;
+      const y = ARENA_CB() + Math.sin(th) * meio - grossa / 2;
+      let junto = false;
+      for (let j = 0; j < jogadoresAtivos(); j++) {
+        if (j === i) continue;
+        const d = dArco(mArco(s), pads[j].b);
+        if (d >= -1.5 && d <= padLen(j) + 1.5) { junto = true; break; }
+      }
+      if (junto && theme.glow) {
+        g.save();
+        g.globalCompositeOperation = "lighter";
+        g.globalAlpha = 0.85;
+        fill(col, x, y, grossa, grossa);
+        g.restore();
+        g.globalAlpha = 1;
+      } else fill(col, x, y, grossa, grossa);
     }
   }
 
