@@ -2044,9 +2044,7 @@
       const f = LASCA_FORMAS[(Math.random() * LASCA_FORMAS.length) | 0];
       lascas.push({
         f,
-        a: lado === 2 ? rand(-4, 14) : lado === 3 ? rand(LEN - 14, LEN + 4) : rand(0, LEN),
-        b: lado === 0 ? rand(-4, WALL + 10) : lado === 1 ? rand(SPAN - WALL - 12, SPAN + 4)
-                      : rand(WALL, SPAN - WALL),
+        ...bercoDeBorda(lado % 2 === 0, 12),
         va: rand(-9, 9),
         vb: lado === 0 ? rand(3, 12) : lado === 1 ? rand(-12, -3) : rand(-7, 7),
         vida: rand(0.6, 1.4),
@@ -2667,8 +2665,7 @@
           smokeTimer += 0.05;
           const perto = Math.random() < 0.5;
           smoke.push({
-            a: rand(0, LEN),
-            b: perto ? rand(-2, WALL + 6) : rand(SPAN - WALL - 8, SPAN + 2),
+            ...bercoDeBorda(perto, 6),
             va: rand(-14, 14),
             vb: (perto ? 1 : -1) * rand(5, 16),
             size: rand(3, 7),
@@ -2701,8 +2698,7 @@
         coracaoTimer += 0.55;
         const perto = Math.random() < 0.5;
         coracoes.push({
-          a: rand(10, LEN - 10),
-          b: perto ? rand(WALL, WALL + 20) : rand(SPAN - WALL - 22, SPAN - WALL),
+          ...bercoDeBorda(perto, 18),
           sobe: (perto ? 1 : -1) * rand(4, 9),
           fase: rand(0, 6.28),
           amp: rand(3, 8),
@@ -4222,8 +4218,7 @@
       const pulso = reduceMotion ? 0.5 : 0.5 + 0.34 * Math.sin(S.blink * 3.4);
       for (const [gross, alfa] of [[WALL - 2, 0.5], [WALL + 6, 0.16], [WALL + 14, 0.07]]) {
         g.globalAlpha = pulso * alfa;
-        fill(corMp, 0, 0, LEN, gross);
-        fill(corMp, 0, SPAN - gross, LEN, gross);
+        faixaDeBorda(corMp, gross);
       }
       g.globalAlpha = 1;
     }
@@ -4544,8 +4539,7 @@
       if (theme.glow) g.globalCompositeOperation = "lighter";
       for (const [gross, alfa] of [[WALL + 2, 0.85], [WALL + 10, 0.4], [WALL + 22, 0.2], [WALL + 40, 0.09]]) {
         g.globalAlpha = kE * pulso * alfa;
-        fill(COL.gum, 0, 0, LEN, gross);
-        fill(COL.gum, 0, SPAN - gross, LEN, gross);
+        faixaDeBorda(COL.gum, gross);
       }
       g.restore();
       g.globalAlpha = 1;
@@ -5018,10 +5012,18 @@
     g.fillStyle = grad;
     for (const [grossura, alfa] of FINAL_FAIXAS) {
       g.globalAlpha = pulso * alfa;
-      let r = rect(0, 0, LEN, grossura);
-      g.fillRect(r[0], r[1], r[2], r[3]);
-      r = rect(0, SPAN - grossura, LEN, grossura);
-      g.fillRect(r[0], r[1], r[2], r[3]);
+      if (S.arena) {
+        const fl = flancoArena();
+        let r = rect(fl.borda - grossura, fl.topo, grossura, fl.alt);
+        g.fillRect(r[0], r[1], r[2], r[3]);
+        r = rect(LEN - fl.borda, fl.topo, grossura, fl.alt);
+        g.fillRect(r[0], r[1], r[2], r[3]);
+      } else {
+        let r = rect(0, 0, LEN, grossura);
+        g.fillRect(r[0], r[1], r[2], r[3]);
+        r = rect(0, SPAN - grossura, LEN, grossura);
+        g.fillRect(r[0], r[1], r[2], r[3]);
+      }
     }
     g.restore();
     g.globalAlpha = 1;
@@ -5425,10 +5427,43 @@
     }
   }
 
+  /* ── Onde moram as festas de borda ──
+     No clássico, as duas paredes laterais. Na arena não há paredes: as festas
+     vão para as CALHAS ao lado do disco — os mesmos flancos onde as réguas e
+     os nomes dos jogadores vivem —, crescendo de fora para dentro. */
+  const flancoArena = () => ({
+    alt: 2 * ARENA_R() * REGUA_K,
+    topo: ARENA_CB() - ARENA_R() * REGUA_K,
+    borda: ARENA_CA() - ARENA_R() - 52
+  });
+
+  function faixaDeBorda(cor, gross) {
+    if (!S.arena) {
+      fill(cor, 0, 0, LEN, gross);
+      fill(cor, 0, SPAN - gross, LEN, gross);
+      return;
+    }
+    const f = flancoArena();
+    fill(cor, f.borda - gross, f.topo, gross, f.alt);
+    fill(cor, LEN - f.borda, f.topo, gross, f.alt);
+  }
+
+  /** Onde uma partícula de borda nasce, conforme o modo. */
+  function bercoDeBorda(perto, margem) {
+    if (!S.arena)
+      return { a: rand(0, LEN),
+               b: perto ? rand(-2, WALL + margem) : rand(SPAN - WALL - margem - 2, SPAN + 2) };
+    const f = flancoArena();
+    return { a: perto ? rand(f.borda - margem - 6, f.borda) : rand(LEN - f.borda, LEN - f.borda + margem + 6),
+             b: rand(f.topo, f.topo + f.alt) };
+  }
+
   function drawMoldura(cw, ch) {
     const k = moldura.t / MOLDURA_TEMPO;
     const pulso = reduceMotion ? k : k * (0.75 + 0.25 * Math.sin(S.blink * 26));
-    const faixas = [[10, 0.85], [8, 0.45], [10, 0.2], [14, 0.08]];
+    /* Alfas contidos: é o único efeito que acende as QUATRO bordas ao mesmo
+       tempo, então pega mais leve que os flashes laterais. */
+    const faixas = [[10, 0.45], [8, 0.24], [10, 0.11], [14, 0.05]];
     let borda = 0, faixa = 0;
     for (const [grossura, alfa] of faixas) {
       g.globalAlpha = pulso * alfa;
@@ -5443,7 +5478,7 @@
       g.fillRect(cw - borda - grossura, 0, grossura, ch);     // direita
       borda += grossura;
     }
-    g.globalAlpha = pulso * 0.07;
+    g.globalAlpha = pulso * 0.035;
     g.fillRect(0, 0, cw, ch);
     g.globalAlpha = 1;
   }
@@ -5566,8 +5601,7 @@
         vagalumeTimer += 0.16;
         const perto = Math.random() < 0.5;
         vagalumes.push({
-          a: rand(6, LEN - 6),
-          b: perto ? rand(WALL, WALL + 26) : rand(SPAN - WALL - 26, SPAN - WALL),
+          ...bercoDeBorda(perto, 24),
           sobe: (perto ? 1 : -1) * rand(2, 6),
           fase: rand(0, 6.28),
           amp: rand(3, 9),
