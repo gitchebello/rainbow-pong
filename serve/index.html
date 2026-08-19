@@ -5580,9 +5580,22 @@
     // encaixada ao lado do manual.
     const wantVertical = immersive && vh > vw;
 
-    // Em tela cheia a quadra assume a proporção do aparelho — sem tarjas pretas
-    // Numa sala a quadra não se adapta: os dois lados precisam da mesma medida
-    setSpan(immersive && !naSala() ? LEN * (Math.min(vw, vh) / Math.max(vw, vh)) : BASE_SPAN);
+    /* A quadra assume a proporção da caixa em que vai viver — na tela cheia E
+       na moldura da página inicial. Sem isso, janela baixa deixava o jogo
+       centrado com placas mortas nas laterais da moldura. Numa sala a quadra
+       não se adapta: os dois lados precisam da mesma medida. */
+    let caixaW = vw, caixaH = vh;
+    if (!immersive) {
+      const style0 = getComputedStyle(frameEl);
+      const padX0 = parseFloat(style0.paddingLeft) + parseFloat(style0.paddingRight);
+      caixaW = Math.max(160, frameEl.clientWidth - padX0);
+      const usado0 = Array.from(document.querySelectorAll(".masthead, .panel, .badge-row"))
+        .reduce((sum, el) => sum + el.offsetHeight, 0);
+      caixaH = Math.max(180, vh - usado0 - 110);
+    }
+    setSpan(naSala() ? BASE_SPAN
+            : immersive ? LEN * (Math.min(vw, vh) / Math.max(vw, vh))
+                        : LEN * caixaH / caixaW);
 
     vertical = wantVertical;
     const cwNew = vertical ? SPAN : LEN;
