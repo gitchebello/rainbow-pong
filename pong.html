@@ -1961,8 +1961,7 @@
      boiando, com um balanço senoidal. Vive enquanto ele estiver em campo e
      esvanece sozinha quando ele vai embora. */
   const coracoes = [];
-  let flashVerde = 0;          // pulso verde ocasional nas laterais
-  let brumaTimer = 0, coracaoTimer = 0;
+  let coracaoTimer = 0;
   const MINI_CORACAO = [".x.x.", "xxxxx", "xxxxx", ".xxx.", "..x.."];
   let smokeTimer = 0;
 
@@ -2127,7 +2126,7 @@
     chiclete.on = false; gumTimer = rand(18, 31);
     iris.on = false;     irisTimer = rand(22, 35);
     gumFesta = 0;        gumPop = 0;   estouroRosa = 0;
-    coracoes.length = 0; flashVerde = 0;
+    coracoes.length = 0;
     bolhas.length = 0;
     kick(0.7, 0.7, "#ffffff", 1.5);
     Snd.storm();
@@ -2695,13 +2694,11 @@
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
     if (heart.on && !reduceMotion) {
-      /* Nada de fumaça: um flash verde percorre as laterais de tempos em
-         tempos, discreto, e os coraçõezinhos entram comedidos. */
-      brumaTimer -= dt;
-      if (brumaTimer <= 0) { brumaTimer = rand(2.6, 4.4); flashVerde = 1; }
+      /* Só os coraçõezinhos: sem flash, sem fumaça — eles sozinhos dão o
+         recado, e agora aparecem com mais frequência. */
       coracaoTimer -= dt;
       while (coracaoTimer <= 0) {
-        coracaoTimer += 1.5;
+        coracaoTimer += 0.55;
         const perto = Math.random() < 0.5;
         coracoes.push({
           a: rand(10, LEN - 10),
@@ -2712,10 +2709,9 @@
           esc: Math.random() < 0.4 ? 2 : 1,
           vida: rand(1.4, 2.6)
         });
-        if (coracoes.length > 6) coracoes.shift();
+        if (coracoes.length > 12) coracoes.shift();
       }
     }
-    if (flashVerde > 0) flashVerde = Math.max(0, flashVerde - dt / 1.1);
     for (let i = coracoes.length - 1; i >= 0; i--) {
       const c2 = coracoes[i];
       c2.vida -= dt * (heart.on ? 1 : 2.2);
@@ -4381,17 +4377,8 @@
     g.globalAlpha = 1;
 
     // Fumaça roxa subindo das laterais enquanto o veneno dura
-    /* A festa do coração: um flash verde percorrendo as laterais e os
-       coraçõezinhos boiando. */
-    if (flashVerde > 0) {
-      const kv = Math.sin(flashVerde * Math.PI);     // sobe e desce sozinho
-      for (const [gross, alfa] of [[WALL, 0.34], [WALL + 8, 0.14], [WALL + 20, 0.06]]) {
-        g.globalAlpha = kv * alfa;
-        fill(COL.heart, 0, 0, LEN, gross);
-        fill(COL.heart, 0, SPAN - gross, LEN, gross);
-      }
-      g.globalAlpha = 1;
-    }
+    /* A festa do coração: coraçõezinhos boiando pelas laterais. */
+
     for (const c2 of coracoes) {
       const puls = 0.6 + 0.4 * Math.sin(S.blink * 3.6 + c2.fase);
       g.globalAlpha = Math.min(1, c2.vida * 1.3) * 0.55 * puls;
@@ -4464,8 +4451,11 @@
         ln = base * (1 - 0.24 * k);
         th = PT * (1 + 1.25 * k);
         pb = p.b + (padLen(i) - ln) / 2;
-        // recuo: o impacto empurra a raquete para trás e ela volta
-        const recuo = Math.sin(u * Math.PI) * Math.exp(-u * 2) * 3.5;
+        /* Recuo com sobra: o impacto empurra a raquete para trás, ela volta
+           passando um pouco do lugar (ultrapassa para a frente) e assenta —
+           a mesma mola do squash, agora também na POSIÇÃO. Dá a sensação de
+           profundidade, de raquete que absorve o golpe. */
+        const recuo = Math.sin(u * Math.PI * 2) * Math.exp(-u * 2.8) * 9;
         pa = (i === 0 ? padA(0) - recuo : padA(1) - (th - PT) + recuo);
       }
 
