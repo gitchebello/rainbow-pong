@@ -1969,8 +1969,8 @@
   /* Festa do coração: fumaça verde subindo pelas laterais e coraçõezinhos
      boiando, com um balanço senoidal. Vive enquanto ele estiver em campo e
      esvanece sozinha quando ele vai embora. */
-  const brumaVerde = [];
   const coracoes = [];
+  let flashVerde = 0;          // pulso verde ocasional nas laterais
   let brumaTimer = 0, coracaoTimer = 0;
   const MINI_CORACAO = [".x.x.", "xxxxx", "xxxxx", ".xxx.", "..x.."];
   let smokeTimer = 0;
@@ -2136,7 +2136,7 @@
     chiclete.on = false; gumTimer = rand(18, 31);
     iris.on = false;     irisTimer = rand(22, 35);
     gumFesta = 0;        gumPop = 0;   estouroRosa = 0;
-    brumaVerde.length = 0; coracoes.length = 0;
+    coracoes.length = 0; flashVerde = 0;
     bolhas.length = 0;
     kick(0.7, 0.7, "#ffffff", 1.5);
     Snd.storm();
@@ -2704,25 +2704,13 @@
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
     if (heart.on && !reduceMotion) {
+      /* Nada de fumaça: um flash verde percorre as laterais de tempos em
+         tempos, discreto, e os coraçõezinhos entram comedidos. */
       brumaTimer -= dt;
-      while (brumaTimer <= 0) {
-        brumaTimer += 0.07;
-        const perto = Math.random() < 0.5;
-        brumaVerde.push({
-          a: rand(0, LEN),
-          b: perto ? rand(-2, WALL + 8) : rand(SPAN - WALL - 10, SPAN + 2),
-          va: rand(-12, 12),
-          vb: (perto ? 1 : -1) * rand(4, 13),
-          size: rand(3, 8),
-          vida: rand(0.9, 1.8),
-          max: 1.8,
-          claro: Math.random() < 0.4
-        });
-        if (brumaVerde.length > 70) brumaVerde.shift();
-      }
+      if (brumaTimer <= 0) { brumaTimer = rand(2.6, 4.4); flashVerde = 1; }
       coracaoTimer -= dt;
       while (coracaoTimer <= 0) {
-        coracaoTimer += 0.42;
+        coracaoTimer += 1.5;
         const perto = Math.random() < 0.5;
         coracoes.push({
           a: rand(10, LEN - 10),
@@ -2733,15 +2721,10 @@
           esc: Math.random() < 0.4 ? 2 : 1,
           vida: rand(1.4, 2.6)
         });
-        if (coracoes.length > 14) coracoes.shift();
+        if (coracoes.length > 6) coracoes.shift();
       }
     }
-    for (let i = brumaVerde.length - 1; i >= 0; i--) {
-      const f = brumaVerde[i];
-      f.vida -= dt * (heart.on ? 1 : 2.2);
-      f.a += f.va * dt; f.b += f.vb * dt; f.size += dt * 1.6;
-      if (f.vida <= 0) brumaVerde.splice(i, 1);
-    }
+    if (flashVerde > 0) flashVerde = Math.max(0, flashVerde - dt / 1.1);
     for (let i = coracoes.length - 1; i >= 0; i--) {
       const c2 = coracoes[i];
       c2.vida -= dt * (heart.on ? 1 : 2.2);
@@ -4407,11 +4390,16 @@
     g.globalAlpha = 1;
 
     // Fumaça roxa subindo das laterais enquanto o veneno dura
-    /* Bruma verde e coraçõezinhos: a festa do coração nas laterais. */
-    for (const f of brumaVerde) {
-      g.globalAlpha = Math.min(0.5, (f.vida / f.max) * 0.62);
-      const s = Math.round(f.size);
-      fill(f.claro ? COL.heartHi : COL.heart, f.a - s / 2, f.b - s / 2, s, s);
+    /* A festa do coração: um flash verde percorrendo as laterais e os
+       coraçõezinhos boiando. */
+    if (flashVerde > 0) {
+      const kv = Math.sin(flashVerde * Math.PI);     // sobe e desce sozinho
+      for (const [gross, alfa] of [[WALL, 0.34], [WALL + 8, 0.14], [WALL + 20, 0.06]]) {
+        g.globalAlpha = kv * alfa;
+        fill(COL.heart, 0, 0, LEN, gross);
+        fill(COL.heart, 0, SPAN - gross, LEN, gross);
+      }
+      g.globalAlpha = 1;
     }
     for (const c2 of coracoes) {
       const puls = 0.6 + 0.4 * Math.sin(S.blink * 3.6 + c2.fase);
@@ -4612,10 +4600,10 @@
         const s8 = fitScale(txt, maxTextW, 8);
         const cx2 = cw / 2 - textWidth(txt, s8) / 2, cy2 = ch / 2 - 28;
         const resp = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
-        g.globalAlpha = 0.10 + 0.12 * resp;                       // auréola larga
+        g.globalAlpha = 0.08 + 0.10 * resp;                       // auréola larga
         for (const [ox, oy] of [[4, 0], [-4, 0], [0, 4], [0, -4], [3, 3], [-3, 3], [3, -3], [-3, -3]])
           drawText(g, txt, cx2 + ox, cy2 + oy, s8, COL.ball);
-        g.globalAlpha = 0.30 + 0.32 * resp;                       // núcleo do halo
+        g.globalAlpha = 0.24 + 0.26 * resp;                       // núcleo do halo
         for (const [ox, oy] of [[2, 0], [-2, 0], [0, 2], [0, -2]])
           drawText(g, txt, cx2 + ox, cy2 + oy, s8, COL.ball);
         g.globalAlpha = 1;
