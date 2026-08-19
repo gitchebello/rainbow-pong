@@ -5792,11 +5792,14 @@
     const dn1 = keys.has("s") || keys.has("S");
     const upA = keys.has("ArrowUp"), dnA = keys.has("ArrowDown");
     if (naSala()) {
+      /* N vagas: as teclas valem só para a MINHA raquete; as demais zeram.
+         O "1 − meu" antigo indexava pads[-1] para as vagas 2 e 3 e derrubava
+         o jogo inteiro no primeiro toque de tecla. */
       const meu = meuPadSlot();
-      const outro = 1 - meu;
-      pads[meu].up = up1 || upA;
-      pads[meu].down = dn1 || dnA;
-      pads[outro].up = pads[outro].down = false;
+      for (let j = 0; j < JMAX; j++) {
+        pads[j].up = j === meu && (up1 || upA);
+        pads[j].down = j === meu && (dn1 || dnA);
+      }
     } else if (S.mode === "2p") {
       pads[0].up = up1; pads[0].down = dn1;
       pads[1].up = upA; pads[1].down = dnA;
