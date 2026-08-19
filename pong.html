@@ -1030,6 +1030,8 @@
      os três pontos de referência que o jogador nunca precisa reaprender. */
   const FIXED = {
     ball:     "#f4f0e4",   // branca, para sempre
+    p3:       "#d9a24a",   // jogador 3: âmbar
+    p4:       "#5fbfa8",   // jogador 4: verde-água
     net:      "#d5d0c2",   // a rede: mesmo branco, um tom abaixo da bola
     fire:     "#c86f63",
     fireDark: "#a85a4f",
@@ -1363,7 +1365,7 @@
     mode: "1p", diff: "normal", crt: true, mira: true, arena: false,
     phase: "attract",     // attract | serve | play | pause | over
     t: 0, blink: 0,
-    score: [0, 0], winner: null, serveTo: 1
+    score: [0, 0, 0, 0], winner: null, serveTo: 1
   };
 
   // pads[0] = jogador 1 (a = 0). pads[1] = jogador 2 / computador.
@@ -1378,10 +1380,15 @@
   const EDGE_SPIN = 0.34;     // bater na quina curva um pouco mesmo parado
   const SWING_FADE = 0.06;    // memória da varrida, para o toque não precisar ser exato
 
-  const pads = [
-    { b: SPAN / 2 - PL / 2, len: PL, vb: 0, prevB: 0, swing: 0, glow: 0, hit: 0, grow: 0, growFrom: PL, up: false, down: false, err: 0, touch: null },
-    { b: SPAN / 2 - PL / 2, len: PL, vb: 0, prevB: 0, swing: 0, glow: 0, up: false, down: false, err: 0, touch: null }
-  ];
+  /* Até 4 raquetes vivem aqui desde o berço. O clássico usa as duas
+     primeiras; a arena em sala pode acordar as outras. */
+  const JMAX = 4;
+  const pads = Array.from({ length: JMAX }, () =>
+    ({ b: SPAN / 2 - PL / 2, len: PL, vb: 0, prevB: 0, swing: 0, glow: 0, hit: 0,
+       grow: 0, growFrom: PL, up: false, down: false, err: 0, touch: null }));
+  /** Quantos jogadores estão de fato em campo. */
+  const jogadoresAtivos = () => (S.arena && naSala() && sala.n > 2 ? Math.min(JMAX, sala.n) : 2);
+  const corDoJogador = i => [COL.p1, COL.p2, COL.p3, COL.p4][i] || COL.core;
   const padA = i => (i === 0 ? PAD_A : LEN - PAD_A - PT);
 
   /* ── Arena circular ──
@@ -1396,8 +1403,17 @@
   const ARENA_R = () => Math.min(LEN, SPAN) / 2 - 6;
   const ARENA_CA = () => LEN / 2;
   const ARENA_CB = () => SPAN / 2;
-  const arcoMax = i => Math.PI * ARENA_R() - padLen(i);
-  const thetaDoArco = (i, s) => (i === 0 ? Math.PI / 2 : -Math.PI / 2) + s / ARENA_R();
+  /* Aro LIVRE: todo mundo percorre a volta inteira. `s` é comprimento de
+     arco em [0, 2πR), com dobra; θ = s/R, mesma régua para todos. */
+  const arcoVolta = () => Math.PI * 2 * ARENA_R();
+  const mArco = v => ((v % arcoVolta()) + arcoVolta()) % arcoVolta();
+  const dArco = (x, y) => {
+    let d = (x - y) % arcoVolta();
+    if (d < -arcoVolta() / 2) d += arcoVolta();
+    if (d >= arcoVolta() / 2) d -= arcoVolta();
+    return d;
+  };
+  const thetaDoArco = (i, s) => s / ARENA_R();
   const difAngulo = (x, y) => {
     let d = (x - y) % (Math.PI * 2);
     if (d < -Math.PI) d += Math.PI * 2;
@@ -1407,10 +1423,7 @@
   /** Posição no aro (centro desejado da raquete) a partir de um ponto tocado. */
   function arcoDoToque(i, ta, tb) {
     const th = Math.atan2(tb - ARENA_CB(), ta - ARENA_CA());
-    const base = i === 0 ? Math.PI / 2 : -Math.PI / 2;
-    let s = difAngulo(th, base);
-    if (s < 0) s = difAngulo(th, base + Math.PI) >= 0 ? Math.PI : 0;   // fora da metade: gruda na ponta
-    return clamp(s, 0, Math.PI) * ARENA_R();
+    return mArco(th * ARENA_R());
   }
   /** A raquete `i` cobre o ângulo `th` do aro? (com meia bola de tolerância) */
   function cobreAngulo(i, th) {
@@ -1418,7 +1431,7 @@
     return Math.abs(difAngulo(th, centro)) <= (padLen(i) / 2 + BOLA * 0.55) / ARENA_R();
   }
 
-  const ball = { a: 0, b: 0, va: 0, vb: 0, speed: 268, spin: 0, budget: 0, hit: 0 };
+  const ball = { a: 0, b: 0, va: 0, vb: 0, speed: 268, spin: 0, budget: 0, hit: 0, dono: -1 };
 
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -1437,8 +1450,8 @@
      alguma coisa passa reto pelo item seguinte. */
   const FIRE_CHANCE = 0.62;     // entre chama e estrela, quanto sai chama
   const item = { on: false, kind: "fire", a: 0, b: 0, life: 0 };
-  const held = [null, null];
-  const scorePop = [0, 0];     // estouro do dígito quando alguém pontua
+  const held = [null, null, null, null];
+  const scorePop = [0, 0, 0, 0];   // estouro do dígito quando alguém pontua
   const stats = { picks: [0, 0], blocks: [0, 0], used: [{ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }, { fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }] };
   const STAR_BOOST = 1.5;   // multiplicador da estrela
   const fire = { on: false, owner: 0 };
@@ -2296,10 +2309,10 @@
        desfazia o gesto na frente do jogador. O eco visual sai na hora; o
        estado verdadeiro volta pelo resumo, já armado. */
     if (sala.conectado && sala.papel === "convidado" && !fromAI) {
-      if (i !== 1) return;
+      if (i !== meuPadSlot()) return;
       enviar({ t: "usar" });
       Snd.arm();
-      showHint(1, "ARMADA", held[1] === "star" ? COL.star : COL.fire);
+      showHint(i, "ARMADA", held[i] === "star" ? COL.star : COL.fire);
       return;
     }
     armed.kind = held[i];
@@ -2338,6 +2351,7 @@
      5. Estado do jogo
      ══════════════════════════════════════════════════════════ */
   function resetBall(dir) {
+    ball.dono = -1;
     ball.speed = LEVELS[S.diff].base;
     ball.a = LEN / 2 - BOLA / 2;
     ball.b = SPAN / 2 - BOLA / 2;
@@ -2356,7 +2370,7 @@
   function newRally(dir) { resetBall(dir); S.phase = "serve"; S.t = 0; }
 
   function newGame(phase) {
-    S.score = [0, 0];
+    S.score = [0, 0, 0, 0];
     S.winner = null;
     held[0] = held[1] = null;
     dust.length = 0;
@@ -2433,14 +2447,12 @@
     const p = pads[i];
     const coming = i === 1 ? ball.va > 0 : ball.va < 0;
     const target = S.arena
-      ? ((coming || always)
-          ? arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2) + p.err - padLen(i) / 2
-          : Math.PI * ARENA_R() / 2 - padLen(i) / 2)
+      ? arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2) + p.err - padLen(i) / 2
       : ((coming || always)
           ? ball.b + BOLA / 2 + p.err - padLen(i) / 2
           : SPAN / 2 - padLen(i) / 2);
     const max = lv.speed * (coming ? 1 : 0.55) * dt;
-    p.b += clamp(target - p.b, -max, max);
+    p.b += clamp(S.arena ? dArco(target, p.b) : target - p.b, -max, max);
   }
 
   /* ── Física ── */
@@ -2448,33 +2460,29 @@
     const keySpeed = 430 * dt;
     const dragSpeed = 1200 * dt;
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < jogadoresAtivos(); i++) {
       const p = pads[i];
       p.prevB = p.b;
-      const isAI = i === 1 && S.mode === "1p";
-      const remoto = sala.conectado && i === 1 && sala.papel === "anfitriao";
+      const isAI = i === 1 && S.mode === "1p" && !naSala();
+      const remoto = sala.conectado && sala.papel === "anfitriao" && i >= 1;
       if (isAI) { driveAI(i, dt, S.diff, false); }
       else if (remoto) {
         /* A raquete do convidado é dele: aqui só se alcança a posição que ele
            reporta, depressa e sem inventar cinemática por cima. */
         if (p.destino !== undefined) {
-          const longe = p.destino - p.b;
+          const longe = S.arena ? dArco(p.destino, p.b) : p.destino - p.b;
           p.b += Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
         }
       }
       else {
         if (p.touch !== null) {
           const want = p.touch - padLen(i) / 2;
-          p.b += clamp(want - p.b, -dragSpeed, dragSpeed);
+          p.b += clamp(S.arena ? dArco(want, p.b) : want - p.b, -dragSpeed, dragSpeed);
         }
-        /* Na arena, "subir" na tela é andar em sentidos opostos do arco em
-           cada metade — o sinal espelha para o gesto continuar natural. */
-        const cima = S.arena && i === 0 ? +keySpeed : -keySpeed;
-        if (p.up) p.b += cima;
-        if (p.down) p.b -= cima;
+        if (p.up) p.b -= keySpeed;
+        if (p.down) p.b += keySpeed;
       }
-      p.b = S.arena ? clamp(p.b, 0, arcoMax(i))
-                    : clamp(p.b, WALL, SPAN - WALL - padLen(i));
+      p.b = S.arena ? mArco(p.b) : clamp(p.b, WALL, SPAN - WALL - padLen(i));
       p.vb = (p.b - p.prevB) / dt;
       if (p.glow > 0) p.glow = Math.max(0, p.glow - dt);
       if (p.hit > 0) p.hit = Math.max(0, p.hit - dt);
@@ -2608,6 +2616,7 @@
     // Um passo de física da bola; se ela sair de campo, o ponto é marcado
     const fim1 = moverBola(ball, dt);
     if (fim1 >= 0) { point(fim1); return; }
+    if (fim1 === -2) { newRally(S.serveTo); sincronizar("saque"); return; }   // bola virgem escapou
   }
 
   /* Envelhecimento de tudo que é enfeite: avisos, faíscas, fumaça, riscos.
@@ -2885,11 +2894,12 @@
       const saindo = ex * b.va + ey * b.vb > 0;
       if (saindo && dist >= ARENA_R() - BOLA / 2 && dist < ARENA_R() + BOLA) {
         const th = Math.atan2(ey, ex);
-        if (cobreAngulo(0, th)) bounce(0, +1, b, { th });
-        else if (cobreAngulo(1, th)) bounce(1, -1, b, { th });
+        for (let j = 0; j < jogadoresAtivos(); j++)
+          if (cobreAngulo(j, th)) { bounce(j, +1, b, { th }); break; }
       }
-      // já bem fora do aro sem defesa: ponto de quem NÃO era o dono da metade
-      if (dist > ARENA_R() + BOLA * 3) return ex < 0 ? 1 : 0;
+      /* Regra do aro livre: a bola saiu — pontua quem a tocou por último.
+         Bola virgem de saque escapando: ninguém pontua, só se saca de novo. */
+      if (dist > ARENA_R() + BOLA * 3) return b.dono !== undefined && b.dono >= 0 ? b.dono : -2;
       return -1;
     }
 
@@ -2970,6 +2980,7 @@
     spark(b.a + BOLA / 2, b.b + BOLA / 2, 5, 3, 70, i === 0 ? COL.p1 : COL.p2,
           { lifeMin: 0.16, lifeMax: 0.34, peak: 0.7 });
 
+    b.dono = i;
     sincronizar("pad" + i);
 
     if (roleta.on && roleta.dono === i) { premioRoleta(i); transmitirMundo(); }
@@ -2997,7 +3008,7 @@
 
     if (S.score[who] >= TARGET) {
       S.winner = who;
-      registrarPartida(who);
+      if (jogadoresAtivos() === 2) registrarPartida(who);
       S.phase = "over";
       S.t = 0;
       releaseWake();
@@ -3005,12 +3016,14 @@
         ? `Jogador 1 venceu por ${S.score[0]} a ${S.score[1]}`
         : `${foeName()} venceu por ${S.score[1]} a ${S.score[0]}`);
     } else {
-      announce(`Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
-      if (matchPoint(who)) {
+      announce(jogadoresAtivos() > 2
+        ? `Ponto do jogador ${who + 1}.`
+        : `Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
+      if (jogadoresAtivos() === 2 && matchPoint(who)) {
         const decisivo = pontoFinal();
         moldura.t = MOLDURA_TEMPO;
         moldura.arco = decisivo;
-        moldura.cor = who === 0 ? COL.p1 : COL.p2;
+        moldura.cor = corDoJogador(who);
         showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
@@ -3032,7 +3045,10 @@
      ══════════════════════════════════════════════════════════ */
   const TEM_CANAL = typeof BroadcastChannel !== "undefined";
   const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ";   // sem I e O, que viram 1 e 0
-  const sala = { ws: null, canal: null, codigo: "", papel: "", via: "", conectado: false, visto: 0, atraso: 60, ping: 0 };
+  const sala = { ws: null, canal: null, codigo: "", papel: "", via: "", conectado: false,
+                 visto: 0, atraso: 60, ping: 0, id: 0, slot: 1, n: 1, membros: {}, proxVaga: 1 };
+  /** Minha raquete: 0 para quem criou a sala; a vaga recebida para convidados. */
+  const meuPadSlot = () => (!naSala() || sala.papel === "anfitriao") ? 0 : (sala.slot || 1);
   let mundoEm = 0;
   let padEm = 0;
   let pingEm = 0;
@@ -3201,7 +3217,29 @@
     sala.visto = performance.now();
 
     // O servidor avisa os dois lados com a mesma mensagem
+    if (m.t === "oi") { sala.id = m.id || 0; sala.n = m.n || 1; return; }
+    if (m.t === "vaga") {                      // o anfitrião me deu uma raquete
+      sala.slot = m.slot;
+      pintarSala();
+      return;
+    }
     if (m.t === "par") {
+      if (m.n) sala.n = m.n;
+      /* O anfitrião distribui as vagas: no clássico só existe a vaga 1; na
+         arena, até JMAX − 1 convidados. Quem sobra é avisado e sai. */
+      if (sala.papel === "anfitriao" && m.de !== undefined && sala.membros[m.de] === undefined) {
+        const teto = S.arena ? JMAX - 1 : 1;
+        if (sala.proxVaga <= teto) {
+          sala.membros[m.de] = sala.proxVaga;
+          enviar({ t: "vaga", para: m.de, slot: sala.proxVaga });
+          pads[sala.proxVaga].b = S.arena ? mArco((sala.proxVaga * Math.PI * 2 / JMAX) * ARENA_R())
+                                          : SPAN / 2 - PL / 2;
+          sala.proxVaga++;
+        } else {
+          enviar({ t: "cheia", para: m.de });
+          return;
+        }
+      }
       if (!sala.conectado) {
         sala.conectado = true;
         /* Rajada de sincronia: cinco pings espaçados assim que o par fecha.
@@ -3236,6 +3274,14 @@
       return;
     }
     if (m.t === "tchau") {
+      if (m.n !== undefined && m.n > 1) {
+        /* Numa sala de N, a saída de um não desliga a sala: a raquete dele
+           fica órfã (aro aberto naquele trecho) e o jogo continua. */
+        sala.n = m.n;
+        showHint(-1, "JOGADOR SAIU", COL.dim);
+        announce("Um jogador saiu da sala.");
+        return;
+      }
       sala.conectado = false;
       pintarSala();
       showHint(-1, "OPONENTE SAIU", COL.dim);
@@ -3269,13 +3315,25 @@
     }
 
     if (m.t === "usar") {
-      if (sala.papel === "anfitriao") useItem(1, false);
+      if (sala.papel === "anfitriao") {
+        const slot = sala.membros[m.de] !== undefined ? sala.membros[m.de] : 1;
+        useItem(slot, true);
+      }
       return;
     }
-    if (m.t === "pad") {
-      const outro = pads[sala.papel === "anfitriao" ? 1 : 0];
-      // meio atraso à frente: onde a raquete DEVE estar agora, não onde estava
-      outro.destino = m.b + (m.v || 0) * (sala.atraso / 2) / 1000;
+    if (m.t === "pad") {                       // convidado → anfitrião
+      if (sala.papel !== "anfitriao") return;
+      const slot = sala.membros[m.de] !== undefined ? sala.membros[m.de] : 1;
+      pads[slot].destino = m.b + (m.v || 0) * (sala.atraso / 2) / 1000;
+      return;
+    }
+    if (m.t === "pads") {                      // anfitrião → todos
+      if (sala.papel === "anfitriao") return;
+      const meu = meuPadSlot();
+      for (let j = 0; j < (m.bs || []).length && j < JMAX; j++) {
+        if (j === meu) continue;
+        pads[j].destino = m.bs[j] + ((m.vs && m.vs[j]) || 0) * (sala.atraso / 2) / 1000;
+      }
       return;
     }
 
@@ -3349,9 +3407,10 @@
       ts: Math.round(performance.now()),
       fase: S.phase, ct: r2(S.t), placar: S.score, venc: S.winner, roda: spoke,
       campo: S.arena ? 1 : 0,
-      lens: [pads[0].len, pads[1].len],
+      jog: jogadoresAtivos(),
+      lens: pads.map(p => p.len),
       fogo: [fire.on ? 1 : 0, star.on ? 1 : 0, armed.who, armed.kind || ""],
-      guard: [held[0] || "", held[1] || ""],
+      guard: held.map(h => h || ""),
       item: item.on ? [r1(item.a), r1(item.b), item.kind, r1(item.life)] : null,
       gem: gem.on ? [r1(gem.a), r1(gem.b), r1(gem.life)] : null,
       poi: poison.on ? [r1(poison.a), r1(poison.b), r1(poison.life)] : null,
@@ -3382,11 +3441,21 @@
      que, na tela do dono, estava no lugar certo. */
   function transmitirRaquete() {
     if (!sala.conectado) return;
-    const p = pads[sala.papel === "anfitriao" ? 0 : 1];
-    const b = r1(p.b), v = r1(p.vb);
-    if (b === ultimoPad.b && v === ultimoPad.v) return;
-    ultimoPad.b = b; ultimoPad.v = v;
-    enviar({ t: "pad", b, v });
+    if (sala.papel === "anfitriao") {
+      const ativos = jogadoresAtivos();
+      const bs = [], vs = [];
+      for (let j = 0; j < ativos; j++) { bs.push(r1(pads[j].b)); vs.push(r1(pads[j].vb)); }
+      const chave = bs.join(",") + "|" + vs.join(",");
+      if (chave === ultimoPad.b) return;
+      ultimoPad.b = chave;
+      enviar({ t: "pads", bs, vs });
+    } else {
+      const p = pads[meuPadSlot()];
+      const b = r1(p.b), v = r1(p.vb);
+      if (b === ultimoPad.b && v === ultimoPad.v) return;
+      ultimoPad.b = b; ultimoPad.v = v;
+      enviar({ t: "pad", b, v });
+    }
   }
 
   /** Adota o estado recebido, adiantado pelo meio-caminho do atraso medido. */
@@ -3490,6 +3559,7 @@
     }
     ball.spin = clamp(p.swing / SPIN_REF, -1, 1) * MAX_SPIN + clamp(rel, -1, 1) * EDGE_SPIN;
     ball.budget = SPIN_BUDGET;
+    ball.dono = i;
     p.hit = HIT_TIME;
     ball.hit = BHIT_TIME;
     Snd.paddle();
@@ -3537,8 +3607,8 @@
       const dist = Math.hypot(ex, ey);
       if (ex * ball.va + ey * ball.vb > 0 && dist >= ARENA_R() - BOLA / 2 && dist < ARENA_R() + BOLA) {
         const th = Math.atan2(ey, ex);
-        if (cobreAngulo(0, th)) rebaterLocal(0, { th });
-        else if (cobreAngulo(1, th)) rebaterLocal(1, { th });
+        for (let j = 0; j < jogadoresAtivos(); j++)
+          if (cobreAngulo(j, th)) { rebaterLocal(j, { th }); break; }
       }
       return;
     }
@@ -3572,8 +3642,10 @@
 
   function aplicarMundo(m) {
     S.phase = m.fase; S.t = m.ct; S.winner = m.venc;
-    if (S.score[0] !== m.placar[0] || S.score[1] !== m.placar[1]) {
-      const quem = m.placar[0] > S.score[0] ? 0 : 1;
+    let quem = -1;
+    for (let j = 0; j < m.placar.length && j < JMAX; j++)
+      if (m.placar[j] !== S.score[j]) quem = j;
+    if (quem >= 0) {
       scorePop[quem] = 0.9;
       Snd.point();
       S.score = m.placar.slice();
@@ -3581,11 +3653,11 @@
       syncPlayButton();
       /* O aviso não trafega: o convidado o deduz do placar que acabou de
          receber, e assim os dois lados veem a mesma coisa sem gastar rede. */
-      if (matchPoint(quem) && S.phase !== "over") {
+      if (jogadoresAtivos() === 2 && matchPoint(quem) && S.phase !== "over") {
         const decisivo = pontoFinal();
         moldura.t = MOLDURA_TEMPO;
         moldura.arco = decisivo;
-        moldura.cor = quem === 0 ? COL.p1 : COL.p2;
+        moldura.cor = corDoJogador(quem);
         showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
@@ -3594,16 +3666,15 @@
     if (m.roda !== spoke) { spoke = m.roda; scoreGlow = 0.9; applyColors(); }
     if (m.campo !== undefined && !!m.campo !== S.arena) aplicarArena(!!m.campo, true);
 
-    pads[0].len = m.lens[0];
-    pads[1].len = m.lens[1];
+    if (m.jog) sala.n = Math.max(sala.n, m.jog);
+    for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
     if (!fire.on && m.fogo[0]) trail.length = 0;
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
     armed.who = m.fogo[2];
     armed.kind = m.fogo[3] || null;
-    held[0] = m.guard[0] || null;
-    held[1] = m.guard[1] || null;
+    for (let j = 0; j < m.guard.length && j < JMAX; j++) held[j] = m.guard[j] || null;
 
     const põe = (o, d) => { if (d) { o.on = true; o.a = d[0]; o.b = d[1]; o.life = d[2]; } else o.on = false; };
     if (m.item) { item.on = true; item.a = m.item[0]; item.b = m.item[1]; item.kind = m.item[2]; item.life = m.item[3]; }
@@ -4005,8 +4076,8 @@
     drawInventory();
 
     // Raquetes: quem acabou de rebater fogo solta um halo neon na própria cor
-    for (let i = 0; i < 2; i++) {
-      const p = pads[i], col = i === 0 ? COL.p1 : COL.p2;
+    for (let i = 0; i < (S.arena ? jogadoresAtivos() : 2); i++) {
+      const p = pads[i], col = corDoJogador(i);
       if (S.arena) { desenharRaqueteArena(i, p, col); continue; }
 
       /* Squash & stretch: no toque a raquete engorda e encolhe no comprimento,
@@ -4094,6 +4165,20 @@
     // Placar: fora da câmera, para não sair de quadro nem borrar no tremor.
     // Durante o veneno ele sai de cena e o contador toma o meio da tela.
     const dim = S.phase === "attract";
+    if (S.arena && jogadoresAtivos() > 2) {
+      /* Placar de N: uma fileira de dígitos, cada um na cor do seu dono. */
+      const ativos = jogadoresAtivos();
+      const passoX = 26;
+      const x0 = cw / 2 - (ativos - 1) * passoX / 2;
+      for (let j = 0; j < ativos; j++) {
+        const pop = scorePop[j];
+        g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * (pop > 0.45 ? 1 : pop / 0.45));
+        const txt = String(S.score[j]);
+        drawText(g, txt, x0 + j * passoX - textWidth(txt, 3) / 2, 20, 3,
+                 dim ? COL.dim : (pop > 0.72 ? COL.core : corDoJogador(j)));
+      }
+      g.globalAlpha = 1;
+    } else
     for (let i = 0; i < 2; i++) {
       /* O dígito vive discreto ao fundo. Ao pontuar ele fica sólido, pula uma
          escala e volta em dois degraus — estouro que respeita a malha de pixels
@@ -4277,6 +4362,18 @@
 
   function drawInventory() {
     if (S.phase === "attract") return;
+    if (S.arena && naSala() && jogadoresAtivos() > 2) {
+      // com N jogadores cada tela mostra só o próprio bolso
+      const meu = meuPadSlot();
+      const [a, b] = SLOTS[meu === 0 ? 0 : 1]();
+      const r = rect(a, b, SLOT, SLOT);
+      if (held[meu]) {
+        const sp = SPRITES[held[meu]];
+        const bright = !reduceMotion && S.blink % 0.9 < 0.45;
+        drawItem(sp, r[0], r[1], SLOT, sp.field, bright);
+      } else drawSlot(r[0], r[1], corDoJogador(meu));
+      return;
+    }
     for (let i = 0; i < 2; i++) {
       const [a, b] = SLOTS[i]();
       const r = rect(a, b, SLOT, SLOT);
@@ -4329,6 +4426,25 @@
      acabou maior — e quantos itens cada um recolheu. */
   function drawEndScreen(cw, ch, maxTextW) {
     veil(0.76);
+    if (S.arena && jogadoresAtivos() > 2) {
+      /* Com N jogadores a comparação de raquetes vira um ranking simples. */
+      const ativos = jogadoresAtivos();
+      const nomes2 = [];
+      for (let j = 0; j < ativos; j++) nomes2.push("JOGADOR " + (j + 1));
+      let y2 = Math.max(10, ch * 0.06);
+      y2 += centered(g, nomes2[S.winner] + " VENCEU", cw / 2, y2, 2, corDoJogador(S.winner), maxTextW) + 14;
+      const ordem = Array.from({ length: ativos }, (_, j) => j)
+        .sort((a2, b2) => S.score[b2] - S.score[a2]);
+      for (const j of ordem) {
+        const linha = nomes2[j] + "  " + S.score[j];
+        y2 += centered(g, linha, cw / 2, y2, 2, corDoJogador(j), maxTextW) + 8;
+      }
+      if (S.blink % 1.2 < 0.75) {
+        centered(g, coarse ? "TOQUE PARA JOGAR DE NOVO" : "ESPACO PARA JOGAR DE NOVO",
+                 cw / 2, ch - 24, 2, COL.net, maxTextW);
+      }
+      return;
+    }
     const won = S.winner === 0;
     const winCol = won ? COL.p1 : COL.p2;
     const nomes = ["JOGADOR 1", S.mode === "2p" ? "JOGADOR 2" : "COMPUTADOR"];
@@ -4790,7 +4906,7 @@
   /** Quem enxerga a própria mira: só quem está de fato controlando a raquete. */
   function mirasVisiveis() {
     if (S.phase !== "play") return [];
-    if (naSala()) return [sala.papel === "anfitriao" ? 0 : 1];
+    if (naSala()) return [meuPadSlot()];
     return S.mode === "2p" ? [0, 1] : [0];
   }
 
@@ -5015,16 +5131,15 @@
           /* A própria raquete anda aqui mesmo, com a mesma conta do anfitrião.
              Sem isto o convidado arrasta o dedo e nada se move na tela dele:
              ele só mandava a intenção e esperava uma posição que nunca voltava. */
-          const meu = pads[1];
+          const meu = pads[meuPadSlot()];
           meu.prevB = meu.b;
           if (meu.touch !== null) {
-            const alvo = meu.touch - padLen(1) / 2;
-            meu.b += clamp(alvo - meu.b, -1200 * DT, 1200 * DT);
+            const alvo = meu.touch - padLen(meuPadSlot()) / 2;
+            meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b, -1200 * DT, 1200 * DT);
           }
           if (meu.up) meu.b -= 430 * DT;
           if (meu.down) meu.b += 430 * DT;
-          meu.b = S.arena ? clamp(meu.b, 0, arcoMax(1))
-                          : clamp(meu.b, WALL, SPAN - WALL - padLen(1));
+          meu.b = S.arena ? mArco(meu.b) : clamp(meu.b, WALL, SPAN - WALL - padLen(meuPadSlot()));
           meu.vb = (meu.b - meu.prevB) / DT;
           // a varrida (memória do movimento) alimenta o spin do rebaterLocal
           if (Math.abs(meu.vb) > Math.abs(meu.swing)) meu.swing = meu.vb;
@@ -5062,11 +5177,14 @@
         }
         // a raquete do adversário alcança o último ponto recebido sem saltar,
         // e a varrida estimada dali alimenta o spin das previsões
-        const outro = pads[0];
-        if (outro.destino !== undefined && dt > 0) {
-          const longe = outro.destino - outro.b;
+        for (let j = 0; j < jogadoresAtivos(); j++) {
+          if (j === meuPadSlot()) continue;
+          const outro = pads[j];
+          if (outro.destino === undefined || dt <= 0) continue;
+          const longe = S.arena ? dArco(outro.destino, outro.b) : outro.destino - outro.b;
           const passo = Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
           outro.b += passo;
+          if (S.arena) outro.b = mArco(outro.b);
           outro.vb = passo / dt;
           if (Math.abs(outro.vb) > Math.abs(outro.swing)) outro.swing = outro.vb;
           else outro.swing *= Math.pow(SWING_FADE, dt);
@@ -5156,8 +5274,7 @@
     if (nv === SPAN) return;
     SPAN = nv;
     if (S.arena) {
-      pads[0].b = clamp(pads[0].b, 0, arcoMax(0));
-      pads[1].b = clamp(pads[1].b, 0, arcoMax(1));
+      for (const p of pads) p.b = mArco(p.b);
     } else {
       pads[0].b = clamp(pads[0].b, WALL, SPAN - WALL - padLen(0));
       pads[1].b = clamp(pads[1].b, WALL, SPAN - WALL - padLen(1));
@@ -5409,9 +5526,10 @@
   function aplicarArena(on, anunciar) {
     S.arena = !!on;
     btnArena.setAttribute("aria-pressed", String(S.arena));
-    for (let i = 0; i < 2; i++)
-      pads[i].b = S.arena ? arcoMax(i) / 2
-                          : SPAN / 2 - padLen(i) / 2;
+    for (let i = 0; i < JMAX; i++)
+      pads[i].b = S.arena
+        ? mArco((Math.PI + i * Math.PI * 2 / JMAX) * ARENA_R() - padLen(i) / 2)
+        : SPAN / 2 - padLen(i) / 2;
     if (anunciar) announce(S.arena ? "Arena circular." : "Campo clássico.");
   }
   try { if (localStorage.getItem("rainbow-pong-arena") === "1") aplicarArena(true, false); } catch (_) {}
@@ -5485,7 +5603,7 @@
     if (k === "r" || k === "R") { newGame("attract"); releaseWake(); syncPlayButton(); announce("Placar zerado."); return; }
     if (k === "f" || k === "F") { toggleImmersive(); return; }
     // numa sala as duas teclas valem para a SUA raquete, como o W/S e as setas
-    const padTecla = lado => naSala() ? (sala.papel === "anfitriao" ? 0 : 1) : lado;
+    const padTecla = lado => naSala() ? meuPadSlot() : lado;
     if (k === "e" || k === "E") { useItem(padTecla(0), false); return; }   // lado do W/S
     if (k === "/") { e.preventDefault(); useItem(padTecla(1), false); return; }   // lado das setas
     if (k === "ArrowUp" || k === "ArrowDown") e.preventDefault();
@@ -5499,7 +5617,7 @@
     const dn1 = keys.has("s") || keys.has("S");
     const upA = keys.has("ArrowUp"), dnA = keys.has("ArrowDown");
     if (naSala()) {
-      const meu = sala.papel === "anfitriao" ? 0 : 1;
+      const meu = meuPadSlot();
       const outro = 1 - meu;
       pads[meu].up = up1 || upA;
       pads[meu].down = dn1 || dnA;
@@ -5520,12 +5638,12 @@
   const owners = new Map();   // pointerId → índice da raquete
 
   function padFor(court) {
-    if (naSala()) return sala.papel === "anfitriao" ? 0 : 1;
+    if (naSala()) return meuPadSlot();
     if (S.mode === "1p") return 0;
     return court.a < LEN / 2 ? 0 : 1;
   }
 
-  const lastTap = [0, 0];   // por raquete, para reconhecer o toque duplo
+  const lastTap = [0, 0, 0, 0];   // por raquete, para reconhecer o toque duplo
 
   screenEl.addEventListener("pointerdown", e => {
     const court = toCourt(e.clientX, e.clientY);

@@ -165,11 +165,12 @@ def entrar_na_sala(par, codigo):
 
         if par in sala:
             pass                      # já estava dentro: reconfirma, não duplica
-        elif len(sala) >= 2:
+        elif len(sala) >= 6:
             par.enviar(json.dumps({"t": "cheia"}))
             return False
         else:
             sala.append(par)
+            par.ident = max([getattr(p, "ident", 0) for p in sala if p is not par], default=0) + 1
         par.codigo = codigo
         outros = [p for p in sala if p is not par]
 
@@ -181,8 +182,10 @@ def entrar_na_sala(par, codigo):
             pass
     # Avisa os dois com a MESMA mensagem: quem é anfitrião e quem é convidado
     # já está decidido no cliente, não pode depender da ordem de chegada.
+    # o recém-chegado sabe quem é; todos ficam sabendo quantos são
+    par.enviar(json.dumps({"t": "oi", "id": getattr(par, "ident", 0), "n": len(outros) + 1}))
     if outros:
-        aviso = json.dumps({"t": "par"})
+        aviso = json.dumps({"t": "par", "de": getattr(par, "ident", 0), "n": len(outros) + 1})
         par.enviar(aviso)
         for o in outros:
             o.enviar(aviso)
@@ -204,7 +207,7 @@ def sair_da_sala(par):
         if not sala:
             salas.pop(par.codigo, None)
     for o in restantes:
-        o.enviar(json.dumps({"t": "tchau"}))
+        o.enviar(json.dumps({"t": "tchau", "de": getattr(par, "ident", 0), "n": len(restantes)}))
     print(f"  sala {par.codigo}: saiu um jogador")
 
 
@@ -253,12 +256,17 @@ def atender_websocket(sock, chave):
                 entrar_na_sala(par, str(msg.get("codigo", ""))[:8].upper())
                 continue
 
-            # tudo o mais é repassado cru para o outro jogador da sala
+            # tudo o mais é repassado com o carimbo de quem mandou; se a
+            # mensagem traz "para", vai só àquele jogador
             if par.codigo:
+                msg["de"] = getattr(par, "ident", 0)
+                destino = msg.pop("para", None)
+                repasse = json.dumps(msg)
                 with trava:
                     outros = [p for p in salas.get(par.codigo, []) if p is not par]
                 for o in outros:
-                    o.enviar(texto)
+                    if destino is None or getattr(o, "ident", None) == destino:
+                        o.enviar(repasse)
     except (ConnectionError, OSError):
         pass
     finally:
