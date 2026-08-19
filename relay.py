@@ -297,6 +297,15 @@ def servir_arquivo(sock, caminho, so_cabecalho=False):
     sock.sendall(cabecalho if so_cabecalho else cabecalho + corpo)
 
 
+SALA_VIVA = "ARENA"          # a sala pública que nunca fecha
+
+def quem_esta_na_viva():
+    with trava:
+        sala = salas.get(SALA_VIVA, [])
+        ids = [getattr(p, "ident", 0) for p in sala if p.vivo]
+    return json.dumps({"n": len(ids), "ids": ids})
+
+
 def atender(sock, ip):
     global conexoes
     try:
@@ -321,6 +330,13 @@ def atender(sock, ip):
         if "websocket" in cabecalhos.get("upgrade", "").lower():
             print(f"  ws: aperto de mão de {ip}")
             atender_websocket(sock, cabecalhos.get("sec-websocket-key", ""))
+            return
+
+        if metodo in ("GET", "HEAD") and caminho.split("?")[0] == "/quem":
+            corpo = quem_esta_na_viva().encode()
+            sock.sendall((f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                          f"Content-Length: {len(corpo)}\r\nCache-Control: no-store\r\n\r\n").encode()
+                         + (b"" if metodo == "HEAD" else corpo))
             return
 
         if metodo not in ("GET", "HEAD"):

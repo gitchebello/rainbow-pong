@@ -764,6 +764,7 @@
         <div class="group wide sala-grupo">
           <span class="legend" id="lg-sala">Sala <span id="sala-estado">desligada</span></span>
           <div class="row" role="group" aria-labelledby="lg-sala">
+            <button class="key primary" id="btn-viva">Arena ao vivo</button>
             <button class="key" id="sala-criar">Criar sala</button>
             <button class="key" id="sala-entrar">Entrar</button>
             <input class="codigo" id="sala-codigo" maxlength="4" autocomplete="off"
@@ -771,6 +772,7 @@
                    enterkeyhint="go" placeholder="código" aria-label="Código da sala" hidden>
             <button class="key ghost" id="sala-sair" hidden>Sair</button>
           </div>
+          <p class="sala-nota" id="viva-lista">Arena ao vivo: consultando…</p>
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
@@ -3068,7 +3070,11 @@
   const sala = { ws: null, canal: null, codigo: "", papel: "", via: "", conectado: false,
                  visto: 0, atraso: 60, ping: 0, id: 0, slot: 1, n: 1, membros: {}, proxVaga: 1 };
   /** Minha raquete: 0 para quem criou a sala; a vaga recebida para convidados. */
-  const meuPadSlot = () => (!naSala() || sala.papel === "anfitriao") ? 0 : (sala.slot || 1);
+  const meuPadSlot = () => {
+    if (!naSala()) return 0;
+    if (sala.papel === "anfitriao") return sala.slot || 0;   // promovido mantém a raquete
+    return sala.slot || 1;
+  };
   let mundoEm = 0;
   let padEm = 0;
   let pingEm = 0;
@@ -3135,6 +3141,8 @@
     sala.codigo = codigo;
     sala.papel = papel;
     sala.conectado = false;
+    if (papel === "anfitriao") { sala.slot = 0; sala.membros = {}; sala.proxVaga = 1; }
+    if (papel === "auto") sala.slot = 0;
     sala.visto = performance.now();
     sala.rttMin = undefined;       // rede pode ter mudado: mede de novo
     sala.desvio = undefined;       // e o relógio comum se recalibra do zero
@@ -3237,9 +3245,34 @@
     sala.visto = performance.now();
 
     // O servidor avisa os dois lados com a mesma mensagem
-    if (m.t === "oi") { sala.id = m.id || 0; sala.n = m.n || 1; return; }
-    if (m.t === "vaga") {                      // o anfitrião me deu uma raquete
-      sala.slot = m.slot;
+    if (m.t === "oi") {
+      sala.id = m.id || 0; sala.n = m.n || 1;
+      /* Na sala pública o papel se decide aqui: quem chega primeiro vira o
+         anfitrião; os demais entram como convidados. E a sala é de ARENA por
+         definição. */
+      if (sala.papel === "auto") {
+        if (sala.n <= 1) {
+          sala.papel = "anfitriao"; sala.slot = 0;
+          sala.membros = {}; sala.membros[sala.id] = 0; sala.proxVaga = 1;
+          if (!S.arena) aplicarArena(true, false);
+          newGame("attract");
+        } else {
+          sala.papel = "convidado";
+          if (!S.arena) aplicarArena(true, false);
+        }
+        pintarSala();
+      } else if (sala.papel === "anfitriao") {
+        sala.membros[sala.id] = 0;
+      }
+      return;
+    }
+    if (m.t === "vaga") {
+      /* Todo mundo ouve as vagas e mantém o MESMO elenco (id → raquete).
+         É o que permite a migração: se o anfitrião cair, qualquer um sabe
+         quem herda o comando. */
+      if (m.elenco) { sala.membros = m.elenco; }
+      if (m.alvo === sala.id) sala.slot = m.slot;
+      sala.proxVaga = Math.max(...Object.values(sala.membros).map(Number), 0) + 1;
       pintarSala();
       return;
     }
@@ -3251,7 +3284,7 @@
         const teto = S.arena ? JMAX - 1 : 1;
         if (sala.proxVaga <= teto) {
           sala.membros[m.de] = sala.proxVaga;
-          enviar({ t: "vaga", para: m.de, slot: sala.proxVaga });
+          enviar({ t: "vaga", alvo: m.de, slot: sala.proxVaga, elenco: sala.membros });
           pads[sala.proxVaga].b = S.arena ? mArco((sala.proxVaga * Math.PI * 2 / JMAX) * ARENA_R())
                                           : SPAN / 2 - PL / 2;
           sala.proxVaga++;
@@ -3294,6 +3327,26 @@
       return;
     }
     if (m.t === "tchau") {
+      if (m.de !== undefined) {
+        /* Alguém saiu: tira do elenco. Se era o anfitrião (menor raquete
+           presente), o comando migra para a menor raquete restante — e se
+           for a minha, EU viro o anfitrião e a simulação continua daqui,
+           do estado que eu já tenho. */
+        const vagaDele = sala.membros[m.de];
+        delete sala.membros[m.de];
+        const presentes = Object.entries(sala.membros);
+        if (presentes.length && vagaDele !== undefined) {
+          const menor = presentes.reduce((a2, b2) => (+a2[1] <= +b2[1] ? a2 : b2));
+          const eraChefe = Object.values(sala.membros).every(v => +v > vagaDele) || vagaDele === 0;
+          if (eraChefe && +menor[0] === sala.id && sala.papel !== "anfitriao") {
+            sala.papel = "anfitriao";
+            sala.proxVaga = Math.max(...Object.values(sala.membros).map(Number), 0) + 1;
+            showHint(-1, "VOCE E O ANFITRIAO", corDoJogador(meuPadSlot()));
+            announce("O anfitrião saiu. Agora a partida roda no seu aparelho.");
+            pintarSala(); syncPlayButton();
+          }
+        }
+      }
       if (m.n !== undefined && m.n > 1) {
         /* Numa sala de N, a saída de um não desliga a sala: a raquete dele
            fica órfã (aro aberto naquele trecho) e o jogo continua. */
@@ -3428,6 +3481,7 @@
       fase: S.phase, ct: r2(S.t), placar: S.score, venc: S.winner, roda: spoke,
       campo: S.arena ? 1 : 0,
       jog: jogadoresAtivos(),
+      elc: sala.membros,
       lens: pads.map(p => p.len),
       fogo: [fire.on ? 1 : 0, star.on ? 1 : 0, armed.who, armed.kind || ""],
       guard: held.map(h => h || ""),
@@ -3687,6 +3741,7 @@
     if (m.campo !== undefined && !!m.campo !== S.arena) aplicarArena(!!m.campo, true);
 
     if (m.jog) sala.n = Math.max(sala.n, m.jog);
+    if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
     if (!fire.on && m.fogo[0]) trail.length = 0;
@@ -5490,6 +5545,34 @@
     applyTheme(dark);
     announce(dark ? "Modo escuro, cores vibrantes." : "Modo claro, fósforo desbotado.");
   });
+
+  /* ── Arena ao vivo ──
+     Uma sala pública que nunca fecha: todo mundo entra na mesma (ARENA), o
+     primeiro vira anfitrião e, se ele sair, o comando migra sozinho. A home
+     mostra quem está lá agora, pelo /quem do servidor. */
+  const VIVA = "ARENA";
+  document.getElementById("btn-viva").addEventListener("click", () => {
+    sala.avisouAbas = false;
+    abrirSala(VIVA, "auto");
+    announce("Entrando na arena ao vivo.");
+  });
+
+  const vivaEl = document.getElementById("viva-lista");
+  async function espiarViva() {
+    try {
+      const base = location.pathname.replace(/[^\/]*$/, "");
+      const r = await fetch(base + "quem", { cache: "no-store" });
+      const q = await r.json();
+      if (!q.n) { vivaEl.textContent = "Arena ao vivo: vazia — seja o primeiro!"; return; }
+      const nomes = q.ids.slice(0, JMAX).map((_, k) => "J" + (k + 1)).join(", ");
+      vivaEl.textContent = "Arena ao vivo: " + q.n +
+        (q.n === 1 ? " jogador (" : " jogadores (") + nomes + ") agora";
+    } catch (_) {
+      vivaEl.textContent = "Arena ao vivo: sem servidor nesta página.";
+    }
+  }
+  espiarViva();
+  setInterval(espiarViva, 5000);
 
   document.getElementById("sala-criar").addEventListener("click", () => {
     if (!TEM_CANAL) return;
