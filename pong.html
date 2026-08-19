@@ -5352,8 +5352,29 @@
           if ((lado === 0) !== (Math.cos(th) < 0)) continue;   // metade errada
           const t = tDoTh(th);
           if (t < 0 || t > 1) continue;
-          g.globalAlpha = 0.85;
-          fill(corDoJogador(j), ax - 1, topo + t * alt - 1, 4, 3);
+          /* Mesmo encontro, mesma leitura: onde duas raquetes se cruzam no
+             aro, a régua também mostra branco — com a sombra iridescente
+             discreta, igual ao que acontece no anel. */
+          let junto = false;
+          for (let k2 = 0; k2 < jogadoresAtivos(); k2++) {
+            if (k2 === j) continue;
+            const d2 = dArco(mArco(p.b + s), pads[k2].b);
+            if (d2 >= -1.5 && d2 <= padLen(k2) + 1.5) { junto = true; break; }
+          }
+          const yR = topo + t * alt - 1;
+          if (junto && theme.glow) {
+            const iri = VIVAS[(Math.floor(S.blink * 3) + (s | 0)) % VIVAS.length];
+            g.save();
+            g.globalCompositeOperation = "lighter";
+            g.globalAlpha = 0.10;
+            fill(iri, ax - 3, yR - 2, 8, 7);
+            g.restore();
+            g.globalAlpha = 1;
+            fill(COL.core, ax - 1, yR, 4, 3);
+          } else {
+            g.globalAlpha = 0.85;
+            fill(corDoJogador(j), ax - 1, yR, 4, 3);
+          }
         }
         /* Nome na lateral EXTERNA da régua, na altura do centro da raquete —
            só quando o centro está nesta metade. */
