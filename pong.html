@@ -245,22 +245,21 @@
     color: var(--ink);
     padding: 9px 10px;
     border: 1px solid var(--plastic-edge);
-    border-radius: 5px;
-    background: linear-gradient(180deg, var(--key-hi) 0%, var(--key-mid) 55%, var(--key-lo) 100%);
-    box-shadow: 0 3px 0 var(--plastic-edge), 0 5px 8px rgba(0,0,0,0.32);
+    border-radius: 4px;
+    background: var(--key-mid);
+    box-shadow: none;
     cursor: pointer;
-    transition: transform 60ms ease, box-shadow 60ms ease, background 140ms ease;
+    transition: background 120ms ease, border-color 120ms ease;
     white-space: nowrap;
     touch-action: manipulation;
   }
-  .key:hover { background: linear-gradient(180deg, var(--key-hi-h) 0%, var(--key-mid-h) 55%, var(--key-lo-h) 100%); }
-  .key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--plastic-edge), 0 2px 4px rgba(0,0,0,0.3); }
+  .key:hover { background: var(--key-hi-h); border-color: rgba(255,255,255,0.34); }
+  .key:active { background: var(--key-hi-h); transform: translateY(1px); }
   .key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .key[aria-pressed="true"] {
     background: linear-gradient(180deg, var(--key-on-a) 0%, var(--key-on-b) 100%);
     color: var(--key-on-ink);
-    transform: translateY(3px);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.28);
+    border-color: rgba(255,255,255,0.6);
   }
   .key[hidden] { display: none; }
 
@@ -529,63 +528,61 @@
   /* ── Modo escuro: mesmo gabinete, feito de grafite e luz fria ──
      Troca só os tokens; nenhuma regra de componente sabe que o tema existe. */
   body.dark {
-    --void:        #04050b;
-    --void-warm:   #080b14;
-    --screen:      #080b14;
-    --screen-edge: #020307;
+    --void:        #000000;
+    --void-warm:   #050506;
+    --screen:      #07080d;
+    --screen-edge: #000000;
 
-    --plastic:     #171c2b;
-    --plastic-hi:  #232a3e;
-    --plastic-lo:  #0e1220;
-    --plastic-edge:#39456b;
-    --paper:       #0c1019;
+    --plastic:     #0a0a0c;
+    --plastic-hi:  #0f0f12;
+    --plastic-lo:  #050507;
+    --plastic-edge:rgba(255,255,255,0.18);
+    --paper:       #0a0a0c;
 
-    --ink:         #e6f0ff;
-    --ink-soft:    #93a8cf;
-    --ink-faint:   #64789f;
-    --body-ink:    #b6c7e6;
-    --footer-ink:  #4a5980;
+    --ink:         #f2efe6;
+    --ink-soft:    #b5b2a8;
+    --ink-faint:   #787670;
+    --body-ink:    #d2cfc5;
+    --footer-ink:  #8b8880;
 
-    --frame:       #0f1424;
-    --key-hi:      #283149;
-    --key-mid:     #1b2233;
-    --key-lo:      #131926;
-    --key-hi-h:    #35405e;
-    --key-mid-h:   #232c42;
-    --key-lo-h:    #1a2233;
-    --key-on-a:    #0c1120;
-    --key-on-b:    #1a2234;
-    --key-on-ink:  #e6f0ff;
-    --ghost-a:     #1e2537;
-    --ghost-b:     #151b29;
-    --led-off:     #2a3350;
-    --prim-a:      #ff5f7e;
-    --prim-b:      #dd3560;
-    --prim-c:      #a81f4a;
-    --prim-edge:   #5e0f2c;
-    --prim-ink:    #fff0f4;
+    --frame:       #000000;
+    --key-hi:      #0e0e11;
+    --key-mid:     #0b0b0e;
+    --key-lo:      #08080a;
+    --key-hi-h:    #17171b;
+    --key-mid-h:   #131317;
+    --key-lo-h:    #0e0e11;
+    --key-on-a:    #f2efe6;
+    --key-on-b:    #dcd9cf;
+    --key-on-ink:  #0a0a0a;
+    --ghost-a:     #0a0a0c;
+    --ghost-b:     #070709;
+    --led-off:     #2c2c30;
+    --prim-a:      #ffffff;
+    --prim-b:      #edeae1;
+    --prim-c:      #d9d6cc;
+    --prim-edge:   rgba(255,255,255,0.55);
+    --prim-ink:    #0a0a0a;
 
-    --rule:        rgba(150,180,240,0.32);
-    --rule-mid:    rgba(150,180,240,0.24);
-    --rule-soft:   rgba(150,180,240,0.09);
-    --sheen:       rgba(120,170,255,0.05);
-    --card-edge:   rgba(140,180,255,0.14);
-    --emboss:      rgba(180,210,255,0.10);
-    --halo:        #101a2e;
-    --focus:       #7fd4ff;
+    --rule:        rgba(255,255,255,0.22);
+    --rule-mid:    rgba(255,255,255,0.14);
+    --rule-soft:   rgba(255,255,255,0.06);
+    --sheen:       rgba(255,255,255,0.03);
+    --card-edge:   rgba(255,255,255,0.12);
+    --emboss:      rgba(255,255,255,0.07);
+    --halo:        #0b0b0f;
+    --focus:       #ffffff;
   }
+
   body.dark .cabinet {
     box-shadow:
-      inset 0 1px 0 var(--emboss),
-      inset 0 -3px 0 rgba(0,0,0,0.4),
-      0 0 0 1px rgba(120,170,255,0.10),
-      0 30px 60px -20px #000;
+      0 0 0 1px rgba(255,255,255,0.12),
+      0 30px 60px -30px #000;
   }
   body.dark .screen {
     box-shadow:
-      inset 0 0 0 2px #0b1020,
-      inset 0 0 40px 14px rgba(0,0,0,0.85),
-      0 0 30px -20px var(--p1);
+      inset 0 0 0 1px rgba(255,255,255,0.10),
+      inset 0 0 40px 14px rgba(0,0,0,0.85);
   }
   body.dark .glass {
     background:
@@ -594,7 +591,7 @@
         rgba(0,0,0,0.34) 0px, rgba(0,0,0,0.34) 1px,
         rgba(0,0,0,0.00) 2px, rgba(0,0,0,0.00) 4px
       ),
-      radial-gradient(115% 120% at 50% 45%, rgba(120,190,255,0.07) 0%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.62) 100%);
+      radial-gradient(115% 120% at 50% 45%, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.62) 100%);
   }
   body.dark .guide { background-image: linear-gradient(184deg, var(--sheen), rgba(0,0,0,0.25)); }
 
@@ -730,7 +727,6 @@
           <div class="row" role="group" aria-labelledby="lg-acao">
             <button class="key primary" id="btn-play">Jogar</button>
             <button class="key ghost" id="btn-reset">Reiniciar</button>
-            <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
           </div>
         </div>
 
@@ -752,14 +748,7 @@
           </div>
         </div>
 
-        <div class="group">
-          <span class="legend" id="lg-imagem">Imagem</span>
-          <div class="row" role="group" aria-labelledby="lg-imagem">
-            <button class="key toggle" id="btn-dark" aria-pressed="false"><span class="led"></span>Escuro</button>
-            <button class="key toggle" id="btn-crt" aria-pressed="true"><span class="led"></span>Tubo</button>
-            <button class="key toggle" id="btn-mira" aria-pressed="true"><span class="led"></span>Mira</button>
-          </div>
-        </div>
+
 
         <div class="group wide sala-grupo">
           <span class="legend" id="lg-sala">Sala <span id="sala-estado">desligada</span></span>
@@ -776,10 +765,13 @@
           <p class="sala-nota" id="sala-nota" hidden></p>
         </div>
 
-        <div class="group">
-          <span class="legend" id="lg-som">Som e cores</span>
-          <div class="row" role="group" aria-labelledby="lg-som">
+        <div class="group wide">
+          <span class="legend" id="lg-ajustes">Ajustes</span>
+          <div class="row" role="group" aria-labelledby="lg-ajustes">
+            <button class="key toggle" id="btn-crt" aria-pressed="true"><span class="led"></span>Tubo</button>
+            <button class="key toggle" id="btn-mira" aria-pressed="true"><span class="led"></span>Mira</button>
             <button class="key toggle" id="btn-som" aria-pressed="true"><span class="led"></span>Som</button>
+            <button class="key ghost toggle" id="btn-full" aria-pressed="false"><span class="led"></span>Tela cheia</button>
             <button class="key" id="cor">Girar cores</button>
           </div>
         </div>
@@ -1084,7 +1076,7 @@
     }
   };
 
-  let theme = THEMES.claro;
+  let theme = THEMES.escuro;   // o jogo é escuro por definição: é onde o arco-íris vive
   const COL = {};
 
   /* ── Roda de cores ──
@@ -5532,20 +5524,9 @@
     if (Snd.on) { Snd.ensure(); Snd.beep(459, 90); }
   });
 
-  const btnDark = document.getElementById("btn-dark");
-
-  function applyTheme(dark) {
-    theme = dark ? THEMES.escuro : THEMES.claro;
-    document.body.classList.toggle("dark", dark);
-    btnDark.setAttribute("aria-pressed", String(dark));
-    applyColors();
-  }
-
-  btnDark.addEventListener("click", () => {
-    const dark = btnDark.getAttribute("aria-pressed") !== "true";
-    applyTheme(dark);
-    announce(dark ? "Modo escuro, cores vibrantes." : "Modo claro, fósforo desbotado.");
-  });
+  // Tema único: escuro. O fundo preto é o palco do arco-íris.
+  document.body.classList.add("dark");
+  applyColors();
 
   /* ── Arena ao vivo ──
      Uma sala pública que nunca fecha: todo mundo entra na mesma (ARENA), o
@@ -5851,7 +5832,7 @@
      10. Partida
      ══════════════════════════════════════════════════════════ */
   try {
-    applyTheme(matchMedia("(prefers-color-scheme: dark)").matches);   // segue o sistema, e o botão manda
+    // tema único: o escuro já foi aplicado na carga
     carregarHistorico();
     desenharHistorico();
     pintarSala();
