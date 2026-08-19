@@ -1351,6 +1351,7 @@
      (8 -> 16 -> 32 -> 64 -> 128 -> ...). O único limite é físico: a bola
      precisa caber entre as paredes. O contador zera no saque. */
   let chicles = 0;             // mordidas de chiclete no ponto corrente
+  const CHICLES_ESTOURO = 5;   // segredo: nesta mordida a bola explode (fora do manual)
   const bolaTeto = () => SPAN - WALL * 2 - 4;
   function mascarChiclete() {
     chicles++;
@@ -1846,6 +1847,7 @@
   let gumTimer = rand(16, 27);
   let gumPop = 0;              // esticadinha do inchaço, para o crescimento ter peso
   let gumFesta = 0;            // janela em que as bolhas sobem pelas laterais
+  let estouroRosa = 0;         // pulso rosa das laterais no segredo do chiclete
   let bolhaTimer = 0;
   let popTimer = 0;            // segura o som para não virar metralhadora
   const bolhas = [];
@@ -2126,7 +2128,7 @@
     poison.on = false;   poisonTimer = rand(33, 53);
     chiclete.on = false; gumTimer = rand(18, 31);
     iris.on = false;     irisTimer = rand(22, 35);
-    gumFesta = 0;        gumPop = 0;
+    gumFesta = 0;        gumPop = 0;   estouroRosa = 0;
     bolhas.length = 0;
     kick(0.7, 0.7, "#ffffff", 1.5);
     Snd.storm();
@@ -2838,6 +2840,33 @@
       chiclete.on = false;
       gumTimer = rand(18, 31);
       stats.used[b.va > 0 ? 0 : 1].gum++;
+      /* ── Segredo do quinto chiclete ──
+         Cinco mordidas no MESMO ponto e o chiclete não aguenta: a bola
+         explode e volta ao branco de fábrica, na velocidade de saque. Não
+         está no manual de propósito — é para se descobrir jogando. */
+      if (chicles + 1 >= CHICLES_ESTOURO) {
+        chicles = 0;
+        const cxE = b.a + BOLA / 2, cyE = b.b + BOLA / 2;
+        BOLA = BS;
+        b.a = cxE - BOLA / 2;
+        b.b = clamp(cyE - BOLA / 2, WALL, SPAN - WALL - BOLA);
+        b.speed = LEVELS[S.diff].base;
+        const dirE = Math.hypot(b.va, b.vb) || 1;
+        b.va = b.va / dirE * b.speed;
+        b.vb = b.vb / dirE * b.speed;
+        gumPop = 0; gumFesta = 4.5;
+        estouroRosa = 1;                      // brilho lateral rosa, bem mais forte
+        kick(0.75, 1.1, COL.gum, 2.1);
+        aberr = reduceMotion ? 0 : 0.7;
+        spark(cxE, cyE, 46, 7, 210, COL.gum, { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
+        spark(cxE, cyE, 26, 6, 150, COL.gumHi, { lifeMin: 0.25, lifeMax: 0.7, peak: 0.9, size: 2 });
+        Snd.gum(); Snd.storm();
+        showHint(-1, "EXPLOSÃO", COL.gum);
+        announce("Explosão: o chiclete estourou e a bola voltou ao normal.");
+        sincronizar("estouro");
+        transmitirMundo();
+        return;
+      }
       /* Bola grande e um pouco mais lenta: o chiclete é a respirada da
          partida. Tira um quarto da velocidade que a bola tinha na hora do
          contato — o bastante para quebrar a aceleração de 7% por rebatida
@@ -3760,6 +3789,18 @@
   /** Efeitos locais de um aviso, para o convidado ver e ouvir o que houve. */
   function reagirAoEvento(motivo) {
     if (motivo === "saque" || motivo === "ponto") return;
+    if (motivo === "estouro") {
+      gumFesta = 4.5;
+      estouroRosa = 1;
+      kick(0.75, 1.1, COL.gum, 2.1);
+      aberr = reduceMotion ? 0 : 0.7;
+      spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 46, 7, 210, COL.gum,
+            { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
+      Snd.gum(); Snd.storm();
+      showHint(-1, "EXPLOSÃO", COL.gum);
+      announce("Explosão: o chiclete estourou e a bola voltou ao normal.");
+      return;
+    }
     if (motivo.indexOf("premio-") === 0) {
       const saiu = ROLETA.find(r => r.chave === motivo.slice(7));
       if (saiu) {
@@ -4170,8 +4211,8 @@
 
     // Rede — só no campo clássico: um fio fino e discreto, na estética nova
     if (!S.arena) {
-      g.globalAlpha = 0.6;
-      for (let b = WALL + 6; b < SPAN - WALL - 6; b += 30) fill(COL.net, LEN / 2 - 1.5, b, 3, 18);
+      g.globalAlpha = 0.34;
+      for (let b = WALL + 6; b < SPAN - WALL - 8; b += 34) fill(COL.net, LEN / 2 - 2.5, b, 5, 22);
       g.globalAlpha = 1;
     }
 
@@ -4440,6 +4481,21 @@
     ball.a -= corrBola.a; ball.b -= corrBola.b;
 
     g.restore();
+    if (estouroRosa > 0) {
+      /* Laterais em rosa, na gramática do chiclete mas bem mais intensas:
+         quatro camadas somando luz, pulsando enquanto o eco dura. */
+      const kE = estouroRosa;
+      const pulso = reduceMotion ? 1 : 0.75 + 0.25 * Math.sin(S.blink * 26);
+      g.save();
+      if (theme.glow) g.globalCompositeOperation = "lighter";
+      for (const [gross, alfa] of [[WALL + 2, 0.85], [WALL + 10, 0.4], [WALL + 22, 0.2], [WALL + 40, 0.09]]) {
+        g.globalAlpha = kE * pulso * alfa;
+        fill(COL.gum, 0, 0, LEN, gross);
+        fill(COL.gum, 0, SPAN - gross, LEN, gross);
+      }
+      g.restore();
+      g.globalAlpha = 1;
+    }
     drawSideFlash();
 
     // Aviso curto na metade de quem acabou de mexer com o item
@@ -5419,6 +5475,7 @@
         if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
       if (scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
       if (gumPop > 0) gumPop = Math.max(0, gumPop - dt);
+    if (estouroRosa > 0) estouroRosa = Math.max(0, estouroRosa - dt / 1.6);
 
     const mpDe = quemNoMatchPoint();
     if (mpDe >= 0 && S.phase === "play" && !reduceMotion) {
