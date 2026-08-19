@@ -4331,6 +4331,12 @@
         // Smear: sai da raquete esticada no eixo em que viaja, e volta ao quadrado
         const k = ball.hit / BHIT_TIME;
         const sa = BOLA * (1 + 0.65 * k), sb = BOLA * (1 - 0.3 * k);
+        // glow mínimo do impacto: dois anéis que apagam junto com o smear
+        g.globalAlpha = 0.10 * k;
+        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 5, ball.b - (sb - BOLA) / 2 - 5, sa + 10, sb + 10);
+        g.globalAlpha = 0.22 * k;
+        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 2, ball.b - (sb - BOLA) / 2 - 2, sa + 4, sb + 4);
+        g.globalAlpha = 1;
         glowFill(COL.ball, ball.a - (sa - BOLA) / 2, ball.b - (sb - BOLA) / 2, sa, sb);
       } else if (roleta.on) {
         // Borrão de movimento: cada amostra na cor que a roleta tinha ali
@@ -4462,7 +4468,10 @@
         const s8 = fitScale(txt, maxTextW, 8);
         const cx2 = cw / 2 - textWidth(txt, s8) / 2, cy2 = ch / 2 - 28;
         const resp = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
-        g.globalAlpha = 0.16 + 0.18 * resp;
+        g.globalAlpha = 0.10 + 0.12 * resp;                       // auréola larga
+        for (const [ox, oy] of [[4, 0], [-4, 0], [0, 4], [0, -4], [3, 3], [-3, 3], [3, -3], [-3, -3]])
+          drawText(g, txt, cx2 + ox, cy2 + oy, s8, COL.ball);
+        g.globalAlpha = 0.30 + 0.32 * resp;                       // núcleo do halo
         for (const [ox, oy] of [[2, 0], [-2, 0], [0, 2], [0, -2]])
           drawText(g, txt, cx2 + ox, cy2 + oy, s8, COL.ball);
         g.globalAlpha = 1;
