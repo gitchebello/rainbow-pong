@@ -332,6 +332,7 @@ function fantasma(n){const f=function(){return fantasma(n+"()")};return new Prox
  set(){return true},has(){return true},
  apply(){return fantasma(n+"()")},construct(){return fantasma(n+"{}")}});}
 var document=fantasma("document"); var window=globalThis;
+globalThis.innerWidth=900; globalThis.innerHeight=600;
 var location={protocol:"http:",host:"x",pathname:"/pong/",href:"http://x/pong/"};
 var localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
 var matchMedia=()=>({matches:false,addEventListener:()=>{}});

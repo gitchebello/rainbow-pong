@@ -1462,20 +1462,24 @@
      lado esquerdo, a direita idem pelo direito. */
   const REGUA_K = 0.65;  // a régua ocupa 65% do diâmetro, centrada
   function arcoDaRegua(lado, tb) {
-    const R = ARENA_R() * REGUA_K;
-    const t = clamp((tb - (ARENA_CB() - R)) / (2 * R), 0, 1);
+    /* A BANDA da régua é encolhida (REGUA_K), mas o comprimento de arco se
+       mede no raio REAL do aro — convertê-lo no raio encolhido comprimia
+       todas as posições em 65% e a raquete nunca ia onde o dedo pedia. */
+    const Rb = ARENA_R() * REGUA_K;
+    const t = clamp((tb - (ARENA_CB() - Rb)) / (2 * Rb), 0, 1);
     const th = lado === 0 ? Math.PI * 1.5 - t * Math.PI : Math.PI * 1.5 + t * Math.PI;
-    return mArco(th * R);
+    return mArco(th * ARENA_R());
   }
 
   function arcoDoToque(i, ta, tb) {
-    /* Nas calhas vazias ao lado do disco, o toque vale pela régua — controle
-       fino da metade próxima. Dentro do disco, vale o ângulo direto. */
+    /* Nas calhas vazias ao lado do disco, o toque vale pela régua — e é
+       controle ABSOLUTO: a raquete gruda no cursor, sem perseguição. Dentro
+       do disco, vale o ângulo direto, com a perseguição de sempre. */
     const borda = ARENA_CA() - ARENA_R();
-    if (ta < borda + 4) return arcoDaRegua(0, tb);
-    if (ta > LEN - borda - 4) return arcoDaRegua(1, tb);
+    if (ta < borda + 4) return { s: arcoDaRegua(0, tb), regua: true };
+    if (ta > LEN - borda - 4) return { s: arcoDaRegua(1, tb), regua: true };
     const th = Math.atan2(tb - ARENA_CB(), ta - ARENA_CA());
-    return mArco(th * ARENA_R());
+    return { s: mArco(th * ARENA_R()), regua: false };
   }
   /** A raquete `i` cobre o ângulo `th` do aro? (com meia bola de tolerância) */
   function cobreAngulo(i, th) {
@@ -2524,7 +2528,8 @@
       else {
         if (p.touch !== null) {
           const want = p.touch - padLen(i) / 2;
-          p.b += clamp(S.arena ? dArco(want, p.b) : want - p.b, -dragSpeed, dragSpeed);
+          if (S.arena && p.reguaSegue) p.b = mArco(want);   // régua: segue o cursor 1:1
+          else p.b += clamp(S.arena ? dArco(want, p.b) : want - p.b, -dragSpeed, dragSpeed);
         }
         if (p.up) p.b -= keySpeed;
         if (p.down) p.b += keySpeed;
@@ -5426,8 +5431,9 @@
           meu.prevB = meu.b;
           if (meu.touch !== null) {
             const alvo = meu.touch - padLen(meuPadSlot()) / 2;
-            meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b,
-                           -(S.arena ? 2600 : 1200) * DT, (S.arena ? 2600 : 1200) * DT);
+            if (S.arena && meu.reguaSegue) meu.b = mArco(alvo);   // régua: 1:1
+            else meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b,
+                                -(S.arena ? 2600 : 1200) * DT, (S.arena ? 2600 : 1200) * DT);
           }
           if (meu.up) meu.b -= (S.arena ? 820 : 430) * DT;
           if (meu.down) meu.b += (S.arena ? 820 : 430) * DT;
@@ -5562,6 +5568,7 @@
      ══════════════════════════════════════════════════════════ */
   /** Muda a largura da quadra sem deslocar quem já está em jogo. */
   function setSpan(v) {
+    if (!isFinite(v)) return;          // medida inválida não derruba a quadra
     const nv = Math.round(clamp(v, 216, 460));
     if (nv === SPAN) return;
     SPAN = nv;
@@ -5981,8 +5988,11 @@
     const court = toCourt(e.clientX, e.clientY);
     const i = padFor(court);
     owners.set(e.pointerId, i);
-    pads[i].touch = S.arena ? arcoDoToque(i, court.a, court.b)
-                            : clamp(court.b, WALL, SPAN - WALL);
+    if (S.arena) {
+      const t = arcoDoToque(i, court.a, court.b);
+      pads[i].touch = t.s;
+      pads[i].reguaSegue = t.regua;
+    } else pads[i].touch = clamp(court.b, WALL, SPAN - WALL);
     try { screenEl.setPointerCapture(e.pointerId); } catch (_) {}
 
     // Dois toques seguidos na própria metade soltam a bola de fogo
@@ -6005,8 +6015,11 @@
       i = naSala() ? (sala.papel === "anfitriao" ? 0 : 1) : 0;
     }
     const court = toCourt(e.clientX, e.clientY);
-    pads[i].touch = S.arena ? arcoDoToque(i, court.a, court.b)
-                            : clamp(court.b, WALL, SPAN - WALL);
+    if (S.arena) {
+      const t = arcoDoToque(i, court.a, court.b);
+      pads[i].touch = t.s;
+      pads[i].reguaSegue = t.regua;
+    } else pads[i].touch = clamp(court.b, WALL, SPAN - WALL);
   });
 
   function release(e) {
