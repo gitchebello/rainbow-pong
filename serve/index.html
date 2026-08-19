@@ -4047,6 +4047,54 @@
        fica livre para o placar voltar. */
     if (venomVis > 0.01 && !heart.on) drawVenomTimer(cw, ch);
 
+    /* Placar: PRIMEIRO de tudo — é pano de fundo. Item, bola e raquete
+       passam por cima dele; a transparência de repouso (SCORE_A) faz o resto,
+       e nos momentos de brilho ele fica sólido como sempre. Fora da câmera,
+       para não sair de quadro nem borrar no tremor. */
+    const dim = S.phase === "attract";
+    if (S.arena && jogadoresAtivos() > 2) {
+      /* Placar de N: uma fileira de dígitos, cada um na cor do seu dono. */
+      const ativos = jogadoresAtivos();
+      const passoX = 26;
+      const x0 = cw / 2 - (ativos - 1) * passoX / 2;
+      for (let j = 0; j < ativos; j++) {
+        const pop = scorePop[j];
+        g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * (pop > 0.45 ? 1 : pop / 0.45));
+        const txt = String(S.score[j]);
+        drawText(g, txt, x0 + j * passoX - textWidth(txt, 3) / 2, 20, 3,
+                 dim ? COL.dim : (pop > 0.72 ? COL.core : corDoJogador(j)));
+      }
+      g.globalAlpha = 1;
+    } else
+    for (let i = 0; i < 2; i++) {
+      /* O dígito vive discreto ao fundo. Ao pontuar ele fica sólido, pula uma
+         escala e volta em dois degraus — estouro que respeita a malha de pixels
+         em vez de escalar por transformação — e então desbota de novo. */
+      const pop = scorePop[i];
+      const ss = SCORE_S + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
+      const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : (i === 0 ? COL.p1 : COL.p2));
+      const forca = pop > 0.45 ? 1 : pop / 0.45;
+      g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
+      const txt = String(S.score[i]);
+      const w = textWidth(txt, ss);
+      /* A roda girou: os dígitos acendem na cor nova, com um halo curto —
+         senão a troca de esquema passa despercebida justamente no placar. */
+      const gl = dim ? 0 : scoreGlow;
+      if (gl > 0) g.globalAlpha = Math.max(g.globalAlpha, gl);
+      const dx = vertical ? cw / 2 - w / 2 : (i === 0 ? cw / 2 - 38 - w : cw / 2 + 38);
+      const dy = vertical ? (i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss) : 24;
+      if (gl > 0) {
+        const salvo = g.globalAlpha;
+        g.globalAlpha = gl * 0.3;
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+          drawText(g, txt, dx + ox, dy + oy, ss, cor);
+        g.globalAlpha = salvo;
+      }
+      drawText(g, txt, dx, dy, ss, cor);
+    }
+    g.globalAlpha = 1;
+
+
     /* Câmera: fecha na bola durante a lentidão e treme no impacto. Só o mundo
        entra na transformação — placar e avisos ficam onde estão. */
     g.save();
@@ -4393,51 +4441,6 @@
 
     g.restore();
     drawSideFlash();
-
-    // Placar: fora da câmera, para não sair de quadro nem borrar no tremor.
-    // Durante o veneno ele sai de cena e o contador toma o meio da tela.
-    const dim = S.phase === "attract";
-    if (S.arena && jogadoresAtivos() > 2) {
-      /* Placar de N: uma fileira de dígitos, cada um na cor do seu dono. */
-      const ativos = jogadoresAtivos();
-      const passoX = 26;
-      const x0 = cw / 2 - (ativos - 1) * passoX / 2;
-      for (let j = 0; j < ativos; j++) {
-        const pop = scorePop[j];
-        g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * (pop > 0.45 ? 1 : pop / 0.45));
-        const txt = String(S.score[j]);
-        drawText(g, txt, x0 + j * passoX - textWidth(txt, 3) / 2, 20, 3,
-                 dim ? COL.dim : (pop > 0.72 ? COL.core : corDoJogador(j)));
-      }
-      g.globalAlpha = 1;
-    } else
-    for (let i = 0; i < 2; i++) {
-      /* O dígito vive discreto ao fundo. Ao pontuar ele fica sólido, pula uma
-         escala e volta em dois degraus — estouro que respeita a malha de pixels
-         em vez de escalar por transformação — e então desbota de novo. */
-      const pop = scorePop[i];
-      const ss = SCORE_S + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
-      const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : (i === 0 ? COL.p1 : COL.p2));
-      const forca = pop > 0.45 ? 1 : pop / 0.45;
-      g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
-      const txt = String(S.score[i]);
-      const w = textWidth(txt, ss);
-      /* A roda girou: os dígitos acendem na cor nova, com um halo curto —
-         senão a troca de esquema passa despercebida justamente no placar. */
-      const gl = dim ? 0 : scoreGlow;
-      if (gl > 0) g.globalAlpha = Math.max(g.globalAlpha, gl);
-      const dx = vertical ? cw / 2 - w / 2 : (i === 0 ? cw / 2 - 38 - w : cw / 2 + 38);
-      const dy = vertical ? (i === 0 ? ch / 2 + 22 : ch / 2 - 22 - CH * ss) : 24;
-      if (gl > 0) {
-        const salvo = g.globalAlpha;
-        g.globalAlpha = gl * 0.3;
-        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-          drawText(g, txt, dx + ox, dy + oy, ss, cor);
-        g.globalAlpha = salvo;
-      }
-      drawText(g, txt, dx, dy, ss, cor);
-    }
-    g.globalAlpha = 1;
 
     // Aviso curto na metade de quem acabou de mexer com o item
     if (hint.t > 0 && (S.phase === "play" || naSala())) {
