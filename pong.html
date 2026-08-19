@@ -4654,8 +4654,8 @@
         y2 += centered(g, linha, cw / 2, y2, 2, corDoJogador(j), maxTextW) + 8;
       }
       if (S.blink % 1.2 < 0.75) {
-        centered(g, coarse ? "TOQUE PARA JOGAR DE NOVO" : "ESPACO PARA JOGAR DE NOVO",
-                 cw / 2, ch - 24, 2, COL.net, maxTextW);
+        centered(g, coarse ? "TOQUE PARA JOGAR" : "ESPACO PARA JOGAR",
+                 cw / 2, ch - 20, 1, COL.net, maxTextW);
       }
       return;
     }
@@ -4757,8 +4757,8 @@
     }
 
     if (S.blink % 1.2 < 0.75) {
-      centered(g, coarse ? "TOQUE PARA JOGAR DE NOVO" : "ESPACO PARA JOGAR DE NOVO",
-               cw / 2, ch - 24, 2, COL.net, maxTextW);
+      centered(g, coarse ? "TOQUE PARA JOGAR" : "ESPACO PARA JOGAR",
+               cw / 2, ch - 20, 1, COL.net, maxTextW);
     }
   }
 
