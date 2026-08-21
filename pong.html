@@ -6220,15 +6220,25 @@
   const telaCheiaAtiva = () =>
     document.fullscreenElement || document.webkitFullscreenElement || null;
 
+  /* Um `Permissions-Policy: fullscreen=()` no servidor derruba a API inteira,
+     e a recusa é silenciosa: o botão parecia quebrado sem nenhum sinal. Agora
+     o modo imersivo assume e o jogador fica sabendo por que a barra ficou. */
+  let avisouBloqueio = false;
+  function fullscreenNegada() {
+    if (avisouBloqueio) return;
+    avisouBloqueio = true;
+    announce("Este endereço não libera a tela cheia do navegador. O jogo ocupou a página inteira mesmo assim.");
+  }
+
   function pedirTelaCheia() {
     const alvo = document.documentElement;
     const pedir = alvo.requestFullscreen || alvo.webkitRequestFullscreen;
     if (!pedir) return;                       // iPhone: fica só o modo imersivo
     try {
       const r = pedir.call(alvo);
-      if (r && r.then) r.then(() => setTimeout(layout, 60), () => {});
+      if (r && r.then) r.then(() => setTimeout(layout, 60), fullscreenNegada);
       else setTimeout(layout, 60);
-    } catch (_) {}
+    } catch (_) { fullscreenNegada(); }
   }
 
   function largarTelaCheia() {
