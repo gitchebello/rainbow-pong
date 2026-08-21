@@ -1063,6 +1063,7 @@
        família (pegou, armou, acendeu), para lerem como um bloco só. */
     fireText: "#ff4a2f",
     fireEmber:"#ff8a3d",
+    fireGold: "#ffd24a",
     soot:     "#b9b4ab",
     ember:    "#d8c48d",   // o âmbar interno da chama
     core:     "#f4ead2",
@@ -2372,15 +2373,21 @@
   });
 
   /* Brasas: mais numerosas, mais rápidas e mais curtas que os corações, com uma
-     fração virando fuligem — o cinza claro que sobe atrás do vermelho. */
-  const cuspirFogo = () => cuspirDasLaterais(brasas, 26, {
-    margem: 6, jorro: [46, 104], deriva: 22, vida: [0.35, 0.8], amp: [1, 3],
-    esc: () => (Math.random() < 0.3 ? 2 : 1), teto: 70,
+     parte virando fuligem — o cinza claro que sobe atrás do vermelho. A chama
+     usa três cores em proporção de fogo de verdade: a maior parte do corpo é
+     vermelha, o laranja é o miolo quente e o amarelo é só a fagulha rara. */
+  const corDaBrasa = () => {
+    const t = Math.random();
+    return t < 0.6 ? COL.fireText : t < 0.9 ? COL.fireEmber : COL.fireGold;
+  };
+
+  const cuspirFogo = () => cuspirDasLaterais(brasas, 46, {
+    margem: 6, jorro: [46, 112], deriva: 24, vida: [0.5, 1.1], amp: [1, 3],
+    esc: () => (Math.random() < 0.5 ? 2 : 1), teto: 120,
     extra: (p, n) => {
-      p.fuligem = n % 4 === 3;                 // uma em cada quatro é fumaça
-      p.cor = p.fuligem ? COL.soot
-            : (Math.random() < 0.45 ? COL.fireEmber : COL.fireText);
-      if (p.fuligem) { p.va *= 0.55; p.vb *= 0.55; p.vida *= 1.5; p.max = p.vida; }
+      p.fuligem = n % 3 === 2;                 // uma em cada três é fumaça
+      p.cor = p.fuligem ? COL.soot : corDaBrasa();
+      if (p.fuligem) { p.va *= 0.5; p.vb *= 0.5; p.vida *= 1.7; p.max = p.vida; }
     }
   });
 
@@ -4472,9 +4479,9 @@
        fina camada de fuligem cinza por baixo. Mesmo movimento dos corações. */
     for (const o of brasas) {
       const k = o.vida / o.max;
-      const cintila = o.fuligem ? 1 : 0.7 + 0.3 * Math.sin(S.blink * 22 + o.fase);
-      g.globalAlpha = Math.min(1, k * 1.7) * (o.fuligem ? 0.22 : 0.8) * cintila;
-      const lado = o.fuligem ? o.esc + 1 : o.esc;
+      const cintila = o.fuligem ? 1 : 0.72 + 0.28 * Math.sin(S.blink * 22 + o.fase);
+      g.globalAlpha = Math.min(1, k * 1.7) * (o.fuligem ? 0.42 : 0.95) * cintila;
+      const lado = o.fuligem ? o.esc + 2 : o.esc;
       fill(o.cor, o.a + Math.sin(S.blink * 1.5 + o.fase) * o.amp, o.b, lado, lado);
     }
     g.globalAlpha = 1;
