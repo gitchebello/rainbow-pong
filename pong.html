@@ -2645,6 +2645,11 @@
     const lv = LEVELS[cpuNaArena() ? "dificil" : level];
     const p = pads[i];
     if (S.arena) {
+      /* Ela só corre atrás da bola do OUTRO. Depois de rebater, larga o alvo e
+         espera o jogador devolver para recalcular — senão ela cobre os dois
+         lados da troca e a partida rola sem o jogador precisar jogar. A bola
+         virgem (dono -1) vale para todo mundo. */
+      if (ball.dono === i) { p.pensa = 0; p.alvo = undefined; return; }
       const alvo = alvoDaArena(i, p, dt) - padLen(i) / 2;
       /* A pista do aro é ~3x o corredor clássico. Sem escalar a velocidade a
          raquete nunca chega ao ponto de encontro, e a IA parece perdida mesmo
