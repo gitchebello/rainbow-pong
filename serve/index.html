@@ -2032,13 +2032,17 @@
   const slow = { t: 0 };
 
   /* Impacto de câmera, compartilhado pelo cristal e pela bola de fogo. */
-  const fx = { shake: 0, shakeDur: 1, sides: 0, sidesDur: 1, col: "", force: 1 };
+  const fx = { shake: 0, shakeDur: 1, sides: 0, sidesDur: 1, col: "", col2: null, force: 1 };
 
-  function kick(shakeDur, sidesDur, color, force) {
+  /* `cor2` é opcional: quando vem, ela é somada por cima da primeira num filete
+     mais estreito, colado na parede. É assim que o fogo ganha miolo laranja
+     dentro do corpo vermelho, em vez de uma chapa de cor só. */
+  function kick(shakeDur, sidesDur, color, force, cor2) {
     if (reduceMotion) return;
     fx.shake = fx.shakeDur = shakeDur;
     fx.sides = fx.sidesDur = sidesDur;
     fx.col = color;
+    fx.col2 = cor2 || null;
     fx.force = force;
   }
 
@@ -2435,7 +2439,7 @@
     Snd.fire();
     /* A batida: laterais no vermelho vivo e um tranco de câmera. O flash
        usava o fósforo desbotado do corpo da chama e mal se via. */
-    kick(0.46, 0.6, COL.fireText, 1.05);
+    kick(0.46, 0.6, COL.fireText, 1.05, COL.fireEmber);
     cuspirFogo();
 
     // O disparo vira a mesa: todo o esquema anda uma casa no arco-íris
@@ -4015,7 +4019,7 @@
     if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
-    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.46, 0.6, COL.fireText, 1.05); cuspirFogo(); }
+    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.46, 0.6, COL.fireText, 1.05, COL.fireEmber); cuspirFogo(); }
     if (!star.on && m.fogo[1]) Snd.star();
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
@@ -4721,7 +4725,7 @@
       g.restore();
       g.globalAlpha = 1;
     }
-    drawSideFlash();
+    drawSideFlash(cw, ch);
 
     /* Alarde de chegada: nome e "ENTROU!" no meio da tela, entrando e saindo
        com escala — é o momento mais social do jogo. */
@@ -5702,47 +5706,64 @@
   }
 
   /** Luz varrendo as duas laterais. Azul no cristal, vermelha no disparo. */
-  function drawSideFlash() {
+  function drawSideFlash(cw, ch) {
     if (fx.sides <= 0) return;
+    // a rainbow ball manda as sete cores: vira um burst que varre a tela
+    if (Array.isArray(fx.col)) { drawRainbowBurst(cw, ch); return; }
+
     const k = (fx.sides / fx.sidesDur) * fx.force;
     const bands = [[WALL, 0.9], [6, 0.4], [10, 0.16]];
-    const arco = Array.isArray(fx.col);          // a rainbow ball manda as seis
-    const n = arco ? fx.col.length : 1;
-    const seg = LEN / n;
-
-    /* No arco-íris a lateral de CIMA puxa e a de baixo segue: acende um
-       instante depois e mostra as cores atrasadas do mesmo tanto. Em fase as
-       duas liam como um piscar só, sem direção; em cascata o efeito desce. */
-    const ATRASO = 0.085;
-    const ciclo = seg * n;
-    const naVolta = v => ((v % ciclo) + ciclo) % ciclo;
-    const desl = arco ? naVolta(S.blink * 260) : 0;
-    const deslBase = arco ? naVolta((S.blink - ATRASO) * 260) : 0;
-    // enquanto o atraso não venceu, a lateral de baixo ainda está apagada
-    const jaVeio = 1 - fx.sides / fx.sidesDur >= ATRASO / fx.sidesDur;
-    const kBase = arco && !jaVeio ? 0 : k;
 
     let edge = 0;
     for (const [thick, alpha] of bands) {
-      if (arco) {
-        // faixas correndo pelas duas laterais, uma cor por trecho
-        for (let s = -1; s <= n; s++) {
-          const cor = fx.col[((s % n) + n) % n];
-          g.globalAlpha = k * alpha;
-          fill(cor, s * seg - desl, edge, seg + 1, thick);
-          g.globalAlpha = kBase * alpha;
-          fill(cor, s * seg - deslBase, SPAN - edge - thick, seg + 1, thick);
-        }
-      } else {
-        g.globalAlpha = k * alpha;
-        fill(fx.col, 0, edge, LEN, thick);
-        fill(fx.col, 0, SPAN - edge - thick, LEN, thick);
+      g.globalAlpha = k * alpha;
+      fill(fx.col, 0, edge, LEN, thick);
+      fill(fx.col, 0, SPAN - edge - thick, LEN, thick);
+      if (fx.col2) {
+        /* Segunda cor somada num filete colado na parede: o vermelho fica
+           sendo o corpo do flash e o laranja o miolo quente. */
+        g.save();
+        g.globalCompositeOperation = "lighter";
+        g.globalAlpha = k * alpha * 0.6;
+        const fino = Math.max(2, thick * 0.55);
+        fill(fx.col2, 0, edge, LEN, fino);
+        fill(fx.col2, 0, SPAN - edge - fino, LEN, fino);
+        g.restore();
       }
       edge += thick;
     }
 
     g.globalAlpha = k * 0.10;
-    fill(arco ? fx.col[(S.blink * 12 | 0) % n] : fx.col, 0, 0, LEN, SPAN);
+    fill(fx.col, 0, 0, LEN, SPAN);
+    g.globalAlpha = 1;
+  }
+
+  /* Arco-íris: um burst de luz que atravessa a TELA inteira, de cima a baixo,
+     no tempo do flash. As sete cores viajam empilhadas, as pontas do maço mais
+     fracas que o miolo, e o conjunto acende e apaga sozinho no percurso.
+     Preso às paredes, o efeito não tinha para onde ir; agora ele passa. */
+  function drawRainbowBurst(cw, ch) {
+    const cores = fx.col;
+    const prog = Math.min(1, 1 - fx.sides / fx.sidesDur);   // 0 no disparo, 1 no fim
+    const faixa = Math.max(5, ch * 0.07);   // maço enxuto: passa, não tapa
+    const maco = faixa * cores.length;
+    const y0 = -maco + prog * (ch + maco);
+    const vida = Math.sin(prog * Math.PI);
+
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < cores.length; i++) {
+      const perfil = Math.sin(((i + 0.5) / cores.length) * Math.PI);
+      g.globalAlpha = 0.45 * fx.force * vida * perfil;
+      g.fillStyle = cores[i];
+      g.fillRect(0, Math.round(y0 + i * faixa), cw, Math.ceil(faixa) + 1);
+    }
+    g.restore();
+
+    // e um véu na cor do instante, para a tela inteira sentir a passagem
+    g.globalAlpha = 0.09 * fx.force * vida;
+    g.fillStyle = cores[(prog * cores.length | 0) % cores.length];
+    g.fillRect(0, 0, cw, ch);
     g.globalAlpha = 1;
   }
 
