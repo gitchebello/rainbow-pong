@@ -1058,6 +1058,12 @@
     net:      "#d5d0c2",   // a rede: mesmo branco, um tom abaixo da bola
     fire:     "#c86f63",
     fireDark: "#a85a4f",
+    /* O corpo da chama é fósforo desbotado, de propósito. Já os AVISOS do fogo
+       pedem um vermelho que grite — e a mesma cor vale para os três textos da
+       família (pegou, armou, acendeu), para lerem como um bloco só. */
+    fireText: "#ff4a2f",
+    fireEmber:"#ff8a3d",
+    soot:     "#b9b4ab",
     ember:    "#d8c48d",   // o âmbar interno da chama
     core:     "#f4ead2",
     time:     "#8fd2e8",   // o corpo do cristal
@@ -1980,6 +1986,7 @@
      boiando, com um balanço senoidal. Vive enquanto ele estiver em campo e
      esvanece sozinha quando ele vai embora. */
   const coracoes = [];
+  const brasas = [];     // cusparada de fogo: brasas vermelhas e um fio de fuligem
   const MINI_CORACAO = [".x.x.", "xxxxx", "xxxxx", ".xxx.", "..x.."];
   let smokeTimer = 0;
 
@@ -2143,6 +2150,7 @@
     iris.on = false;     irisTimer = rand(22, 35);
     gumFesta = 0;        gumPop = 0;   estouroRosa = 0;
     coracoes.length = 0;
+    brasas.length = 0;
     bolhas.length = 0;
     kick(0.7, 0.7, "#ffffff", 1.5);
     Snd.storm();
@@ -2316,32 +2324,62 @@
     itemTimer = 3;      // campo cheio; tenta de novo daqui a pouco
   }
 
-  /* Cusparada de coraçõezinhos: as duas laterais atiram PARA DENTRO do campo
-     no instante do acerto. Antes eles boiavam o efeito inteiro, o que diluía o
-     momento; concentrados no impacto, acompanham o flash verde e somem. */
-  function cuspirCoracoes() {
+  /* Cusparada lateral: as duas bordas atiram PARA DENTRO do campo no instante
+     de um acerto. Nasceu para os coraçõezinhos — concentrar tudo no impacto em
+     vez de boiar o efeito inteiro — e o fogo herdou o mesmo movimento. */
+  function cuspirDasLaterais(lista, quantos, molde) {
     if (reduceMotion) return;
-    for (let n = 0; n < 16; n++) {
+    for (let n = 0; n < quantos; n++) {
       const perto = n % 2 === 0;
       const dentro = perto ? 1 : -1;
-      const jorro = rand(30, 66);
-      const deriva = rand(-16, 16);
-      coracoes.push({
-        ...bercoDeBorda(perto, 8),
+      const jorro = rand(molde.jorro[0], molde.jorro[1]);
+      const deriva = rand(-molde.deriva, molde.deriva);
+      const vida = rand(molde.vida[0], molde.vida[1]);
+      const p = {
+        ...bercoDeBorda(perto, molde.margem),
         // no clássico a lateral é a parede (eixo b); na arena, a calha (eixo a)
         va: S.arena ? dentro * jorro : deriva,
         vb: S.arena ? deriva : dentro * jorro,
         fase: rand(0, 6.28),
-        amp: rand(1.5, 4),
-        esc: Math.random() < 0.35 ? 2 : 1,
-        vida: rand(0.55, 1.05),
-        max: 1
-      });
-      const c2 = coracoes[coracoes.length - 1];
-      c2.max = c2.vida;
+        amp: rand(molde.amp[0], molde.amp[1]),
+        esc: molde.esc(),
+        vida, max: vida
+      };
+      if (molde.extra) molde.extra(p, n);
+      lista.push(p);
     }
-    if (coracoes.length > 48) coracoes.splice(0, coracoes.length - 48);
+    if (lista.length > molde.teto) lista.splice(0, lista.length - molde.teto);
   }
+
+  /** Envelhece uma cusparada: anda, perde impulso, morre. */
+  function envelhecerCusparada(lista, dt, freio) {
+    for (let i = lista.length - 1; i >= 0; i--) {
+      const o = lista[i];
+      o.vida -= dt;
+      o.a += o.va * dt;
+      o.b += o.vb * dt;
+      o.va *= freio; o.vb *= freio;
+      if (o.vida <= 0) lista.splice(i, 1);
+    }
+  }
+
+  const cuspirCoracoes = () => cuspirDasLaterais(coracoes, 16, {
+    margem: 8, jorro: [30, 66], deriva: 16, vida: [0.55, 1.05], amp: [1.5, 4],
+    esc: () => (Math.random() < 0.35 ? 2 : 1), teto: 48
+  });
+
+  /* Brasas: mais numerosas, mais rápidas e mais curtas que os corações, com uma
+     fração virando fuligem — o cinza claro que sobe atrás do vermelho. */
+  const cuspirFogo = () => cuspirDasLaterais(brasas, 26, {
+    margem: 6, jorro: [46, 104], deriva: 22, vida: [0.35, 0.8], amp: [1, 3],
+    esc: () => (Math.random() < 0.3 ? 2 : 1), teto: 70,
+    extra: (p, n) => {
+      p.fuligem = n % 4 === 3;                 // uma em cada quatro é fumaça
+      p.cor = p.fuligem ? COL.soot
+            : (Math.random() < 0.45 ? COL.fireEmber : COL.fireText);
+      if (p.fuligem) { p.va *= 0.55; p.vb *= 0.55; p.vida *= 1.5; p.max = p.vida; }
+    }
+  });
 
   function showHint(who, txt, col, arco, esc) {
     hint.who = who; hint.txt = txt; hint.col = col || null; hint.arco = !!arco; hint.esc = esc || 0; hint.t = 2.4;
@@ -2359,12 +2397,13 @@
     ball.vb = ball.vb / m * ball.speed;
     Snd.fire();
     kick(0.3, 0.45, COL.fire, 0.65);   // mais curto e mais leve que o do cristal
+    cuspirFogo();
 
     // O disparo vira a mesa: todo o esquema anda uma casa no arco-íris
     turnWheel(1);
     flashCol = COL.fire;
     flash = reduceMotion ? 0 : 0.4;
-    showHint(i, "BOLA DE FOGO", COL.fire);
+    showHint(i, "BOLA DE FOGO", COL.fireText);
     sincronizar("fogo");
   }
 
@@ -2417,7 +2456,7 @@
       if (i !== meuPadSlot()) return;
       enviar({ t: "usar" });
       Snd.arm();
-      showHint(i, "ARMADA", held[i] === "star" ? COL.star : COL.fire);
+      showHint(i, "ARMADA", held[i] === "star" ? COL.star : COL.fireText);
       return;
     }
     armed.kind = held[i];
@@ -2427,7 +2466,7 @@
     Snd.arm();
 
     const estrela = armed.kind === "star";
-    showHint(i, "ARMADA", estrela ? COL.star : COL.fire);
+    showHint(i, "ARMADA", estrela ? COL.star : COL.fireText);
     announce(i === 0
       ? (estrela ? "Estrela armada. Ela acende na sua próxima rebatida."
                  : "Bola de fogo armada. Ela acende na sua próxima rebatida.")
@@ -2738,14 +2777,8 @@
        laterais no instante do acerto (ver `cuspirCoracoes`) e vai perdendo
        impulso conforme entra em campo. */
     const freio = Math.exp(-2.4 * dt);
-    for (let i = coracoes.length - 1; i >= 0; i--) {
-      const c2 = coracoes[i];
-      c2.vida -= dt;
-      c2.a += c2.va * dt;
-      c2.b += c2.vb * dt;
-      c2.va *= freio; c2.vb *= freio;
-      if (c2.vida <= 0) coracoes.splice(i, 1);
-    }
+    envelhecerCusparada(coracoes, dt, freio);
+    envelhecerCusparada(brasas, dt, Math.exp(-3.1 * dt));   // a brasa perde fôlego antes
 
     if (hint.t > 0) hint.t -= dt;
     if (alarde.t > 0) alarde.t -= dt;
@@ -2755,7 +2788,7 @@
       gumFesta -= dt;
       bolhaTimer -= dt;
       while (bolhaTimer <= 0) {
-        bolhaTimer += 0.275;      // um quinto das bolhas de antes
+        bolhaTimer += 0.13;
         const perto = Math.random() < 0.5;
         bolhas.push({
           a: rand(0, LEN),
@@ -2769,7 +2802,7 @@
           pop: 0,
           cor: BOLHAS[(Math.random() * BOLHAS.length) | 0]
         });
-        if (bolhas.length > 16) bolhas.shift();
+        if (bolhas.length > 34) bolhas.shift();
       }
     }
     if (popTimer > 0) popTimer -= dt;
@@ -2958,11 +2991,11 @@
       roleta.on = true;
       roleta.dono = quem;
       roleta.t = 0;
-      aberr = reduceMotion ? 0 : 0.85;
-      kick(0.32, 0.62, VIVAS, 1.15);
+      aberr = reduceMotion ? 0 : 1.05;
+      kick(0.36, 0.9, VIVAS, 1.5);
       spark(b.a + BOLA / 2, b.b + BOLA / 2, 20, 5, 140, null, { lifeMin: 0.2, lifeMax: 0.5, peak: 0.9 });
       Snd.rainbow();
-      showHint(-1, "ARCO-ÍRIS", COL.core);
+      showHint(-1, "ARCO-IRIS", COL.core);
       announce(quem === 0 ? "Você girou o arco-íris. O efeito sai na sua próxima rebatida."
                           : foeName() + " girou o arco-íris.");
     }
@@ -3029,7 +3062,10 @@
         item.on = false;
         itemTimer = rand(8, 14);
         Snd.pickup();
-        showHint(owner, coarse ? "2 TOQUES" : (owner === 0 ? "TECLA E" : "TECLA /"));
+        /* Na cor do item que acabou de entrar no bolso, não na do jogador:
+           o aviso e os textos seguintes (ARMADA, BOLA DE FOGO) viram um bloco. */
+        showHint(owner, coarse ? "2 TOQUES" : (owner === 0 ? "TECLA E" : "TECLA /"),
+                 item.kind === "star" ? COL.star : COL.fireText);
         const nome = item.kind === "star" ? "a estrela" : "a bola de fogo";
         announce(owner === 0 ? "Você pegou " + nome + "." : foeName() + " pegou " + nome + ".");
       }
@@ -3097,7 +3133,8 @@
       const grew = growPaddle(i, GROW, raqueteTeto());
       // Em campo só "DEFENDEU": o "+ DEFESA" é a marca do prêmio da rainbow
       // ball. O crescimento aqui já se vê na raquete, que anima ao aumentar.
-      showHint(i, "DEFENDEU", COL.fire);
+      showHint(i, "DEFENDEU", COL.fireText);
+      cuspirFogo();
       announce(grew
         ? (i === 0 ? "Defendeu. Sua raquete aumentou." : "O adversário defendeu e aumentou a raquete.")
         : "Defendeu.");
@@ -3937,7 +3974,7 @@
     if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
-    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.3, 0.45, COL.fire, 0.65); }
+    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.3, 0.45, COL.fire, 0.65); cuspirFogo(); }
     if (!star.on && m.fogo[1]) Snd.star();
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
@@ -3949,7 +3986,8 @@
         Snd.pickup();
         showHint(j, j === meuPadSlot()
           ? (coarse ? "2 TOQUES" : (j === 0 ? "TECLA E" : "TECLA /"))
-          : (novoItem === "star" ? "ESTRELA" : "BOLA DE FOGO"));
+          : (novoItem === "star" ? "ESTRELA" : "BOLA DE FOGO"),
+          novoItem === "star" ? COL.star : COL.fireText);
       }
       held[j] = novoItem;
     }
@@ -3996,9 +4034,9 @@
     if (m.rol) {
       if (!roleta.on) {
         Snd.rainbow();
-        kick(0.32, 0.62, VIVAS, 1.15);
-        aberr = reduceMotion ? 0 : 0.85;
-        showHint(-1, "ARCO-ÍRIS", COL.core);
+        kick(0.36, 0.9, VIVAS, 1.5);
+        aberr = reduceMotion ? 0 : 1.05;
+        showHint(-1, "ARCO-IRIS", COL.core);
       }
       roleta.on = true; roleta.dono = m.rol[0]; roleta.t = m.rol[1];
     }
@@ -4397,13 +4435,13 @@
       const k = estourando ? o.pop / 0.16 : 1;
       const s = Math.max(3, Math.round(estourando ? o.r * (1 + (1 - k) * 0.9) : o.r));
       const x = o.a - s / 2, y = o.b - s / 2;
-      g.globalAlpha = (estourando ? 0.55 * k : 0.4) * Math.min(1, o.life * 3 + 0.4);
+      g.globalAlpha = (estourando ? 0.85 * k : 0.68) * Math.min(1, o.life * 3 + 0.4);
       fill(o.cor, x, y, s, 1);
       fill(o.cor, x, y + s - 1, s, 1);
       fill(o.cor, x, y, 1, s);
       fill(o.cor, x + s - 1, y, 1, s);
       if (!estourando) {
-        g.globalAlpha *= 0.8;
+        g.globalAlpha = Math.min(1, g.globalAlpha * 1.15);
         const b2 = Math.max(1, s >> 2);
         fill("#ffffff", x + 1, y + 1, b2, b2);
       }
@@ -4423,6 +4461,17 @@
 
     // Fumaça roxa subindo das laterais enquanto o veneno dura
     /* A festa do coração: coraçõezinhos boiando pelas laterais. */
+
+    /* Brasas do fogo: quadradinhos vermelhos entrando pelas laterais, com uma
+       fina camada de fuligem cinza por baixo. Mesmo movimento dos corações. */
+    for (const o of brasas) {
+      const k = o.vida / o.max;
+      const cintila = o.fuligem ? 1 : 0.7 + 0.3 * Math.sin(S.blink * 22 + o.fase);
+      g.globalAlpha = Math.min(1, k * 1.7) * (o.fuligem ? 0.22 : 0.8) * cintila;
+      const lado = o.fuligem ? o.esc + 1 : o.esc;
+      fill(o.cor, o.a + Math.sin(S.blink * 1.5 + o.fase) * o.amp, o.b, lado, lado);
+    }
+    g.globalAlpha = 1;
 
     for (const c2 of coracoes) {
       const k = c2.vida / c2.max;
@@ -5577,8 +5626,11 @@
   function drawSideFlash() {
     if (fx.sides <= 0) return;
     const k = (fx.sides / fx.sidesDur) * fx.force;
-    const bands = [[WALL, 0.9], [6, 0.4], [10, 0.16]];
     const arco = Array.isArray(fx.col);          // a rainbow ball manda as seis
+    /* O arco-iris e o efeito predileto da casa: ganha uma faixa a mais e
+       alfas mais altos que os flashes de uma cor so. */
+    const bands = arco ? [[WALL, 1], [7, 0.62], [9, 0.34], [12, 0.14]]
+                       : [[WALL, 0.9], [6, 0.4], [10, 0.16]];
     const n = arco ? fx.col.length : 1;
     const seg = LEN / n;
     const desl = arco ? (S.blink * 260) % (seg * n) : 0;
@@ -5601,7 +5653,7 @@
       edge += thick;
     }
 
-    g.globalAlpha = k * 0.10;
+    g.globalAlpha = k * (arco ? 0.17 : 0.10);
     fill(arco ? fx.col[(S.blink * 12 | 0) % n] : fx.col, 0, 0, LEN, SPAN);
     g.globalAlpha = 1;
   }
@@ -5616,8 +5668,8 @@
     if (!abBuf) abBuf = document.createElement("canvas");
     if (abBuf.width !== cw || abBuf.height !== ch) { abBuf.width = cw; abBuf.height = ch; }
     const bx = abBuf.getContext("2d");
-    const largura = 7 * k;
-    const treme = Math.sin(S.blink * 70) * k * 2.5;
+    const largura = 9 * k;
+    const treme = Math.sin(S.blink * 70) * k * 3.2;
 
     g.save();
     g.globalCompositeOperation = "lighter";
@@ -5629,7 +5681,7 @@
       bx.globalCompositeOperation = "multiply";
       bx.fillStyle = cores[n];
       bx.fillRect(0, 0, cw, ch);
-      g.globalAlpha = 0.42 * k;
+      g.globalAlpha = 0.5 * k;
       g.drawImage(abBuf, Math.round(f * largura), Math.round(f * treme));
     }
     g.restore();
