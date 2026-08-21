@@ -286,6 +286,20 @@ def atender_websocket(sock, chave):
 
 # ───────────────────────── HTTP simples ─────────────────────────
 
+# O jogo declara a SUA propria politica de permissoes. Sem isto ele herda a de
+# quem estiver na frente, e um `fullscreen=()` de proxy mata o botao de tela
+# cheia sem deixar rastro: a API some, a recusa e silenciosa. `(self)` libera a
+# propria origem e mantem terceiros de fora; camera, microfone e localizacao
+# ficam fechados, que o jogo nao usa nenhum dos tres.
+POLITICA = "Permissions-Policy: fullscreen=(self), camera=(), microphone=(), geolocation=()"
+
+
+def cabecalhos_comuns(tipo, tamanho):
+    return (f"HTTP/1.1 200 OK\r\nContent-Type: {tipo}; charset=utf-8\r\n"
+            f"Content-Length: {tamanho}\r\nCache-Control: no-store\r\n"
+            f"{POLITICA}\r\nX-Content-Type-Options: nosniff\r\n\r\n").encode()
+
+
 def servir_arquivo(sock, caminho, so_cabecalho=False):
     if caminho in ("/", ""):
         caminho = "/index.html"
@@ -296,10 +310,7 @@ def servir_arquivo(sock, caminho, so_cabecalho=False):
     tipo = mimetypes.guess_type(alvo)[0] or "application/octet-stream"
     with open(alvo, "rb") as f:
         corpo = f.read()
-    cabecalho = (
-        f"HTTP/1.1 200 OK\r\nContent-Type: {tipo}; charset=utf-8\r\n"
-        f"Content-Length: {len(corpo)}\r\nCache-Control: no-store\r\n\r\n"
-    ).encode()
+    cabecalho = cabecalhos_comuns(tipo, len(corpo))
     sock.sendall(cabecalho if so_cabecalho else cabecalho + corpo)
 
 
@@ -341,8 +352,7 @@ def atender(sock, ip):
 
         if metodo in ("GET", "HEAD") and caminho.split("?")[0] == "/quem":
             corpo = quem_esta_na_viva().encode()
-            sock.sendall((f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-                          f"Content-Length: {len(corpo)}\r\nCache-Control: no-store\r\n\r\n").encode()
+            sock.sendall(cabecalhos_comuns("application/json", len(corpo))
                          + (b"" if metodo == "HEAD" else corpo))
             return
 
