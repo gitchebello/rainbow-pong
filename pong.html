@@ -1850,7 +1850,9 @@
   let bolhaTimer = 0;
   let popTimer = 0;            // segura o som para não virar metralhadora
   const bolhas = [];
-  const BOLHAS = ["#ff9ec4", "#ffcf9e", "#fff3a8", "#a8efc4", "#a5d8ff", "#d4b3ff"];
+  /* Só os dois rosas do próprio chiclete: um pastel e um saturado. O arco-íris
+     de antes espalhava seis matizes pelas laterais e roubava a leitura. */
+  const BOLHAS = ["#ff9ec4", "#d96a97"];
 
   const IRIS_S = 2, IRIS = 10 * IRIS_S;
   const iris = { on: false, a: 0, b: 0, life: 0 };
@@ -1969,7 +1971,6 @@
      boiando, com um balanço senoidal. Vive enquanto ele estiver em campo e
      esvanece sozinha quando ele vai embora. */
   const coracoes = [];
-  let coracaoTimer = 0;
   const MINI_CORACAO = [".x.x.", "xxxxx", "xxxxx", ".xxx.", "..x.."];
   let smokeTimer = 0;
 
@@ -2304,6 +2305,33 @@
       return;
     }
     itemTimer = 3;      // campo cheio; tenta de novo daqui a pouco
+  }
+
+  /* Cusparada de coraçõezinhos: as duas laterais atiram PARA DENTRO do campo
+     no instante do acerto. Antes eles boiavam o efeito inteiro, o que diluía o
+     momento; concentrados no impacto, acompanham o flash verde e somem. */
+  function cuspirCoracoes() {
+    if (reduceMotion) return;
+    for (let n = 0; n < 16; n++) {
+      const perto = n % 2 === 0;
+      const dentro = perto ? 1 : -1;
+      const jorro = rand(30, 66);
+      const deriva = rand(-16, 16);
+      coracoes.push({
+        ...bercoDeBorda(perto, 8),
+        // no clássico a lateral é a parede (eixo b); na arena, a calha (eixo a)
+        va: S.arena ? dentro * jorro : deriva,
+        vb: S.arena ? deriva : dentro * jorro,
+        fase: rand(0, 6.28),
+        amp: rand(1.5, 4),
+        esc: Math.random() < 0.35 ? 2 : 1,
+        vida: rand(0.55, 1.05),
+        max: 1
+      });
+      const c2 = coracoes[coracoes.length - 1];
+      c2.max = c2.vida;
+    }
+    if (coracoes.length > 48) coracoes.splice(0, coracoes.length - 48);
   }
 
   function showHint(who, txt, col, arco, esc) {
@@ -2697,28 +2725,16 @@
      Roda para os dois lados da sala — o convidado não simula a partida, mas
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
   function atualizarEnfeites(dt) {
-    if (heart.on && !reduceMotion) {
-      /* Só os coraçõezinhos: sem flash, sem fumaça — eles sozinhos dão o
-         recado, e agora aparecem com mais frequência. */
-      coracaoTimer -= dt;
-      while (coracaoTimer <= 0) {
-        coracaoTimer += 0.55;
-        const perto = Math.random() < 0.5;
-        coracoes.push({
-          ...bercoDeBorda(perto, 18),
-          sobe: (perto ? 1 : -1) * rand(4, 9),
-          fase: rand(0, 6.28),
-          amp: rand(3, 8),
-          esc: Math.random() < 0.4 ? 2 : 1,
-          vida: rand(1.4, 2.6)
-        });
-        if (coracoes.length > 12) coracoes.shift();
-      }
-    }
+    /* Os coraçõezinhos não boiam mais o tempo todo: cada um é cuspido pelas
+       laterais no instante do acerto (ver `cuspirCoracoes`) e vai perdendo
+       impulso conforme entra em campo. */
+    const freio = Math.exp(-2.4 * dt);
     for (let i = coracoes.length - 1; i >= 0; i--) {
       const c2 = coracoes[i];
-      c2.vida -= dt * (heart.on ? 1 : 2.2);
-      c2.b += c2.sobe * dt;
+      c2.vida -= dt;
+      c2.a += c2.va * dt;
+      c2.b += c2.vb * dt;
+      c2.va *= freio; c2.vb *= freio;
       if (c2.vida <= 0) coracoes.splice(i, 1);
     }
 
@@ -2730,7 +2746,7 @@
       gumFesta -= dt;
       bolhaTimer -= dt;
       while (bolhaTimer <= 0) {
-        bolhaTimer += 0.055;
+        bolhaTimer += 0.275;      // um quinto das bolhas de antes
         const perto = Math.random() < 0.5;
         bolhas.push({
           a: rand(0, LEN),
@@ -2744,7 +2760,7 @@
           pop: 0,
           cor: BOLHAS[(Math.random() * BOLHAS.length) | 0]
         });
-        if (bolhas.length > 80) bolhas.shift();
+        if (bolhas.length > 16) bolhas.shift();
       }
     }
     if (popTimer > 0) popTimer -= dt;
@@ -2974,7 +2990,8 @@
       turnWheel(1);                    // o coração também gira o sistema de cores
       showHint(quem, cresceu ? "+" + ganho : "NO LIMITE", COL.heart);
       spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 4, 90, COL.heart, { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
-      kick(0.14, 0.26, COL.heart, 0.4);
+      kick(0.14, 0.42, COL.heart, 0.6);      // flash verde nas laterais, mais presente
+      cuspirCoracoes();
       Snd.heart();
       announce(quem === 0 ? "Você acertou o coração." : foeName() + " acertou o coração.");
       sincronizar("coracao");
@@ -3871,7 +3888,8 @@
       Snd.heart();
       spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 4, 90, COL.heart,
             { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
-      kick(0.14, 0.26, COL.heart, 0.4);
+      kick(0.14, 0.42, COL.heart, 0.6);
+      cuspirCoracoes();
     }
   }
 
@@ -4398,13 +4416,19 @@
     /* A festa do coração: coraçõezinhos boiando pelas laterais. */
 
     for (const c2 of coracoes) {
+      const k = c2.vida / c2.max;
       const puls = 0.6 + 0.4 * Math.sin(S.blink * 3.6 + c2.fase);
-      g.globalAlpha = Math.min(1, c2.vida * 1.3) * 0.55 * puls;
+      g.globalAlpha = Math.min(1, k * 1.9) * 0.62 * puls;
       const ax = c2.a + Math.sin(S.blink * 1.5 + c2.fase) * c2.amp;
+      /* Desenhados em coordenadas de TELA, como o coração do meio. Antes iam
+         pelo eixo da quadra e apareciam deitados sempre que ela ficava em pé,
+         brigando com a orientação do coração central. */
+      const pos = rect(ax, c2.b, c2.esc * 5, c2.esc * 5);
+      g.fillStyle = COL.heart;
       for (let l = 0; l < MINI_CORACAO.length; l++)
         for (let cc = 0; cc < MINI_CORACAO[l].length; cc++)
           if (MINI_CORACAO[l][cc] === "x")
-            fill(COL.heart, ax + cc * c2.esc, c2.b + l * c2.esc, c2.esc, c2.esc);
+            g.fillRect(pos[0] + cc * c2.esc, pos[1] + l * c2.esc, c2.esc, c2.esc);
     }
     g.globalAlpha = 1;
 
