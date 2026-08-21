@@ -2333,15 +2333,11 @@
     if (reduceMotion) return;
     for (let n = 0; n < quantos; n++) {
       const perto = n % 2 === 0;
-      const dentro = perto ? 1 : -1;
       const jorro = rand(molde.jorro[0], molde.jorro[1]);
       const deriva = rand(-molde.deriva, molde.deriva);
       const vida = rand(molde.vida[0], molde.vida[1]);
       const p = {
-        ...bercoDeBorda(perto, molde.margem),
-        // no clássico a lateral é a parede (eixo b); na arena, a calha (eixo a)
-        va: S.arena ? dentro * jorro : deriva,
-        vb: S.arena ? deriva : dentro * jorro,
+        ...jatoDeBorda(perto, molde.margem, jorro, deriva),
         fase: rand(0, 6.28),
         amp: rand(molde.amp[0], molde.amp[1]),
         esc: molde.esc(),
@@ -2398,12 +2394,8 @@
        pontinho nenhum parece fumaça. */
     for (let n = 0; n < 8; n++) {          // metade da névoa: estava encobrindo
       const perto = n % 2 === 0;
-      const dentro = perto ? 1 : -1;
-      const empurra = rand(12, 30), lado = rand(-13, 13);
       smoke.push({
-        ...bercoDeBorda(perto, 6),
-        va: S.arena ? dentro * empurra : lado,
-        vb: S.arena ? lado : dentro * empurra,
+        ...jatoDeBorda(perto, 6, rand(12, 30), rand(-13, 13)),
         size: rand(3, 8),
         life: rand(0.6, 1.15),           // não sobra depois que a onda passa
         max: 1.15,
@@ -2782,9 +2774,7 @@
           smokeTimer += 0.05;
           const perto = Math.random() < 0.5;
           smoke.push({
-            ...bercoDeBorda(perto, 6),
-            va: rand(-14, 14),
-            vb: (perto ? 1 : -1) * rand(5, 16),
+            ...jatoDeBorda(perto, 6, rand(5, 16), rand(-14, 14)),
             size: rand(3, 7),
             life: rand(0.8, 1.6),
             max: 1.6,
@@ -2824,13 +2814,11 @@
       while (bolhaTimer <= 0) {
         bolhaTimer += 0.13;
         const perto = Math.random() < 0.5;
+        /* Coladas na borda e com pouco empuxo: a festa é a mesma, mas o
+           miolo do campo fica limpo para a jogada. Na arena, saem do aro
+           para fora, como todo o resto das festas de borda. */
         bolhas.push({
-          a: rand(0, LEN),
-          /* Coladas na parede e com menos empuxo para dentro: a festa é a
-             mesma, mas o miolo do campo fica limpo para a jogada. */
-          b: perto ? rand(-2, WALL + 4) : rand(SPAN - WALL - 6, SPAN + 2),
-          va: rand(-18, 18),
-          vb: (perto ? 1 : -1) * rand(6, 15),
+          ...jatoDeBorda(perto, 4, rand(6, 15), rand(-18, 18)),
           r: rand(4, 9),
           life: rand(0.8, 1.8),
           pop: 0,
@@ -4315,16 +4303,18 @@
          cor dele — o mapa dos territórios. Em pé, a quadra gira 90°, então os
          arcos giram junto. */
       const c = rect(ARENA_CA(), ARENA_CB(), 0, 0);
-      const off = vertical ? -Math.PI / 2 : 0;
       g.lineWidth = 4;
       g.strokeStyle = COL.dim;
       g.beginPath(); g.arc(c[0], c[1], ARENA_R() + 4, 0, Math.PI * 2); g.stroke();
-      g.globalAlpha = 0.4;
+      /* O aro é BRANCO em repouso e veste a cor do item enquanto ele durar —
+         é assim que a arena inteira muda de humor sem mais nenhum enfeite.
+         Os meio-arcos na cor dos jogadores saíram: com N jogadores no aro
+         livre eles já não diziam de quem era cada território. */
+      const corAro = corDoAro();
+      g.globalAlpha = corAro === COL.core ? 0.5 : 0.85;
       g.lineWidth = 2;
-      g.strokeStyle = COL.p1;
-      g.beginPath(); g.arc(c[0], c[1], ARENA_R() + 4, Math.PI / 2 + off, Math.PI * 1.5 + off); g.stroke();
-      g.strokeStyle = COL.p2;
-      g.beginPath(); g.arc(c[0], c[1], ARENA_R() + 4, -Math.PI / 2 + off, Math.PI / 2 + off); g.stroke();
+      g.strokeStyle = corAro;
+      g.beginPath(); g.arc(c[0], c[1], ARENA_R() + 4, 0, Math.PI * 2); g.stroke();
       g.globalAlpha = 1;
       desenharReguas();
     } else {
@@ -5599,15 +5589,43 @@
       }
       g.globalAlpha = 1;
     }
-    const grossa = p.hit > 0 ? PT + 3 : PT;
+    /* Mesma animação de impacto do campo clássico, traduzida para o aro: o
+       squash engorda a raquete e encolhe o arco, o recuo empurra o traço para
+       FORA do círculo e ele volta passando do ponto. Os parâmetros são os
+       mesmos — HIT_TIME, a curva de cosseno e `molaDoRecuo` —, então os dois
+       modos batem igual. */
+    const u = p.hit > 0 ? 1 - p.hit / HIT_TIME : -1;
+    const mola = u >= 0 ? Math.cos(u * Math.PI * 2) * Math.exp(-u * 2.6) : 0;
+    const grossa = Math.max(2, PT * (1 + 0.55 * mola));
+    const encolhe = u >= 0 ? padLen(i) * 0.12 * mola : 0;
+
+    if (u >= 0) {
+      // motion blur: três posições de um instante atrás, esmaecendo
+      for (let t = 3; t >= 1; t--) {
+        const uu = u - t * 0.05;
+        if (uu < 0) continue;
+        const mm = Math.cos(uu * Math.PI * 2) * Math.exp(-uu * 2.6);
+        const gr = Math.max(2, PT * (1 + 0.55 * mm));
+        const rr = meio + molaDoRecuo(uu) * 0.55;
+        const enc = padLen(i) * 0.12 * mm;
+        g.globalAlpha = 0.2 * (1 - t / 4) * (p.hit / HIT_TIME);
+        for (let sq = p.b + enc / 2; sq <= fim - enc / 2; sq += 3) {
+          const th = thetaDoArco(i, sq);
+          fill(col, ARENA_CA() + Math.cos(th) * rr - gr / 2,
+                    ARENA_CB() + Math.sin(th) * rr - gr / 2, gr, gr);
+        }
+      }
+      g.globalAlpha = 1;
+    }
     /* Cores que se SOMAM na sobreposição: no aro livre as raquetes passam
        umas por cima das outras o tempo todo. Cada pedacinho pergunta quem
        mais o cobre e, se houver companhia, sai em modo `lighter` — vermelho
        sobre azul vira magenta, e desfaz sozinho quando elas se separam. */
-    for (let s = p.b; s <= fim; s += 3) {
+    const raio = meio + (u >= 0 ? molaDoRecuo(u) * 0.55 : 0);   // recuo para fora do aro
+    for (let s = p.b + encolhe / 2; s <= fim - encolhe / 2; s += 3) {
       const th = thetaDoArco(i, s);
-      const x = ARENA_CA() + Math.cos(th) * meio - grossa / 2;
-      const y = ARENA_CB() + Math.sin(th) * meio - grossa / 2;
+      const x = ARENA_CA() + Math.cos(th) * raio - grossa / 2;
+      const y = ARENA_CB() + Math.sin(th) * raio - grossa / 2;
       let junto = false;
       for (let j = 0; j < jogadoresAtivos(); j++) {
         if (j === i) continue;
@@ -5643,6 +5661,21 @@
     borda: ARENA_CA() - ARENA_R() - 52
   });
 
+  /* A cor que o aro da arena veste: branca em repouso e, enquanto um item
+     estiver em vigor, a cor dele. A ordem é de prioridade — o que chegou por
+     último e é mais vistoso fala mais alto. */
+  function corDoAro() {
+    if (roleta.on) return VIVAS[Math.floor(S.blink * 8) % VIVAS.length];
+    if (fire.on) return COL.fireText;
+    if (star.on) return COL.star;
+    if (storm.t > 0) return COL.boltHi;
+    if (venom.t > 0) return COL.venom;
+    if (slow.t > 0) return COL.time;
+    if (BOLA > BS) return COL.gum;          // chiclete: enquanto a bola dura inchada
+    if (heart.on) return COL.heart;
+    return COL.core;
+  }
+
   function faixaDeBorda(cor, gross, desl) {
     const d = desl || 0;
     if (!S.arena) {
@@ -5650,9 +5683,16 @@
       fill(cor, 0, SPAN - d - gross, LEN, gross);
       return;
     }
-    const f = flancoArena();
-    fill(cor, f.borda - d - gross, f.topo, gross, f.alt);
-    fill(cor, LEN - f.borda + d, f.topo, gross, f.alt);
+    /* Na arena a festa sai do LIMIAR do disco para fora: anéis concêntricos
+       além do aro, nunca por dentro. O miolo é onde a jogada mora e precisa
+       ficar limpo. Antes as faixas iam para as calhas dos flancos, o que
+       deixava o efeito só nos dois lados em vez de dar a volta. */
+    const c = rect(ARENA_CA(), ARENA_CB(), 0, 0);
+    g.strokeStyle = cor;
+    g.lineWidth = gross;
+    g.beginPath();
+    g.arc(c[0], c[1], ARENA_R() + 7 + d + gross / 2, 0, Math.PI * 2);
+    g.stroke();
   }
 
   /** Onde uma partícula de borda nasce, conforme o modo. */
@@ -5660,9 +5700,26 @@
     if (!S.arena)
       return { a: rand(0, LEN),
                b: perto ? rand(-2, WALL + margem) : rand(SPAN - WALL - margem - 2, SPAN + 2) };
-    const f = flancoArena();
-    return { a: perto ? rand(f.borda - margem - 6, f.borda) : rand(LEN - f.borda, LEN - f.borda + margem + 6),
-             b: rand(f.topo, f.topo + f.alt) };
+    // na arena, em cima do aro, num ângulo qualquer da volta
+    const th = Math.random() * Math.PI * 2;
+    const r = ARENA_R() + rand(2, 2 + margem);
+    return { a: ARENA_CA() + Math.cos(th) * r, b: ARENA_CB() + Math.sin(th) * r, th };
+  }
+
+  /* Berço MAIS direção. No clássico as partículas entram das paredes para
+     dentro do campo; na arena elas saem do aro para FORA, radialmente, com um
+     tanto de tangente para o jato não ficar reto demais. */
+  function jatoDeBorda(perto, margem, jorro, deriva) {
+    const p = bercoDeBorda(perto, margem);
+    if (!S.arena) {
+      p.va = deriva;
+      p.vb = (perto ? 1 : -1) * jorro;
+      return p;
+    }
+    const ux = Math.cos(p.th), uy = Math.sin(p.th);
+    p.va = ux * jorro - uy * deriva;
+    p.vb = uy * jorro + ux * deriva;
+    return p;
   }
 
   function drawMoldura(cw, ch) {
@@ -5706,15 +5763,25 @@
     const seg = LEN / n;
     const desl = arco ? (S.blink * 260) % (seg * n) : 0;
 
-    /* Cascata: a lateral de CIMA puxa e a de baixo segue um instante depois,
-       com as cores atrasadas do mesmo tanto. Em fase as duas liam como um
-       piscar só, sem direção; assim o arco-íris desce pelas bordas. */
-    const ATRASO = 0.085;
+    /* Cascata de verdade: uma FRENTE percorre a faixa e só o que ela já
+       passou está aceso. Antes o arco-íris nascia pronto ao longo da borda
+       inteira e apenas rolava — daí a sensação de começar pelo meio, sem
+       origem. A frente anda do topo da TELA para baixo: em pé, isso é o eixo
+       do comprimento; deitado, a de cima acende antes da de baixo. */
+    const prog = Math.min(1, 1 - fx.sides / fx.sidesDur);
+    const varre = Math.min(1, prog * 1.5);          // termina antes do flash apagar
+    const suave = LEN * 0.16;
+    /* Em pé a frente desce em `a` decrescente (o topo da tela é `a` alto);
+       deitado, a faixa é horizontal e a cascata vira topo → base. */
+    const frente = vertical ? LEN - varre * (LEN + suave) : 0;
+    const revelado = meio => vertical
+      ? Math.max(0, Math.min(1, (meio - frente) / suave))
+      : 1;
+    const ATRASO = vertical ? 0 : 0.085;
     const ciclo = seg * n;
     const naVolta = v => ((v % ciclo) + ciclo) % ciclo;
     const deslBase = arco ? naVolta((S.blink - ATRASO) * 260) : 0;
-    const aindaSo = 1 - fx.sides / fx.sidesDur < ATRASO / fx.sidesDur;
-    const kBase = arco && aindaSo ? 0 : k;
+    const kBase = arco && !vertical && prog < ATRASO / fx.sidesDur ? 0 : k;
 
     let edge = 0;
     for (const [thick, alpha] of bands) {
@@ -5722,10 +5789,18 @@
         // faixas correndo pelas duas laterais, uma cor por trecho
         for (let s = -1; s <= n; s++) {
           const cor = fx.col[((s % n) + n) % n];
-          g.globalAlpha = k * alpha;
-          fill(cor, s * seg - desl, edge, seg + 1, thick);
-          g.globalAlpha = kBase * alpha;
-          fill(cor, s * seg - deslBase, SPAN - edge - thick, seg + 1, thick);
+          const x = s * seg - desl;
+          const vem = revelado(x + seg / 2);
+          if (vem > 0) {
+            g.globalAlpha = k * alpha * vem;
+            fill(cor, x, edge, seg + 1, thick);
+          }
+          const xb = s * seg - deslBase;
+          const vemB = revelado(xb + seg / 2);
+          if (kBase > 0 && vemB > 0) {
+            g.globalAlpha = kBase * alpha * vemB;
+            fill(cor, xb, SPAN - edge - thick, seg + 1, thick);
+          }
         }
       } else {
         g.globalAlpha = k * alpha;
