@@ -5709,20 +5709,32 @@
     const arco = Array.isArray(fx.col);          // a rainbow ball manda as seis
     const n = arco ? fx.col.length : 1;
     const seg = LEN / n;
-    const desl = arco ? (S.blink * 260) % (seg * n) : 0;
+
+    /* No arco-íris a lateral de CIMA puxa e a de baixo segue: acende um
+       instante depois e mostra as cores atrasadas do mesmo tanto. Em fase as
+       duas liam como um piscar só, sem direção; em cascata o efeito desce. */
+    const ATRASO = 0.085;
+    const ciclo = seg * n;
+    const naVolta = v => ((v % ciclo) + ciclo) % ciclo;
+    const desl = arco ? naVolta(S.blink * 260) : 0;
+    const deslBase = arco ? naVolta((S.blink - ATRASO) * 260) : 0;
+    // enquanto o atraso não venceu, a lateral de baixo ainda está apagada
+    const jaVeio = 1 - fx.sides / fx.sidesDur >= ATRASO / fx.sidesDur;
+    const kBase = arco && !jaVeio ? 0 : k;
 
     let edge = 0;
     for (const [thick, alpha] of bands) {
-      g.globalAlpha = k * alpha;
       if (arco) {
         // faixas correndo pelas duas laterais, uma cor por trecho
         for (let s = -1; s <= n; s++) {
           const cor = fx.col[((s % n) + n) % n];
-          const x = s * seg - desl;
-          fill(cor, x, edge, seg + 1, thick);
-          fill(cor, x, SPAN - edge - thick, seg + 1, thick);
+          g.globalAlpha = k * alpha;
+          fill(cor, s * seg - desl, edge, seg + 1, thick);
+          g.globalAlpha = kBase * alpha;
+          fill(cor, s * seg - deslBase, SPAN - edge - thick, seg + 1, thick);
         }
       } else {
+        g.globalAlpha = k * alpha;
         fill(fx.col, 0, edge, LEN, thick);
         fill(fx.col, 0, SPAN - edge - thick, LEN, thick);
       }
