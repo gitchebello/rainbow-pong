@@ -2621,17 +2621,53 @@
   const announce = m => { live.textContent = m; };
 
   /* ── Computador ── */
+  /* ── IA da arena ──
+     No aro livre não existe "vem" nem "vai": a bola sempre acaba saindo por
+     algum ponto do círculo. A IA antiga perseguia a PROJEÇÃO da bola no aro,
+     que enquanto ela cruza o disco aponta para o lado errado — daí a sensação
+     de que a raquete foge da bola. Agora ela mira onde a bola VAI encostar no
+     aro, pela mesma previsão analítica que alimenta a mira do jogador.
+
+     As limitações são deliberadas, para ela ser competente sem ser perfeita:
+     só reconsidera o alvo a cada `IA_REACAO`, erra o ponto por uma margem que
+     é grande quando falta muito e apura perto do impacto — como um jogador que
+     lê a jogada de longe e ajusta na chegada — e tem velocidade máxima. */
+  const IA_REACAO = 0.17;   // segundos entre duas decisões
+  const IA_ERRO = 26;       // margem no ponto do aro, em unidades de arco
+
+  function alvoDaArena(i, p, dt) {
+    p.pensa = (p.pensa || 0) - dt;
+    if (p.pensa > 0 && p.alvo !== undefined) return p.alvo;
+    p.pensa = IA_REACAO;
+    const prev = preverImpactoArena();
+    if (prev && prev.arena) {
+      const longe = Math.min(1, prev.t / 1.2);
+      p.alvo = mArco(prev.th * ARENA_R() + (Math.random() * 2 - 1) * IA_ERRO * (0.3 + longe));
+    } else {
+      // sem previsão (saque, bola parada): fica de olho onde a bola está
+      p.alvo = arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2).s;
+    }
+    return p.alvo;
+  }
+
   function driveAI(i, dt, level, always) {
     const lv = LEVELS[cpuNaArena() ? "dificil" : level];
     const p = pads[i];
+    if (S.arena) {
+      const alvo = alvoDaArena(i, p, dt) - padLen(i) / 2;
+      /* A pista do aro é ~3x o corredor clássico. Sem escalar a velocidade a
+         raquete nunca chega ao ponto de encontro, e a IA parece perdida mesmo
+         mirando certo. */
+      const max = lv.speed * 2.6 * dt;
+      p.b = mArco(p.b + clamp(dArco(alvo, p.b), -max, max));
+      return;
+    }
     const coming = i === 1 ? ball.va > 0 : ball.va < 0;
-    const target = S.arena
-      ? arcoDoToque(i, ball.a + BOLA / 2, ball.b + BOLA / 2).s + p.err - padLen(i) / 2
-      : ((coming || always)
-          ? ball.b + BOLA / 2 + p.err - padLen(i) / 2
-          : SPAN / 2 - padLen(i) / 2);
+    const target = (coming || always)
+      ? ball.b + BOLA / 2 + p.err - padLen(i) / 2
+      : SPAN / 2 - padLen(i) / 2;
     const max = lv.speed * (coming ? 1 : 0.55) * dt;
-    p.b += clamp(S.arena ? dArco(target, p.b) : target - p.b, -max, max);
+    p.b += clamp(target - p.b, -max, max);
   }
 
   /* ── Física ── */
