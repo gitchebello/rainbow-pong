@@ -1865,7 +1865,7 @@
   let irisTimer = rand(16, 24);      // frequência na faixa do chiclete
   const roleta = { on: false, dono: -1, t: 0 };
   const MOLDURA_TEMPO = 1.1;
-  const moldura = { t: 0, cor: "", arco: false };   // bordas acesas no anúncio
+  const moldura = { t: 0, cor: "", arco: false, lados: false };   // bordas acesas no anúncio
   let aberr = 0;            // aberração cromática, decai sozinha
   const ABERR_LEVE = ["#ff2d55", "#22e06a", "#0a9dff"];   // versão de três canais
   const roletaIndice = () => (roleta.t * ROLETA_HZ | 0) % ROLETA.length;
@@ -1878,11 +1878,14 @@
     roleta.on = false;
     roleta.dono = -1;
 
-    /* Anuncia o que a roleta parou: as quatro bordas do campo acendem na cor
-       sorteada e o nome do prêmio aparece no meio. Sem isso o jogador levava
-       o efeito sem entender de onde veio. */
+    /* Anuncia o que a roleta parou: as LATERAIS acendem na cor sorteada e o
+       nome do prêmio aparece no meio. Sem isso o jogador levava o efeito sem
+       entender de onde veio. Só as laterais, e não as quatro bordas: acender
+       o lado das metas tapa justamente onde a jogada vai acontecer. */
     moldura.t = MOLDURA_TEMPO;
     moldura.cor = saiu.cor();
+    moldura.arco = false;
+    moldura.lados = true;
     showHint(-1, saiu.nome, saiu.cor());
     Snd.premio();
     sincronizar("premio-" + saiu.chave);
@@ -3215,7 +3218,7 @@
         : `Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
       if (jogadoresAtivos() === 2 && matchPoint(who)) {
         const decisivo = pontoFinal();
-        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; }
+        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; moldura.lados = false; }
         showHint(decisivo ? -1 : who, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
@@ -3903,6 +3906,8 @@
       if (saiu) {
         moldura.t = MOLDURA_TEMPO;
         moldura.cor = saiu.cor();
+        moldura.arco = false;
+        moldura.lados = true;
         showHint(-1, saiu.nome, saiu.cor());
         Snd.premio();
         announce("Arco-íris parou em " + (saiu.fala || saiu.nome.toLowerCase()) + ".");
@@ -3947,7 +3952,7 @@
          receber, e assim os dois lados veem a mesma coisa sem gastar rede. */
       if (jogadoresAtivos() === 2 && matchPoint(quem) && S.phase !== "over") {
         const decisivo = pontoFinal();
-        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; }
+        if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; moldura.lados = false; }
         showHint(decisivo ? -1 : quem, decisivo ? "PONTO FINAL" : "MATCH POINT",
                  null, decisivo);
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
@@ -4312,10 +4317,11 @@
     }
     g.globalAlpha = 1;
 
-    // Rede — só no campo clássico: um fio fino e discreto, na estética nova
+    // Rede — só no campo clássico. Traço mais grosso e mais branco: fina e
+    // apagada ela sumia do campo em vez de marcar o meio.
     if (!S.arena) {
-      g.globalAlpha = 0.22;
-      for (let b = WALL + 6; b < SPAN - WALL - 8; b += 34) fill(COL.net, LEN / 2 - 1.5, b, 3, 22);
+      g.globalAlpha = 0.34;
+      for (let b = WALL + 6; b < SPAN - WALL - 8; b += 34) fill(COL.net, LEN / 2 - 2.5, b, 5, 22);
       g.globalAlpha = 1;
     }
 
@@ -5567,15 +5573,16 @@
     borda: ARENA_CA() - ARENA_R() - 52
   });
 
-  function faixaDeBorda(cor, gross) {
+  function faixaDeBorda(cor, gross, desl) {
+    const d = desl || 0;
     if (!S.arena) {
-      fill(cor, 0, 0, LEN, gross);
-      fill(cor, 0, SPAN - gross, LEN, gross);
+      fill(cor, 0, d, LEN, gross);
+      fill(cor, 0, SPAN - d - gross, LEN, gross);
       return;
     }
     const f = flancoArena();
-    fill(cor, f.borda - gross, f.topo, gross, f.alt);
-    fill(cor, LEN - f.borda, f.topo, gross, f.alt);
+    fill(cor, f.borda - d - gross, f.topo, gross, f.alt);
+    fill(cor, LEN - f.borda + d, f.topo, gross, f.alt);
   }
 
   /** Onde uma partícula de borda nasce, conforme o modo. */
@@ -5602,13 +5609,19 @@
         ? VIVAS[(faixa + Math.floor(S.blink * 6)) % VIVAS.length]
         : moldura.cor;
       faixa++;
-      g.fillRect(0, borda, cw, grossura);                    // topo
-      g.fillRect(0, ch - borda - grossura, cw, grossura);     // base
-      g.fillRect(borda, 0, grossura, ch);                     // esquerda
-      g.fillRect(cw - borda - grossura, 0, grossura, ch);     // direita
+      if (moldura.lados) {
+        // duas laterais apenas, em coordenadas de quadra: vale no clássico
+        // (as paredes) e na arena (as calhas), como as festas de borda
+        faixaDeBorda(g.fillStyle, grossura, borda);
+      } else {
+        g.fillRect(0, borda, cw, grossura);                    // topo
+        g.fillRect(0, ch - borda - grossura, cw, grossura);     // base
+        g.fillRect(borda, 0, grossura, ch);                     // esquerda
+        g.fillRect(cw - borda - grossura, 0, grossura, ch);     // direita
+      }
       borda += grossura;
     }
-    g.globalAlpha = pulso * 0.035;
+    g.globalAlpha = pulso * (moldura.lados ? 0.02 : 0.035);
     g.fillRect(0, 0, cw, ch);
     g.globalAlpha = 1;
   }
