@@ -6043,6 +6043,12 @@
     sala.avisouAbas = false;
     aplicarArena(true, false);
     abrirSala(VIVA, "auto");
+    /* A tela cheia precisa nascer DENTRO do clique: pedida mais tarde, o
+       navegador recusa por falta de gesto do usuário. */
+    toggleImmersive(true);
+    Snd.ensure();
+    if (S.phase === "attract" || S.phase === "over") { newGame("serve"); requestWake(); }
+    syncPlayButton();
     announce("Entrando na arena ao vivo.");
   }
 
@@ -6217,7 +6223,49 @@
      O modo imersivo é só uma classe no <body>, então funciona mesmo onde a
      Fullscreen API não existe (Safari no iPhone) ou vem bloqueada por iframe.
      Quando a API está disponível, ela entra por cima para tirar a barra do
-     navegador também. */
+     navegador também — e ela fala DOIS dialetos: o padrão e o do WebKit
+     (Safari de mesa e iPad). Só o padrão, como era antes, deixava o botão
+     mudando de rótulo sem tirar a barra do navegador nesses aparelhos. */
+  const telaCheiaAtiva = () =>
+    document.fullscreenElement || document.webkitFullscreenElement || null;
+
+  function pedirTelaCheia() {
+    const alvo = document.documentElement;
+    const pedir = alvo.requestFullscreen || alvo.webkitRequestFullscreen;
+    if (!pedir) return;                       // iPhone: fica só o modo imersivo
+    try {
+      const r = pedir.call(alvo);
+      if (r && r.then) r.then(() => setTimeout(layout, 60), () => {});
+      else setTimeout(layout, 60);
+    } catch (_) {}
+  }
+
+  function largarTelaCheia() {
+    const sair = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!telaCheiaAtiva() || !sair) return;
+    try {
+      const r = sair.call(document);
+      if (r && r.catch) r.catch(() => {});
+    } catch (_) {}
+  }
+
+  /* Celular: a quadra é larga e baixa, então o retrato joga metade da tela
+     fora. Onde o navegador deixa travar a orientação, tranca deitado. */
+  function travarDeitado() {
+    const giro = typeof screen !== "undefined" && screen.orientation;
+    if (!giro || !giro.lock) return;
+    try {
+      const r = giro.lock("landscape");
+      if (r && r.catch) r.catch(() => {});
+    } catch (_) {}
+  }
+
+  function soltarGiro() {
+    const giro = typeof screen !== "undefined" && screen.orientation;
+    if (!giro || !giro.unlock) return;
+    try { giro.unlock(); } catch (_) {}
+  }
+
   function setImmersive(on) {
     immersive = on;
     document.body.classList.toggle("immersive", on);
@@ -6227,26 +6275,31 @@
     layout();
   }
 
-  function toggleImmersive() {
-    if (immersive) {
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      setImmersive(false);
-    } else {
-      setImmersive(true);
-      const el = document.documentElement;
-      if (el.requestFullscreen) el.requestFullscreen().then(layout, () => {});
+  /* Sem argumento alterna; com `true`/`false` vai para o estado pedido — é
+     assim que a entrada na arena liga a tela cheia sem risco de desligá-la. */
+  function toggleImmersive(querido) {
+    const alvo = typeof querido === "boolean" ? querido : !immersive;
+    if (alvo === immersive) {
+      // já está no estado pedido: só falta a API, se ela existir e estiver fora
+      if (alvo && !telaCheiaAtiva()) pedirTelaCheia();
+      return;
     }
+    setImmersive(alvo);
+    if (alvo) { pedirTelaCheia(); if (coarse) travarDeitado(); }
+    else { largarTelaCheia(); soltarGiro(); }
   }
 
-  btnFull.addEventListener("click", toggleImmersive);
-  hudExit.addEventListener("click", toggleImmersive);
+  btnFull.addEventListener("click", () => toggleImmersive());
+  hudExit.addEventListener("click", () => toggleImmersive(false));
   hudPause.addEventListener("click", toggleRun);
 
-  document.addEventListener("fullscreenchange", () => {
+  const aoMudarTelaCheia = () => {
     // Sair pelo Esc precisa desfazer o modo imersivo junto
-    if (!document.fullscreenElement && immersive) setImmersive(false);
+    if (!telaCheiaAtiva() && immersive) { setImmersive(false); soltarGiro(); }
     else setTimeout(layout, 80);
-  });
+  };
+  document.addEventListener("fullscreenchange", aoMudarTelaCheia);
+  document.addEventListener("webkitfullscreenchange", aoMudarTelaCheia);
 
   /* ── Teclado ── */
   const keys = new Set();   // teclas pressionadas
