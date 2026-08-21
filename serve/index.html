@@ -1354,6 +1354,9 @@
   const GLOW_TIME = 0.7;   // duração do brilho neon no rebate
   const GROW_ANIM = 0.35;  // a raquete cresce animada, não de um quadro para o outro
   const HIT_TIME = 0.28;   // squash da raquete no toque, com repique
+  const RECUO = 17;        // fundo do recuo, em unidades de quadra
+  /** A mola do recuo: para trás no impacto, passa do ponto na volta, assenta. */
+  const molaDoRecuo = u => Math.sin(u * Math.PI * 2) * Math.exp(-u * 2.3) * RECUO;
   const BHIT_TIME = 0.16;  // esticada da bola logo após sair
   const BS = 8;          // tamanho de fábrica da bola
   let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
@@ -2386,8 +2389,8 @@
     /* UMA onda só: pouca variação de impulso, então as brasas partem juntas e
        avançam como frente de chama, em vez de chuviscarem uma a uma. Os
        tamanhos, esses, saem bem irregulares — é o que dá aspecto orgânico. */
-    cuspirDasLaterais(brasas, 42, {
-      margem: 5, jorro: [88, 112], deriva: 13, vida: [0.55, 0.95], amp: [0.6, 2],
+    cuspirDasLaterais(brasas, 32, {
+      margem: 5, jorro: [88, 112], deriva: 13, vida: [0.42, 0.7], amp: [0.6, 2],
       esc: () => {
         const t = Math.random();
         return t < 0.42 ? 1 : t < 0.76 ? 2 : t < 0.93 ? 3 : 4;
@@ -2398,7 +2401,7 @@
     /* A fuligem virou névoa: mesma matéria da fumaça do veneno — blocos largos
        que incham e se dissolvem — só que em cinza. Antes eram pontinhos, e
        pontinho nenhum parece fumaça. */
-    for (let n = 0; n < 16; n++) {
+    for (let n = 0; n < 8; n++) {          // metade da névoa: estava encobrindo
       const perto = n % 2 === 0;
       const dentro = perto ? 1 : -1;
       const empurra = rand(12, 30), lado = rand(-13, 13);
@@ -2407,8 +2410,8 @@
         va: S.arena ? dentro * empurra : lado,
         vb: S.arena ? lado : dentro * empurra,
         size: rand(3, 8),
-        life: rand(0.9, 1.8),
-        max: 1.8,
+        life: rand(0.6, 1.15),           // não sobra depois que a onda passa
+        max: 1.15,
         cinza: true
       });
       if (smoke.length > 90) smoke.shift();
@@ -2430,7 +2433,9 @@
     ball.va = ball.va / m * ball.speed;
     ball.vb = ball.vb / m * ball.speed;
     Snd.fire();
-    kick(0.3, 0.45, COL.fire, 0.65);   // mais curto e mais leve que o do cristal
+    /* A batida: laterais no vermelho vivo e um tranco de câmera. O flash
+       usava o fósforo desbotado do corpo da chama e mal se via. */
+    kick(0.46, 0.6, COL.fireText, 1.05);
     cuspirFogo();
 
     // O disparo vira a mesa: todo o esquema anda uma casa no arco-íris
@@ -4010,7 +4015,7 @@
     if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
 
-    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.3, 0.45, COL.fire, 0.65); cuspirFogo(); }
+    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.46, 0.6, COL.fireText, 1.05); cuspirFogo(); }
     if (!star.on && m.fogo[1]) Snd.star();
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
@@ -4541,7 +4546,7 @@
 
     for (const f of smoke) {
       const k = f.life / f.max;
-      g.globalAlpha = Math.min(f.cinza ? 0.42 : 0.55, k * 0.7);
+      g.globalAlpha = Math.min(f.cinza ? 0.3 : 0.55, k * 0.7);
       const s = Math.round(f.size);
       fill(f.cinza ? COL.soot : (f.rosa ? COL.smokeB : COL.smokeA),
            f.a - s / 2, f.b - s / 2, s, s);
@@ -4604,9 +4609,26 @@
         /* Recuo com sobra: o impacto empurra a raquete para trás, ela volta
            passando um pouco do lugar (ultrapassa para a frente) e assenta —
            a mesma mola do squash, agora também na POSIÇÃO. Dá a sensação de
-           profundidade, de raquete que absorve o golpe. */
-        const recuo = Math.sin(u * Math.PI * 2) * Math.exp(-u * 2.8) * 9;
+           profundidade, de raquete que absorve o golpe. Fundo e amortecimento
+           lento: o recuo é quase um repique, não um tremeliquezinho. */
+        const recuo = molaDoRecuo(u);
         pa = (i === 0 ? padA(0) - recuo : padA(1) - (th - PT) + recuo);
+
+        /* Motion blur: a raquete deixa três fantasmas nas posições de um
+           instante atrás, esmaecendo. Sem eles o percurso do recuo some entre
+           dois quadros e o olho só vê o começo e o fim. */
+        for (let t = 3; t >= 1; t--) {
+          const uu = u - t * 0.05;
+          if (uu < 0) continue;
+          const kk = Math.cos(uu * Math.PI * 2) * Math.exp(-uu * 2.6);
+          const lnn = base * (1 - 0.24 * kk);
+          const thn = PT * (1 + 1.25 * kk);
+          const rr = molaDoRecuo(uu);
+          g.globalAlpha = 0.2 * (1 - t / 4) * (p.hit / HIT_TIME);
+          fill(col, i === 0 ? padA(0) - rr : padA(1) - (thn - PT) + rr,
+               p.b + (padLen(i) - lnn) / 2, thn, lnn);
+        }
+        g.globalAlpha = 1;
       }
 
       if (p.glow > 0) {
