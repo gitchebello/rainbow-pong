@@ -654,6 +654,35 @@
   }
   .hud[hidden] { display: none; }
 
+  /* Recado de canto: só aparece quando algo que o jogador pediu não pôde ser
+     feito e o motivo não está à vista. Sóbrio, sem caixa de diálogo. */
+  .recado {
+    position: fixed;
+    z-index: 60;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    max-width: min(92vw, 560px);
+    margin: 0;
+    padding: 9px 14px;
+    background: rgba(8,10,11,0.92);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 3px;
+    color: #cfd6cc;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    line-height: 1.45;
+    text-align: center;
+    text-wrap: balance;
+    pointer-events: none;
+    animation: recado-entra 0.28s ease-out;
+  }
+  .recado[hidden] { display: none; }
+  @keyframes recado-entra {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+  }
+
   /* Só o ícone: sem caixa, sem plástico, sem sombra de botão. O recheio dá
      área de toque sem aparecer. */
   .hud .key,
@@ -911,6 +940,8 @@
       </svg>
     </button>
   </div>
+
+  <p class="recado" id="recado" hidden></p>
 
   <p class="sr" id="live" role="status" aria-live="polite"></p>
   <footer>Rainbow Pong · Reprodução doméstica de um clássico de 1972</footer>
@@ -6232,11 +6263,23 @@
   /* Um `Permissions-Policy: fullscreen=()` no servidor derruba a API inteira,
      e a recusa é silenciosa: o botão parecia quebrado sem nenhum sinal. Agora
      o modo imersivo assume e o jogador fica sabendo por que a barra ficou. */
+  const recadoEl = document.getElementById("recado");
+  let recadoTimer = 0;
+  /** Recado visível de canto. `announce` sozinho só fala com leitor de tela. */
+  function mostrarRecado(txt, segundos) {
+    if (!recadoEl) return;
+    recadoEl.textContent = txt;
+    recadoEl.hidden = false;
+    clearTimeout(recadoTimer);
+    recadoTimer = setTimeout(() => { recadoEl.hidden = true; }, (segundos || 7) * 1000);
+    announce(txt);
+  }
+
   let avisouBloqueio = false;
   function fullscreenNegada() {
     if (avisouBloqueio) return;
     avisouBloqueio = true;
-    announce("Este endereço não libera a tela cheia do navegador. O jogo ocupou a página inteira mesmo assim.");
+    mostrarRecado("Este endereço não libera a tela cheia do navegador. O jogo ocupou a página inteira mesmo assim.", 9);
   }
 
   function pedirTelaCheia() {
