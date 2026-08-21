@@ -5194,14 +5194,18 @@
     g.save();
     if (theme.glow) g.globalCompositeOperation = "lighter";
     g.fillStyle = grad;
+    let anelFora = 0;
     for (const [grossura, alfa] of FINAL_FAIXAS) {
       g.globalAlpha = pulso * alfa;
       if (S.arena) {
-        const fl = flancoArena();
-        let r = rect(fl.borda - grossura, fl.topo, grossura, fl.alt);
-        g.fillRect(r[0], r[1], r[2], r[3]);
-        r = rect(LEN - fl.borda, fl.topo, grossura, fl.alt);
-        g.fillRect(r[0], r[1], r[2], r[3]);
+        // anéis além do aro, com o mesmo gradiente correndo por dentro deles
+        const c = rect(ARENA_CA(), ARENA_CB(), 0, 0);
+        g.strokeStyle = grad;
+        g.lineWidth = grossura;
+        g.beginPath();
+        g.arc(c[0], c[1], ARENA_R() + 7 + anelFora + grossura / 2, 0, Math.PI * 2);
+        g.stroke();
+        anelFora += grossura;
       } else {
         let r = rect(0, 0, LEN, grossura);
         g.fillRect(r[0], r[1], r[2], r[3]);
@@ -5763,10 +5767,53 @@
   }
 
   /** Luz varrendo as duas laterais. Azul no cristal, vermelha no disparo. */
+  const FLASH_FAIXAS = [[WALL, 0.9], [6, 0.4], [10, 0.16]];
+
+  /* Na ARENA o flash é radial: anéis que saem do limiar do disco para fora,
+     na mesma direção das partículas, e ainda se afastam um pouco enquanto
+     duram. Faixa lateral não diz nada num aro livre — não existe "lado". */
+  function flashRadial(k) {
+    const c = rect(ARENA_CA(), ARENA_CB(), 0, 0);
+    const arco = Array.isArray(fx.col);
+    const prog = Math.min(1, 1 - fx.sides / fx.sidesDur);
+    let fora = 7 + prog * 26;                 // o maço inteiro se afasta do aro
+
+    for (const [gross, alfa] of FLASH_FAIXAS) {
+      const raio = ARENA_R() + fora + gross / 2;
+      g.globalAlpha = k * alfa;
+      g.lineWidth = gross;
+      if (arco) {
+        // as sete cores repartem a volta e o conjunto gira
+        const n = fx.col.length, passo = (Math.PI * 2) / n, giro = S.blink * 2.2;
+        for (let i = 0; i < n; i++) {
+          g.strokeStyle = fx.col[i];
+          g.beginPath();
+          g.arc(c[0], c[1], raio, giro + i * passo, giro + (i + 1) * passo + 0.03);
+          g.stroke();
+        }
+      } else {
+        g.strokeStyle = fx.col;
+        g.beginPath(); g.arc(c[0], c[1], raio, 0, Math.PI * 2); g.stroke();
+        if (fx.col2) {                        // miolo quente colado no aro
+          const fino = Math.max(2, gross * 0.55);
+          g.save();
+          g.globalCompositeOperation = "lighter";
+          g.globalAlpha = k * alfa * 0.6;
+          g.lineWidth = fino;
+          g.beginPath(); g.arc(c[0], c[1], ARENA_R() + fora + fino / 2, 0, Math.PI * 2); g.stroke();
+          g.restore();
+        }
+      }
+      fora += gross;
+    }
+    g.globalAlpha = 1;
+  }
+
   function drawSideFlash() {
     if (fx.sides <= 0) return;
     const k = (fx.sides / fx.sidesDur) * fx.force;
-    const bands = [[WALL, 0.9], [6, 0.4], [10, 0.16]];
+    if (S.arena) { flashRadial(k); return; }   // sem véu geral: o miolo fica limpo
+    const bands = FLASH_FAIXAS;
     const arco = Array.isArray(fx.col);          // a rainbow ball manda as seis
     const n = arco ? fx.col.length : 1;
     const seg = LEN / n;
