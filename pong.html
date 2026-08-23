@@ -2537,7 +2537,7 @@
     sincronizar("saque");
   }
 
-  function newRally(dir) { resetBall(dir); S.phase = "serve"; S.t = 0; }
+  function newRally(dir) { zerarEspera(); resetBall(dir); S.phase = "serve"; S.t = 0; }
 
   function newGame(phase) {
     S.score = [0, 0, 0, 0];
@@ -2828,10 +2828,28 @@
 
     atualizarEnfeites(dt);
 
+    /* Ponto retido: a bola já saiu e segue de sobra, sem ser julgada de
+       novo, enquanto a janela da defesa não fecha. */
+    if (golEspera.on) {
+      avancarBolaLivre(dt);
+      golEspera.t += dt;
+      if (golEspera.t >= janelaDefesa()) {
+        const q = golEspera.quem;
+        zerarEspera();
+        if (q === -2) { newRally(S.serveTo); sincronizar("saque"); } else point(q);
+      }
+      return;
+    }
+
     // Um passo de física da bola; se ela sair de campo, o ponto é marcado
     const fim1 = moverBola(ball, dt);
-    if (fim1 >= 0) { point(fim1); return; }
-    if (fim1 === -2) { newRally(S.serveTo); sincronizar("saque"); return; }   // bola virgem escapou
+    if (fim1 >= 0 || fim1 === -2) {
+      const falhou = quemFalhou();
+      if (padDeOutro(falhou)) { segurarGol(fim1, falhou); return; }
+      if (fim1 === -2) { newRally(S.serveTo); sincronizar("saque"); return; }   // bola virgem escapou
+      point(fim1);
+      return;
+    }
   }
 
   /* Envelhecimento de tudo que é enfeite: avisos, faíscas, fumaça, riscos.
@@ -3258,6 +3276,7 @@
   const AI_FIRE = { facil: 0.35, normal: 0.6, dificil: 0.9 };
 
   function point(who) {
+    zerarEspera();
     if (S.phase === "attract") { resetBall(who === 0 ? 1 : -1); return; }
     /* Ponto decidido: os avisos do ponto que MORREU saem de cena na hora —
        era comum começar o saque seguinte com "BOLA DE FOGO" ainda no campo.
@@ -3324,6 +3343,89 @@
   const r2 = v => Math.round(v * 100) / 100;
 
   const naSala = () => !!(sala.ws || sala.canal);
+
+  /* ── Gol em espera: a defesa é de quem defende ───────────────────────
+     A posição da raquete do convidado chega ao anfitrião AMOSTRADA (25-50 Hz)
+     e ATRASADA (meia viagem de rede). Entre dois recados o dedo dele anda até
+     48 unidades no clássico e 104 na arena — mais que o comprimento da própria
+     raquete, que é 52. Julgando o gol no quadro exato em que a bola cruza o
+     plano, o anfitrião marcava pontos que o convidado tinha DEFENDIDO na tela
+     dele: a troca morria no meio e a contagem do saque entrava do nada. Era o
+     defeito mais antigo do modo online, e valia igual no clássico e na arena.
+
+     A correção não é adivinhar melhor: é esperar. Quando quem deixou passar é
+     a raquete de OUTRA pessoa, o ponto fica retido por uma janela curta —
+     o atraso medido, com folga. Se a defesa reivindicada por ela chegar
+     dentro da janela, vale a defesa; se não chegar, o ponto sai como antes.
+     Enquanto isso a bola segue de sobra para fora do campo, já invisível, e
+     ninguém percebe a espera. */
+  const golEspera = { on: false, quem: -1, falhou: -1, t: 0 };
+  const zerarEspera = () => {
+    golEspera.on = false; golEspera.quem = -1; golEspera.falhou = -1; golEspera.t = 0;
+  };
+  /** Quanto tempo o ponto espera pela defesa do dono da raquete, em segundos. */
+  const janelaDefesa = () => clamp(sala.atraso * 0.6 + 50, 70, 260) / 1000;
+
+  /** Essa raquete é de outra pessoa na sala? Então a verdade dela vem de lá. */
+  const padDeOutro = j => {
+    if (!sala.conectado || sala.papel !== "anfitriao") return false;
+    if (j < 0 || j === meuPadSlot() || (j === 1 && cpuNaArena())) return false;
+    const vagas = Object.values(sala.membros || {});
+    return vagas.length > 1 ? vagas.some(v => +v === j) : j === 1;
+  };
+
+  /* Quanto a raquete do outro pode ter andado desde o último recado: a
+     velocidade máxima do dedo vezes (meia viagem de rede + um intervalo de
+     amostragem). É a largura da nossa ignorância, e é ela que decide até onde
+     vale procurar o dono de um trecho do aro. */
+  const folgaRede = () => (S.arena ? 2600 : 1200) * (sala.atraso / 2000 + 0.02);
+
+  /** Quem deixou a bola passar; −1 se ninguém (vão livre do aro). */
+  function quemFalhou() {
+    if (!S.arena) return ball.va < 0 ? 0 : 1;
+    const th = Math.atan2(ball.b + BOLA / 2 - ARENA_CB(), ball.a + BOLA / 2 - ARENA_CA());
+    let dono = -1, perto = Infinity;
+    for (let j = 0; j < jogadoresAtivos(); j++) {
+      const d = Math.abs(difAngulo(th, thetaDoArco(j, mArco(pads[j].b + padLen(j) / 2))));
+      if (d > (padLen(j) / 2 + BOLA + folgaRede()) / ARENA_R()) continue;
+      /* No aro livre um trecho pode ter dois vizinhos plausíveis. O empate vai
+         para a raquete do OUTRO: é a única cuja posição chegou aqui atrasada,
+         e é por ela que o ponto tem de esperar. */
+      if (dono < 0 || (padDeOutro(j) && !padDeOutro(dono)) ||
+          (padDeOutro(j) === padDeOutro(dono) && d < perto)) { dono = j; perto = d; }
+    }
+    return dono;
+  }
+
+  /** Retém o ponto (ou o resaque) à espera da defesa de `falhou`. */
+  function segurarGol(quem, falhou) {
+    golEspera.on = true; golEspera.quem = quem; golEspera.falhou = falhou; golEspera.t = 0;
+  }
+
+  /* O convidado avisou que defendeu. A raquete dele vai para onde ele diz que
+     estava e a rebatida é REENCENADA aqui, pelo `bounce` de sempre — assim o
+     prêmio da roleta, a defesa de fogo, o item armado e o placar de defesas
+     acontecem no anfitrião como em qualquer outra rebatida. */
+  function aceitarDefesa(j, m) {
+    const p = pads[j];
+    if (m.b !== undefined && isFinite(m.b)) {
+      p.b = S.arena ? mArco(m.b) : clamp(m.b, WALL, SPAN - WALL - padLen(j));
+      p.destino = p.b;
+    }
+    if (m.sw !== undefined && isFinite(m.sw)) p.swing = m.sw;
+    if (!golEspera.on || golEspera.falhou !== j) return;
+    zerarEspera();
+    if (S.arena) {
+      const th = m.th !== undefined && isFinite(m.th)
+        ? m.th : thetaDoArco(j, mArco(p.b + padLen(j) / 2));
+      bounce(j, +1, ball, { th });
+    } else {
+      ball.b = m.bb !== undefined && isFinite(m.bb)
+        ? clamp(m.bb, WALL, SPAN - WALL - BOLA)
+        : clamp(p.b + padLen(j) / 2 - BOLA / 2, WALL, SPAN - WALL - BOLA);
+      bounce(j, j === 0 ? +1 : -1, ball);
+    }
+  }
 
   function novoCodigo() {
     let c = "";
@@ -3663,6 +3765,11 @@
       pads[slot].destino = m.b + (m.v || 0) * (sala.atraso / 2) / 1000;
       return;
     }
+    if (m.t === "defesa") {                    // convidado → anfitrião
+      if (sala.papel !== "anfitriao") return;
+      aceitarDefesa(sala.membros[m.de] !== undefined ? sala.membros[m.de] : 1, m);
+      return;
+    }
     if (m.t === "pads") {                      // anfitrião → todos
       if (sala.papel === "anfitriao") return;
       const meu = meuPadSlot();
@@ -3868,6 +3975,15 @@
      aviso oficial ainda vem e corrige, mas de mansinho. */
   function rebaterLocal(i, dir) {
     const p = pads[i];
+    /* Reivindicação de defesa: quem tem a verdade da própria raquete é quem a
+       move. O recado sai ANTES da conta, com a raquete e a bola no instante
+       do toque, e o anfitrião reencena a rebatida a partir dele. Sem isto o
+       convidado via a bola sair da raquete dele e o ponto morrer mesmo
+       assim (ver golEspera). */
+    const aviso = sala.conectado && sala.papel === "convidado" && i === meuPadSlot()
+      ? { t: "defesa", b: r1(p.b), sw: r1(p.swing), bb: r1(ball.b),
+          th: dir && dir.th !== undefined ? r2(dir.th) : undefined }
+      : null;
     // defesa de bola de fogo: o anfitrião apaga o fogo e devolve ao ritmo
     // base antes do ganho de 7% — sem espelhar, a previsão sai rápida demais
     if (fire.on) {
@@ -3903,6 +4019,7 @@
     Snd.paddle();
     spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
           { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
+    if (aviso) enviar(aviso);
   }
 
   /** O convidado anda a bola sozinho: giro, deslocamento, paredes e raquetes. */
@@ -4924,9 +5041,14 @@
   /* Inventário: um encaixe no fundo do campo de cada jogador, atrás da própria
      raquete. Fica em posições simétricas, então a leitura vale nas duas
      orientações da quadra. */
+  /* No clássico cada encaixe fica no fundo do próprio campo, atrás da
+     raquete. Na arena as raquetes não nascem frente a frente: a 0 entra pela
+     ponta do eixo dos gols e a 1 pelo alto do aro — então os encaixes trocam
+     de lado no eixo `b`, e cada um passa a ficar do lado em que o dono
+     começa a partida. */
   const SLOTS = [
-    () => [0, WALL + 3],
-    () => [LEN - SLOT, SPAN - WALL - 3 - SLOT]
+    () => [0, S.arena ? SPAN - WALL - 3 - SLOT : WALL + 3],
+    () => [LEN - SLOT, S.arena ? WALL + 3 : SPAN - WALL - 3 - SLOT]
   ];
 
   function drawInventory() {
@@ -6121,8 +6243,15 @@
         padEm -= dt;
         /* Perto da defesa a cadência dobra: é o instante em que a posição
            da raquete decide o ponto, e 20 ms de folga fazem diferença. */
+        /* Na arena a bola não tem "meu lado": o que importa é ela estar
+           chegando no aro. A conta antiga era do corredor clássico e deixava a
+           arena inteira na cadência lenta — justo o modo em que o dedo corre
+           mais rápido e a raquete envelhece antes. */
         const minhaFace = sala.papel === "anfitriao" ? padA(0) : padA(1);
-        const perto = Math.abs(ball.a - minhaFace) < 170;
+        const perto = S.arena
+          ? Math.hypot(ball.a + BOLA / 2 - ARENA_CA(), ball.b + BOLA / 2 - ARENA_CB())
+              > ARENA_R() - 170
+          : Math.abs(ball.a - minhaFace) < 170;
         if (padEm <= 0) { padEm = perto ? 1 / 50 : 1 / 25; transmitirRaquete(); }
         pingEm -= dt;
         if (pingEm <= 0) { pingEm = 2; enviar({ t: "ping", ts: Math.round(performance.now()) }); }
