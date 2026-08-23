@@ -71,6 +71,11 @@ gancho = """
     arcoDe(th) { return mArco(th * ARENA_R()); },
     padLen(j) { return padLen(j); },
     slots() { return [SLOTS[0](), SLOTS[1]()]; },
+    cores() { const v = []; for (let j = 0; j < 4; j++) v.push(corDoJogador(j)); return v; },
+    roda(n) { turnWheel(n); },
+    nomes() { const v = []; for (let j = 0; j < 4; j++) v.push([nomeDaVaga(j), nomeFalado(j)]); return v; },
+    porNome(m) { sala.nomes = m; },
+    modo(m) { S.mode = m; },
     diag() { return { falhou: quemFalhou(), deOutro: padDeOutro(quemFalhou()),
                       ativos: jogadoresAtivos(), meu: meuPadSlot(),
                       conect: sala.conectado, papel: sala.papel, cpu: cpuNaArena(),
@@ -145,6 +150,29 @@ import json
 c, a = json.loads(c), json.loads(a)
 diz("mesmo eixo a", [c[0][0], c[1][0]] == [a[0][0], a[1][0]])
 diz("b trocado", c[0][1] == a[1][1] and c[1][1] == a[0][1])
+
+print("\n[6] cores: nenhuma repetida em nenhuma casa da roda")
+import json as _j
+ruins = []
+for casa in range(12):
+    cs = _j.loads(m.eval("JSON.stringify(__T.cores())"))
+    if len(set(cs)) != 4: ruins.append((casa, cs))
+    m.eval("__T.roda(1)")
+diz("12 casas x 4 jogadores, todas distintas", not ruins, ruins[:2])
+
+print("\n[7] nomes: o do humano ganha de J1/J2")
+m.eval('__T.salaHost(); __T.modo("2p"); __T.porNome({ 1: "Marcos", 2: "Bia" })')
+n = _j.loads(m.eval("JSON.stringify(__T.nomes())"))
+print("      ", n)
+diz("vaga 0 usa o nome do anfitriao", n[0][0] in ("MARCOS", "J1"))
+eq("vaga 1 usa o nome do convidado", n[1][0], "BIA")
+eq("vaga 1 falada", n[1][1], "Bia")
+eq("vaga 2 sem gente cai em J3", n[2][0], "J3")
+m.eval("__T.sairDaSala(); __T.modo(\"1p\")")
+n = _j.loads(m.eval("JSON.stringify(__T.nomes())"))
+print("      ", n)
+eq("fora de sala, 1 jogador: a CPU se chama CPU", n[1][0], "CPU")
+eq("e falada como Computador", n[1][1], "Computador")
 
 err = m.eval("globalThis.__erro")
 diz("nenhum erro de quadro", not err, err or "")

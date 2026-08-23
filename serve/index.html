@@ -1044,8 +1044,13 @@
   /* Os matizes ficam fixos — o que muda entre os dois temas é a intensidade.
      No claro, fósforo desbotado de 1972; no escuro, o mesmo tubo levado ao
      talo, com brilho em volta das peças. A chama nunca entra na roda. */
-  // Só as raquetes giram. Rede, bola e itens ficam fora da roda.
-  const HUES = { p1: 7, p2: 211 };
+  /* Só as raquetes giram. Rede, bola e itens ficam fora da roda.
+     Os quatro matizes ficam a 102° um do outro e andam JUNTOS: seja qual for
+     a casa da roda, nenhum jogador da arena divide a cor com outro. Antes o 3
+     e o 4 eram fixos (âmbar e verde-água) enquanto o 1 e o 2 giravam — e a
+     cada volta da roda havia casa em que o 1 caía em cima do âmbar e o 2 em
+     cima do verde-água. Numa arena de quatro, dois jogadores da mesma cor. */
+  const HUES = { p1: 7, p2: 211, p3: 109, p4: 313 };
   const TINTED = Object.keys(HUES);
 
   /* Fora da roda e fora dos temas: a bola é sempre branca, o fogo é sempre
@@ -1053,8 +1058,6 @@
      os três pontos de referência que o jogador nunca precisa reaprender. */
   const FIXED = {
     ball:     "#f4f0e4",   // branca, para sempre
-    p3:       "#d9a24a",   // jogador 3: âmbar
-    p4:       "#5fbfa8",   // jogador 4: verde-água
     net:      "#d5d0c2",   // a rede: mesmo branco, um tom abaixo da bola
     fire:     "#c86f63",
     fireDark: "#a85a4f",
@@ -1095,7 +1098,7 @@
 
   const THEMES = {
     claro: {
-      sl:   { p1: [48, 59], p2: [33, 57] },
+      sl:   { p1: [48, 59], p2: [33, 57], p3: [40, 52], p4: [44, 60] },
       dim:  "#3c474b",
       screen: "#161b1d",
       fade: "rgba(22,27,29,0.80)",
@@ -1103,7 +1106,7 @@
       glow: 0
     },
     escuro: {
-      sl:   { p1: [92, 64], p2: [88, 63] },
+      sl:   { p1: [92, 64], p2: [88, 63], p3: [80, 56], p4: [86, 66] },
       dim:  "#27272d",
       screen: "#050506",
       fade: "rgba(5,5,7,0.76)",
@@ -1445,17 +1448,34 @@
   const cpuNaArena = () =>
     S.arena && naSala() && sala.papel === "anfitriao" && sala.n <= 1;
   const corDoJogador = i => [COL.p1, COL.p2, COL.p3, COL.p4][i] || COL.core;
-  /** Nome curto de quem ocupa a vaga, para os rótulos em campo. */
-  function nomeDaVaga(slot) {
-    let nome = "";
-    if (naSala()) {
-      for (const [id, s] of Object.entries(sala.membros || {}))
-        if (+s === slot) { nome = (sala.nomes || {})[id] || ""; break; }
-    } else if (slot === 0) {
-      try { nome = localStorage.getItem("rainbow-pong-nome") || ""; } catch (_) {}
-    } else if (S.mode === "1p") nome = "CPU";
-    return (nome || "J" + (slot + 1)).slice(0, 8).toUpperCase();
+
+  /* ── Nomes ────────────────────────────────────────────────────────────
+     Quem se apresentou tem nome, e o nome ganha de "J1" em toda parte: no
+     campo, no placar de cima, na tela final e no que é lido em voz alta.
+     Uma fonte só para os três formatos, porque antes cada canto inventava o
+     seu — e metade deles nem olhava para o nome. */
+  const meuNome = () => {
+    try { return (localStorage.getItem("rainbow-pong-nome") || "").trim().slice(0, 12); }
+    catch (_) { return ""; }
+  };
+  /** O nome de quem ocupa a vaga, ou "" se ninguém deu um. */
+  function nomeCru(slot) {
+    if (!naSala()) return slot === 0 ? meuNome() : "";
+    /* A minha vaga é a exceção: o que está no campo de nome vale na hora,
+       sem esperar o eco do servidor. */
+    if (slot === meuPadSlot()) return meuNome();
+    for (const [id, s] of Object.entries(sala.membros || {}))
+      if (+s === slot) return ((sala.nomes || {})[id] || "").trim();
+    return "";
   }
+  /** É o computador que joga nessa vaga? */
+  const vagaDaCPU = slot => slot === 1 && ((S.mode === "1p" && !naSala()) || cpuNaArena());
+  /** Rótulo curto para o campo: caixa alta, oito letras. */
+  const nomeDaVaga = slot =>
+    (nomeCru(slot) || (vagaDaCPU(slot) ? "CPU" : "J" + (slot + 1))).slice(0, 8).toUpperCase();
+  /** Nome para texto corrido e para a leitura em voz alta. */
+  const nomeFalado = slot =>
+    nomeCru(slot) || (vagaDaCPU(slot) ? "Computador" : "Jogador " + (slot + 1));
   const padA = i => (i === 0 ? PAD_A : LEN - PAD_A - PT);
 
   /* ── Arena circular ──
@@ -1950,7 +1970,8 @@
      cresce quanto a pontaria render. O único limite é físico — ela precisa
      caber entre as paredes. O fogo cresce sob a mesma regra. */
   const raqueteTeto = () => SPAN - WALL * 2;
-  const heart = { on: false, done: false, life: 0, t: 0, hits: [0, 0], pulse: 0 };
+  const heart = { on: false, done: false, life: 0, t: 0,
+                  hits: Array(JMAX).fill(0), pulse: 0 };
 
   /* Ele vive no meio do campo e dilata devagar. A caixa é recalculada a cada
      quadro, então acompanha a respiração e também a quadra mudando de largura. */
@@ -2126,7 +2147,7 @@
   function spawnHeart() {
     heart.life = HEART_LIFE;
     heart.t = 0;
-    heart.hits = [0, 0];
+    heart.hits = Array(JMAX).fill(0);
     heart.pulse = 0;
     heart.on = true;
     Snd.heartIn();
@@ -2575,7 +2596,7 @@
     arcos.length = 0;
     heart.on = false;
     heart.done = false;
-    heart.hits = [0, 0];
+    heart.hits = Array(JMAX).fill(0);
     heart.t = 0;
     playTime = 0;
     heartAt = rand(16, 42);
@@ -2612,11 +2633,11 @@
     updateScoreline();
   }
 
-  const foeName = () => (S.mode === "2p" ? "Jogador 2" : "Computador");
+  const foeName = () => nomeFalado(1);
 
   function updateScoreline() {
     scoreline.innerHTML =
-      `Jogador 1 <b>${S.score[0]}</b> · <b>${S.score[1]}</b> ${foeName()} — até ${TARGET} pontos`;
+      `${nomeFalado(0)} <b>${S.score[0]}</b> · <b>${S.score[1]}</b> ${foeName()} — até ${TARGET} pontos`;
   }
   const announce = m => { live.textContent = m; };
 
@@ -3263,7 +3284,7 @@
        então o impacto com item é sempre visivelmente mais intenso. */
     p.glow = Math.max(p.glow, GLOW_TIME * 0.5);
     b.hit = BHIT_TIME;
-    spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
+    spark(b.a + BOLA / 2, b.b + BOLA / 2, 8, 3, 92, corDoJogador(i),
           { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
 
     b.dono = i;
@@ -3307,12 +3328,12 @@
       S.t = 0;
       releaseWake();
       announce(who === 0
-        ? `Jogador 1 venceu por ${S.score[0]} a ${S.score[1]}`
+        ? `${nomeFalado(0)} venceu por ${S.score[0]} a ${S.score[1]}`
         : `${foeName()} venceu por ${S.score[1]} a ${S.score[0]}`);
     } else {
       announce(jogadoresAtivos() > 2
         ? `Ponto do jogador ${who + 1}.`
-        : `Placar: jogador 1 ${S.score[0]}, ${foeName().toLowerCase()} ${S.score[1]}`);
+        : `Placar: ${nomeFalado(0)} ${S.score[0]}, ${foeName()} ${S.score[1]}`);
       if (jogadoresAtivos() === 2 && matchPoint(who)) {
         const decisivo = pontoFinal();
         if (decisivo) { moldura.t = MOLDURA_TEMPO; moldura.arco = true; moldura.lados = false; }
@@ -3321,7 +3342,7 @@
         if (decisivo) { kick(0.55, 0.6, VIVAS, 1.2); aberr = reduceMotion ? 0 : 0.9; }
         announce(decisivo
           ? "Ponto final: o próximo ponto decide a partida."
-          : (who === 0 ? "Match point para o jogador 1." : `Match point para ${foeName().toLowerCase()}.`));
+          : `Match point para ${nomeFalado(who)}.`);
       }
       S.serveTo = who === 0 ? 1 : -1;
       newRally(S.serveTo);
@@ -3603,7 +3624,8 @@
     if (m.t === "oi") {
       sala.id = m.id || 0; sala.n = m.n || 1;
       sala.nomes = m.nomes || {};
-      try { sala.nomes[sala.id] = (localStorage.getItem("rainbow-pong-nome") || "").slice(0, 12); } catch (_) {}
+      sala.nomes[sala.id] = meuNome();
+      updateScoreline();          // o placar de cima carrega os nomes
       /* Na sala pública o papel se decide aqui: quem chega primeiro vira o
          anfitrião; os demais entram como convidados. E a sala é de ARENA por
          definição. */
@@ -3637,6 +3659,7 @@
       if (m.n) sala.n = m.n;
       if (m.de !== undefined) {
         (sala.nomes = sala.nomes || {})[m.de] = m.nome || "";
+        updateScoreline();
         /* Chegada de gente é festa: nome em letras grandes, em duas linhas,
            com tranco e brilho — e o computador cede o lugar na hora. */
         if (S.arena) {
@@ -3841,7 +3864,7 @@
       bolt.on && [r1(bolt.a), r1(bolt.b)],
       iris.on && [r1(iris.a), r1(iris.b)],
       chiclete.on && [r1(chiclete.a), r1(chiclete.b)],
-      heart.on && [heart.hits[0], heart.hits[1]],
+      heart.on && heart.hits.join(","),
       roleta.on && roleta.dono,
       venom.t > 0, slow.t > 0, storm.t > 0, BOLA
     ]);
@@ -3868,7 +3891,9 @@
       gem: gem.on ? [r1(gem.a), r1(gem.b), r1(gem.life)] : null,
       poi: poison.on ? [r1(poison.a), r1(poison.b), r1(poison.life)] : null,
       ray: bolt.on ? [r1(bolt.a), r1(bolt.b), r1(bolt.life)] : null,
-      cor: heart.on ? [r2(heart.t), r1(heart.life), heart.hits[0], heart.hits[1], r2(heart.pulse)] : null,
+      cor: heart.on
+        ? [r2(heart.t), r1(heart.life), r2(heart.pulse), heart.hits.slice(0, JMAX)]
+        : null,
       efe: [r2(venom.t), r2(slow.t), r2(storm.t)],
       rol: roleta.on ? [roleta.dono, r2(roleta.t)] : null,
       iris: iris.on ? [r1(iris.a), r1(iris.b), r1(iris.life)] : null,
@@ -4026,7 +4051,7 @@
     p.glow = Math.max(p.glow, GLOW_TIME * 0.5);
     ball.hit = BHIT_TIME;
     Snd.paddle();
-    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 3, 92, i === 0 ? COL.p1 : COL.p2,
+    spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 8, 3, 92, corDoJogador(i),
           { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
     if (aviso) enviar(aviso);
   }
@@ -4202,7 +4227,8 @@
         announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
       }
       heart.on = true; heart.t = m.cor[0]; heart.life = m.cor[1];
-      heart.hits = [m.cor[2], m.cor[3]]; heart.pulse = Math.max(heart.pulse, m.cor[4]);
+      heart.pulse = Math.max(heart.pulse, m.cor[2]);
+      for (let k = 0; k < JMAX; k++) heart.hits[k] = (m.cor[3] || [])[k] || 0;
     } else heart.on = false;
 
     if (m.efe[0] > venom.t + 0.5) {
@@ -4414,7 +4440,7 @@
       /* Na arena o placar mora DENTRO do círculo: um corpo menor cabe com
          harmonia entre o aro e a bola. */
       const ss = (S.arena ? SCORE_S - 1 : SCORE_S) + (pop > 0.78 ? 2 : pop > 0.68 ? 1 : 0);
-      const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : (i === 0 ? COL.p1 : COL.p2));
+      const cor = dim ? COL.dim : (pop > 0.72 ? COL.core : corDoJogador(i));
       const forca = pop > 0.45 ? 1 : pop / 0.45;
       g.globalAlpha = (1 - (heart.on ? 0 : venomVis)) * (SCORE_A + (1 - SCORE_A) * forca);
       const txt = String(S.score[i]);
@@ -4572,12 +4598,20 @@
         g.globalAlpha = 1;
       }
 
-      // acertos de cada jogador, um de cada lado
-      for (let k = 0; k < 2; k++) {
-        if (!heart.hits[k]) continue;
-        const t = String(heart.hits[k]);
-        const x = k === 0 ? r[0] - 5 - textWidth(t, 1) : r[0] + hb.s + 5;
-        drawText(g, t, x, r[1] + hb.s / 2 - CH / 2, 1, k === 0 ? COL.p1 : COL.p2);
+      /* Acertos de cada jogador, na cor dele. Com mais de dois em campo os
+         números empilham — pares à esquerda, ímpares à direita —, porque na
+         arena o coração é de todo mundo e o placar dele também. */
+      const lados = [[], []];
+      for (let k = 0; k < jogadoresAtivos(); k++)
+        if (heart.hits[k]) lados[k % 2].push(k);
+      for (let d = 0; d < 2; d++) {
+        let ty = r[1] + hb.s / 2 - (lados[d].length * (CH + 2) - 2) / 2;
+        for (const k of lados[d]) {
+          const t = String(heart.hits[k]);
+          drawText(g, t, d ? r[0] + hb.s + 5 : r[0] - 5 - textWidth(t, 1),
+                   ty, 1, corDoJogador(k));
+          ty += CH + 2;
+        }
       }
     }
 
@@ -4893,7 +4927,7 @@
       const middle = hint.who < 0;
       const p = middle ? [cw / 2, ch / 2 - 46]
                        : rect(hint.who === 0 ? LEN * 0.26 : LEN * 0.74, SPAN / 2, 0, 0);
-      const col = hint.col || (middle ? COL.time : (hint.who === 0 ? COL.p1 : COL.p2));
+      const col = hint.col || (middle ? COL.time : corDoJogador(hint.who));
       g.globalAlpha = Math.min(1, hint.t * 2);
       const esc = hint.esc || (middle ? 3 : 2);
       if (hint.arco) centradoArcoIris(g, hint.txt, p[0], p[1] - 10, esc, maxTextW);
@@ -5082,7 +5116,7 @@
         const bright = !reduceMotion && S.blink % 0.9 < 0.45;
         drawItem(sp, r[0], r[1], SLOT, sp.field, bright);
       } else {
-        drawSlot(r[0], r[1], i === 0 ? COL.p1 : COL.p2);
+        drawSlot(r[0], r[1], corDoJogador(i));
       }
     }
   }
@@ -5104,8 +5138,8 @@
 
   function halfLabels() {
     const marks = [
-      { a: LEN * 0.22, txt: "J1", col: COL.p1 },
-      { a: LEN * 0.78, txt: "J2", col: COL.p2 }
+      { a: LEN * 0.22, txt: nomeDaVaga(0), col: corDoJogador(0) },
+      { a: LEN * 0.78, txt: nomeDaVaga(1), col: corDoJogador(1) }
     ];
     for (const m of marks) {
       const r = rect(m.a, SPAN / 2, 0, 0);
@@ -5130,7 +5164,7 @@
       /* Com N jogadores a comparação de raquetes vira um ranking simples. */
       const ativos = jogadoresAtivos();
       const nomes2 = [];
-      for (let j = 0; j < ativos; j++) nomes2.push("JOGADOR " + (j + 1));
+      for (let j = 0; j < ativos; j++) nomes2.push(nomeFalado(j).toUpperCase());
       let y2 = Math.max(10, ch * 0.06);
       y2 += centered(g, nomes2[S.winner] + " VENCEU", cw / 2, y2, 2, corDoJogador(S.winner), maxTextW) + 14;
       const ordem = Array.from({ length: ativos }, (_, j) => j)
@@ -5148,8 +5182,8 @@
       return;
     }
     const won = S.winner === 0;
-    const winCol = won ? COL.p1 : COL.p2;
-    const nomes = ["JOGADOR 1", S.mode === "2p" ? "JOGADOR 2" : "COMPUTADOR"];
+    const winCol = corDoJogador(S.winner);
+    const nomes = [nomeFalado(0).toUpperCase(), nomeFalado(1).toUpperCase()];
 
     // A barra sobe do zero até o tamanho final, desacelerando no fim
     const cresce = Math.min(1, S.t / 1.2);
@@ -5187,7 +5221,7 @@
     const lider = pads[0].len === pads[1].len ? -1 : (pads[0].len > pads[1].len ? 0 : 1);
 
     for (let i = 0; i < 2; i++) {
-      const col = i === 0 ? COL.p1 : COL.p2;
+      const col = corDoJogador(i);
       const len = pads[i].len;
       const agora = Math.max(2, Math.round(len * escalaBarra * eased));
       const cx = Math.round(cw / 2 + (i === 0 ? -gap : gap));
@@ -5658,7 +5692,7 @@
     if (mirasVisiveis().indexOf(alvo.i) < 0) return;
 
     const i = alvo.i, p = pads[i];
-    const cor = i === 0 ? COL.p1 : COL.p2;
+    const cor = corDoJogador(i);
     const face = i === 0 ? padA(0) + PT : padA(1) - BOLA;
     // a raquete alcança? o ponto de encontro precisa cair sobre ela
     const pega = alvo.b + BOLA > p.b && alvo.b < p.b + padLen(i);
