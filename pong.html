@@ -2551,6 +2551,72 @@
     g.fillStyle = color;
     g.fillRect(r[0], r[1], r[2], r[3]);
   }
+  /* ── Disco na malha ──
+     A bola é redonda, mas continua feita de pixels: cada fileira é um
+     retângulo de 1 px de altura, e fileiras de mesma largura saem numa
+     tacada só. Nada de `g.arc()` — o canvas tem 512 de largura lógica e sobe
+     para a tela com `image-rendering: pixelated`, então o antialias viraria
+     bloco leitoso na ampliação, e numa bola de 8 px não sobra pixel para
+     descrever curva. Aceita largura e altura diferentes: o smear da rebatida
+     estica a bola no eixo da viagem, e a elipse é este mesmo desenho torcido. */
+  /** Margem esquerda da fileira `j` de um disco w×h; -1 se a fileira é vazia. */
+  function margemDoDisco(j, w, h) {
+    const dy = (j + 0.5) - h / 2;
+    const k = 1 - (dy / (h / 2)) ** 2;
+    if (k <= 0) return -1;
+    /* Guarda-se a MARGEM, não a largura: assim a fileira sempre começa em
+       pixel inteiro e fica simétrica, com w par ou ímpar. */
+    return Math.min(Math.floor((w - 1) / 2), Math.round(w / 2 - (w / 2) * Math.sqrt(k)));
+  }
+
+  function disco(color, a, b, la, lb) {
+    const w = Math.max(1, Math.round(la));
+    const h = Math.max(1, Math.round(lb === undefined ? la : lb));
+    const x0 = Math.round(a), y0 = Math.round(b);
+    // abaixo de 3 px não existe curva a desenhar: o disco É o quadradinho
+    if (w <= 2 || h <= 2) { fill(color, x0, y0, w, h); return; }
+    // fileiras de mesma margem saem numa tacada só
+    let ini = 0, marg = -2;
+    for (let j = 0; j <= h; j++) {
+      const mg = j < h ? margemDoDisco(j, w, h) : -2;
+      if (mg !== marg) {
+        if (marg >= 0) fill(color, x0 + marg, y0 + ini, w - 2 * marg, j - ini);
+        ini = j; marg = mg;
+      }
+    }
+  }
+
+  /** Disco com contorno de 1 px que não abre buraco.
+      Dois discos concêntricos não servem: o de dentro, com raio 1 menor, cai
+      no MESMO pixel do de fora em boa parte da volta, e o contorno aparece só
+      em pedaços — as "mordidas". Aqui o miolo se afasta da silhueta olhando
+      também para a fileira de cima e a de baixo, então todo pixel de miolo
+      tem borda por cima, por baixo e dos lados. */
+  function discoBorda(borda, miolo, a, b, tam) {
+    const w = Math.max(1, Math.round(tam)), h = w;
+    const x0 = Math.round(a), y0 = Math.round(b);
+    if (w <= 4) { disco(borda, a, b, tam); return; }   // pequeno demais para ter os dois
+    for (let j = 0; j < h; j++) {
+      const mg = margemDoDisco(j, w, h);
+      if (mg < 0) continue;
+      fill(borda, x0 + mg, y0 + j, w - 2 * mg, 1);
+      if (j === 0 || j === h - 1) continue;
+      const viz = Math.max(mg + 1, margemDoDisco(j - 1, w, h), margemDoDisco(j + 1, w, h));
+      if (w - 2 * viz > 0) fill(miolo, x0 + viz, y0 + j, w - 2 * viz, 1);
+    }
+  }
+
+  /** Disco com o halo translúcido do tema escuro, como o `glowFill`. */
+  function discoGlow(color, a, b, la, lb) {
+    const h = lb === undefined ? la : lb;
+    if (theme.glow) {
+      g.globalAlpha = 0.2;
+      disco(color, a - 2, b - 2, la + 4, h + 4);
+      g.globalAlpha = 1;
+    }
+    disco(color, a, b, la, h);
+  }
+
   function toCourt(clientX, clientY) {
     const r = cv.getBoundingClientRect();
     const x = (clientX - r.left) / r.width * cv.width;
@@ -4772,7 +4838,7 @@
         const size = Math.max(2, Math.round(BOLA * (0.35 + k * 0.65)));
         const off = (BOLA - size) / 2;
         g.globalAlpha = 0.16 + k * 0.42;
-        fill(k > 0.62 ? COL.ember : COL.fire, trail[i].a + off, trail[i].b + off, size, size);
+        disco(k > 0.62 ? COL.ember : COL.fire, trail[i].a + off, trail[i].b + off, size);
       }
       g.globalAlpha = 1;
     }
@@ -4846,19 +4912,20 @@
     ball.a += corrBola.a; ball.b += corrBola.b;   // só o desenho vê isto
     if (S.phase !== "over") {
       if (fire.on) {
-        fill(COL.fire, Math.round(ball.a) - 2, Math.round(ball.b) - 2, BOLA + 4, BOLA + 4);
-        fill(COL.core, Math.round(ball.a), Math.round(ball.b), BOLA, BOLA);
+        disco(COL.fire, ball.a - 2, ball.b - 2, BOLA + 4);
+        disco(COL.core, ball.a, ball.b, BOLA);
       } else if (ball.hit > 0) {
         // Smear: sai da raquete esticada no eixo em que viaja, e volta ao quadrado
         const k = ball.hit / BHIT_TIME;
         const sa = BOLA * (1 + 0.65 * k), sb = BOLA * (1 - 0.3 * k);
+        const ea = ball.a - (sa - BOLA) / 2, eb = ball.b - (sb - BOLA) / 2;
         // glow mínimo do impacto: dois anéis que apagam junto com o smear
         g.globalAlpha = 0.16 * k;
-        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 7, ball.b - (sb - BOLA) / 2 - 7, sa + 14, sb + 14);
+        disco(COL.ball, ea - 7, eb - 7, sa + 14, sb + 14);
         g.globalAlpha = 0.34 * k;
-        fill(COL.ball, ball.a - (sa - BOLA) / 2 - 3, ball.b - (sb - BOLA) / 2 - 3, sa + 6, sb + 6);
+        disco(COL.ball, ea - 3, eb - 3, sa + 6, sb + 6);
         g.globalAlpha = 1;
-        glowFill(COL.ball, ball.a - (sa - BOLA) / 2, ball.b - (sb - BOLA) / 2, sa, sb);
+        discoGlow(COL.ball, ea, eb, sa, sb);
       } else if (roleta.on) {
         // Borrão de movimento: cada amostra na cor que a roleta tinha ali
         for (let i = 0; i < rastroIris.length; i++) {
@@ -4866,16 +4933,16 @@
           const size = Math.max(2, Math.round(BOLA * (0.3 + k * 0.7)));
           const off = (BOLA - size) / 2;
           g.globalAlpha = 0.08 + k * 0.34;
-          fill(r.cor, r.a + off, r.b + off, size, size);
+          disco(r.cor, r.a + off, r.b + off, size);
         }
         g.globalAlpha = 1;
 
         // vibra: halo largo na cor da vez, anel na seguinte, miolo branco
         const c = roletaViva();
         const prox = VIVAS[(roletaIndice() + 1) % VIVAS.length];
-        fill(prox, Math.round(ball.a) - 4, Math.round(ball.b) - 4, BOLA + 8, BOLA + 8);
-        fill(c, Math.round(ball.a) - 2, Math.round(ball.b) - 2, BOLA + 4, BOLA + 4);
-        fill("#ffffff", Math.round(ball.a) + 1, Math.round(ball.b) + 1, BOLA - 2, BOLA - 2);
+        disco(prox, ball.a - 4, ball.b - 4, BOLA + 8);
+        disco(c, ball.a - 2, ball.b - 2, BOLA + 4);
+        disco("#ffffff", ball.a + 1, ball.b + 1, BOLA - 2);
       } else if (BOLA > BS) {
         /* Bola de chiclete: casca rosa, miolo claro quase transparente e um
            ponto de luz em cima à esquerda — a mesma gramática das outras peças.
@@ -4883,22 +4950,32 @@
         const q = gumPop > 0 ? Math.sin(gumPop / 0.45 * Math.PI) * 2.5 : 0;
         const t = BOLA + q;
         const x = Math.round(ball.a - q / 2), y = Math.round(ball.b - q / 2);
-        const m = Math.max(2, Math.round(t / 4));
-        fill(COL.gumEdge, x, y, t, t);
-        fill(COL.gum, x + 1, y + 1, t - 2, t - 2);
-        fill(COL.gumHi, x + m, y + m, t - m * 2, t - m * 2);
-        fill("#ffffff", x + m, y + m, Math.max(1, m - 1), Math.max(1, m - 1));
+        /* Mesma gramática do sprite do chiclete em campo: contorno fechado,
+           sombra na barriga de baixo-direita e a luz no alto-esquerda. A
+           sombra é uma lua: o corpo entra deslocado sobre um disco todo
+           escuro, e o que sobra dele é a beirada de baixo. */
+        const luaK = Math.max(2, Math.round(t * 0.14));
+        discoBorda(COL.gumEdge, COL.gumLo, x, y, t);
+        disco(COL.gum, x + 1, y + 1, t - luaK);
+        const luzD = Math.max(3, Math.round(t * 0.40));
+        const luzX = x + Math.round(t * 0.16), luzY = y + Math.round(t * 0.16);
+        disco(COL.gumHi, luzX, luzY, luzD);
+        /* O brilho especular fica quadrado de propósito: é a marca de um
+           punhado de pixels que a estrela e o coração também usam, e
+           arredondá-la nesse tamanho só a borraria. */
+        const pt = Math.max(1, Math.round(t * 0.11));
+        fill("#ffffff", luzX + Math.round(luzD * 0.2), luzY + Math.round(luzD * 0.2), pt, pt);
       } else {
         // No ponto final ela segue branca, mas com um halo que respira
         if (pontoFinal()) {
           const k = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
           g.globalAlpha = 0.14 + 0.16 * k;
-          fill(COL.ball, ball.a - 6, ball.b - 6, BOLA + 12, BOLA + 12);
+          disco(COL.ball, ball.a - 6, ball.b - 6, BOLA + 12);
           g.globalAlpha = 0.26 + 0.26 * k;
-          fill(COL.ball, ball.a - 3, ball.b - 3, BOLA + 6, BOLA + 6);
+          disco(COL.ball, ball.a - 3, ball.b - 3, BOLA + 6);
           g.globalAlpha = 1;
         }
-        glowFill(COL.ball, Math.round(ball.a), Math.round(ball.b), BOLA, BOLA);
+        discoGlow(COL.ball, ball.a, ball.b, BOLA);
       }
     }
     ball.a -= corrBola.a; ball.b -= corrBola.b;
@@ -5039,11 +5116,9 @@
 
     // a bola fica eletrocutada: núcleo colorido e faíscas curtas em volta
     if (S.phase === "play" || S.phase === "serve") {
-      const bp = rect(ball.a, ball.b, BOLA, BOLA);
       const cor = RAIOS[(S.blink * 14 | 0) % RAIOS.length];
       g.globalAlpha = 0.9 * forca;
-      g.fillStyle = cor;
-      g.fillRect(bp[0] + 1, bp[1] + 1, bp[2] - 2, bp[3] - 2);
+      disco(cor, ball.a + 1, ball.b + 1, BOLA - 2);
       g.globalAlpha = 1;
     }
     for (const arco of arcos) {
