@@ -718,6 +718,7 @@
 
 </head>
 <body>
+
 <div class="room">
 
   <header class="masthead">
@@ -1493,6 +1494,14 @@
   /* Aro LIVRE: todo mundo percorre a volta inteira. `s` é comprimento de
      arco em [0, 2πR), com dobra; θ = s/R, mesma régua para todos. */
   const arcoVolta = () => Math.PI * 2 * ARENA_R();
+  /* Teto de velocidade da raquete no aro, em unidades de arco por segundo.
+     Nenhum caminho de controle — régua, dedo, teclado ou posição vinda do
+     outro aparelho — pode mover a raquete mais que isto: ela vai DEPRESSA
+     (a volta inteira em ~0,19 s) mas sempre passando pelo meio do caminho.
+     Antes a régua grudava no cursor (p.b = alvo) e a raquete do convidado
+     saltava quando a distância passava de 90: as duas coisas apareciam em
+     tela como teletransporte de um lado do disco para o outro. */
+  const ARENA_VMAX = 5200;
   const mArco = v => ((v % arcoVolta()) + arcoVolta()) % arcoVolta();
   const dArco = (x, y) => {
     let d = (x - y) % arcoVolta();
@@ -1540,6 +1549,18 @@
   }
 
   const ball = { a: 0, b: 0, va: 0, vb: 0, speed: 268, spin: 0, budget: 0, hit: 0, dono: -1 };
+
+  /* Quem mandou a bola por cima do item. No corredor clássico o SENTIDO da
+     viagem basta: indo para a direita (va > 0), quem bateu foi o 0, que joga
+     na esquerda. Na arena não existe esquerda: cada um é dono de um trecho do
+     aro e a bola cruza o disco em qualquer direção — ali o crédito é de quem
+     rebateu por último (`ball.dono`). Era essa conta faltando que fazia a
+     estrela pega pelo jogador A cair no bolso do jogador B. */
+  const quemMandou = () =>
+    (S.arena && ball.dono >= 0) ? ball.dono : (ball.va > 0 ? 0 : 1);
+  /* Placar de itens só tem casa para dois; na arena de quatro o terceiro e o
+     quarto jogam sem entrar na estatística, em vez de quebrar o quadro. */
+  const marcarUso = (i, chave) => { if (stats.used[i]) stats.used[i][chave]++; };
 
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -2517,7 +2538,7 @@
     }
     armed.kind = held[i];
     armed.who = i;
-    stats.used[i][armed.kind]++;
+    marcarUso(i, armed.kind);
     held[i] = null;
     Snd.arm();
 
@@ -2718,14 +2739,20 @@
            reporta, depressa e sem inventar cinemática por cima. */
         if (p.destino !== undefined) {
           const longe = S.arena ? dArco(p.destino, p.b) : p.destino - p.b;
-          p.b += Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
+          /* Alcançar depressa, sem saltar: no aro o teto é ARENA_VMAX, e o
+             corredor clássico mantém o atalho antigo para distâncias grandes,
+             onde não há volta de disco para atravessar. */
+          if (S.arena) p.b += clamp(longe, -ARENA_VMAX * dt, ARENA_VMAX * dt);
+          else p.b += Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
         }
       }
       else {
         if (p.touch !== null) {
           const want = p.touch - padLen(i) / 2;
-          if (S.arena && p.reguaSegue) p.b = mArco(want);   // régua: segue o cursor 1:1
-          else p.b += clamp(S.arena ? dArco(want, p.b) : want - p.b, -dragSpeed, dragSpeed);
+          /* Régua: praticamente colada no cursor, mas com teto — ela percorre
+             o caminho em vez de reaparecer do outro lado do aro. */
+          const vel = S.arena && p.reguaSegue ? ARENA_VMAX * dt : dragSpeed;
+          p.b += clamp(S.arena ? dArco(want, p.b) : want - p.b, -vel, vel);
         }
         if (p.up) p.b -= keySpeed;
         if (p.down) p.b += keySpeed;
@@ -2969,6 +2996,25 @@
     }
   }
 
+  /* Trava de segurança do CORREDOR: sem ela uma curva cheia deixa a bola quase
+     paralela às paredes, quicando de lado sem nunca chegar ao gol.
+     No ARO não existe parede — nem "de lado": toda direção acaba encontrando a
+     borda, e a curvatura por bolada já é limitada por SPIN_BUDGET (~46°). Ali a
+     trava só fazia mal: torcia a rota num ponto que a previsão não modela, e a
+     mira errava o encontro por até uma raquete inteira (p95 de 66 px de arco,
+     pior caso 116). Por isso ela vale só fora da arena. */
+  function travarAngulo(o) {
+    if (S.arena) return;
+    const at = Math.atan2(o.vb, Math.abs(o.va));
+    if (Math.abs(at) <= MAX_ANGLE) return;
+    const sp = Math.hypot(o.va, o.vb);
+    const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
+    o.va = Math.cos(lim) * sp * (o.va < 0 ? -1 : 1);
+    o.vb = Math.sin(lim) * sp;
+    o.spin = 0;
+    o.budget = 0;
+  }
+
   /* Um passo de física da bola: curvatura, itens, paredes e raquetes.
      Devolve quem pontuou, ou -1 se a jogada continua. */
   function moverBola(b, dt) {
@@ -2989,17 +3035,7 @@
       b.spin *= Math.pow(SPIN_DECAY, dt);
       if (Math.abs(b.spin) < 0.02 || b.budget <= 0) b.spin = 0;
 
-      /* Trava de segurança: sem isso uma curva cheia deixa a bola quase
-         paralela às paredes, quicando de lado sem nunca chegar ao gol. */
-      const ang = Math.atan2(b.vb, Math.abs(b.va));
-      if (Math.abs(ang) > MAX_ANGLE) {
-        const sp = Math.hypot(b.va, b.vb);
-        const lim = ang < 0 ? -MAX_ANGLE : MAX_ANGLE;
-        b.va = Math.cos(lim) * sp * (b.va < 0 ? -1 : 1);
-        b.vb = Math.sin(lim) * sp;
-        b.spin = 0;
-        b.budget = 0;
-      }
+      travarAngulo(b);
     }
 
     const pa = b.a;
@@ -3036,7 +3072,7 @@
     if (chiclete.on && hits(chiclete.a, chiclete.b, GUM, b)) {
       chiclete.on = false;
       gumTimer = rand(18, 31);
-      stats.used[b.va > 0 ? 0 : 1].gum++;
+      marcarUso(quemMandou(), "gum");
       /* ── Segredo do quinto chiclete ──
          Cinco mordidas no MESMO ponto e o chiclete não aguenta: a bola
          explode e volta ao branco de fábrica, na velocidade de saque. Não
@@ -3095,10 +3131,10 @@
        começa a girar as cores na hora; o prêmio sai na rebatida de quem a
        acertou. */
     if (iris.on && hits(iris.a, iris.b, IRIS, b)) {
-      const quem = b.va > 0 ? 0 : 1;
+      const quem = quemMandou();
       iris.on = false;
       irisTimer = rand(19, 30);
-      stats.used[quem].rainbow++;
+      marcarUso(quem, "rainbow");
       roleta.on = true;
       roleta.dono = quem;
       roleta.t = 0;
@@ -3115,7 +3151,7 @@
       bolt.on = false;
       turnWheel(1);                    // o raio também gira o sistema de cores
       boltTimer = rand(100, 160);
-      stats.used[b.va > 0 ? 0 : 1].bolt++;
+      marcarUso(quemMandou(), "bolt");
       enterStorm();
     }
 
@@ -3132,9 +3168,10 @@
       b.spin *= -0.5;
       b.hit = BHIT_TIME;
 
-      const quem = b.va < 0 ? 0 : 1;      // já invertida: quem mandou está atrás
+      // já invertida: no corredor quem mandou está atrás; no aro, é o dono
+      const quem = (S.arena && ball.dono >= 0) ? ball.dono : (b.va < 0 ? 0 : 1);
       heart.hits[quem]++;
-      stats.used[quem].heart++;
+      marcarUso(quem, "heart");
       heart.pulse = 0.35;
 
       // Cada acerto rende mais que o anterior: 2, 3, 4, 5...
@@ -3153,23 +3190,23 @@
     if (poison.on && hits(poison.a, poison.b, POI, b)) {
       poison.on = false;
       poisonTimer = rand(33, 53);
-      stats.used[b.va > 0 ? 0 : 1].poison++;
+      marcarUso(quemMandou(), "poison");
       enterVenom();
     }
 
     if (gem.on && hits(gem.a, gem.b, GEM, b)) {
       gem.on = false;
       gemTimer = rand(14, 23);
-      stats.used[b.va > 0 ? 0 : 1].gem++;
+      marcarUso(quemMandou(), "gem");
       enterSlow();
     }
 
     // Quem mandou a bola por cima da chama leva a carga
     if (item.on && hits(item.a, item.b, ITEM, b)) {
-      const owner = b.va > 0 ? 0 : 1;
+      const owner = quemMandou();
       if (!held[owner]) {                       // slot ocupado passa reto
         held[owner] = item.kind;
-        stats.picks[owner]++;
+        if (stats.picks[owner] !== undefined) stats.picks[owner]++;
         item.on = false;
         itemTimer = rand(8, 14);
         Snd.pickup();
@@ -3958,14 +3995,7 @@
         ball.va = nva;
         ball.spin *= Math.pow(SPIN_DECAY, dt);
         if (Math.abs(ball.spin) < 0.02 || ball.budget <= 0) ball.spin = 0;
-        const at = Math.atan2(ball.vb, Math.abs(ball.va));
-        if (Math.abs(at) > MAX_ANGLE) {
-          const sp = Math.hypot(ball.va, ball.vb);
-          const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
-          ball.va = Math.cos(lim) * sp * (ball.va < 0 ? -1 : 1);
-          ball.vb = Math.sin(lim) * sp;
-          ball.spin = 0; ball.budget = 0;
-        }
+        travarAngulo(ball);
       }
       ball.a += ball.va * dt;
       ball.b += ball.vb * dt;
@@ -4071,16 +4101,7 @@
       ball.va = nva;
       ball.spin *= Math.pow(SPIN_DECAY, dt);
       if (Math.abs(ball.spin) < 0.02 || ball.budget <= 0) ball.spin = 0;
-      // a MESMA trava do anfitrião: sem ela as curvas fortes bifurcam
-      const at = Math.atan2(ball.vb, Math.abs(ball.va));
-      if (Math.abs(at) > MAX_ANGLE) {
-        const sp = Math.hypot(ball.va, ball.vb);
-        const lim = at < 0 ? -MAX_ANGLE : MAX_ANGLE;
-        ball.va = Math.cos(lim) * sp * (ball.va < 0 ? -1 : 1);
-        ball.vb = Math.sin(lim) * sp;
-        ball.spin = 0;
-        ball.budget = 0;
-      }
+      travarAngulo(ball);   // a MESMA trava do anfitrião: sem ela as curvas fortes bifurcam
     }
     ball.a += ball.va * dt;
     ball.b += ball.vb * dt;
@@ -6205,9 +6226,10 @@
           meu.prevB = meu.b;
           if (meu.touch !== null) {
             const alvo = meu.touch - padLen(meuPadSlot()) / 2;
-            if (S.arena && meu.reguaSegue) meu.b = mArco(alvo);   // régua: 1:1
-            else meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b,
-                                -(S.arena ? 2600 : 1200) * DT, (S.arena ? 2600 : 1200) * DT);
+            const vel = S.arena
+              ? (meu.reguaSegue ? ARENA_VMAX : 2600) * DT     // régua: rápida, nunca instantânea
+              : 1200 * DT;
+            meu.b += clamp(S.arena ? dArco(alvo, meu.b) : alvo - meu.b, -vel, vel);
           }
           if (meu.up) meu.b -= (S.arena ? 820 : 430) * DT;
           if (meu.down) meu.b += (S.arena ? 820 : 430) * DT;
@@ -6254,7 +6276,9 @@
           const outro = pads[j];
           if (outro.destino === undefined || dt <= 0) continue;
           const longe = S.arena ? dArco(outro.destino, outro.b) : outro.destino - outro.b;
-          const passo = Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt);
+          const passo = S.arena
+            ? clamp(longe, -ARENA_VMAX * dt, ARENA_VMAX * dt)   // no aro, nunca salta
+            : (Math.abs(longe) > 90 ? longe : clamp(longe, -2600 * dt, 2600 * dt));
           outro.b += passo;
           if (S.arena) outro.b = mArco(outro.b);
           outro.vb = passo / dt;
@@ -6959,6 +6983,7 @@
   }
 })();
 </script>
+
 
 </body>
 </html>
