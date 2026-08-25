@@ -718,7 +718,6 @@
 
 </head>
 <body>
-
 <div class="room">
 
   <header class="masthead">
@@ -1368,7 +1367,7 @@
      (8 -> 16 -> 32 -> 64 -> 128 -> ...). O único limite é físico: a bola
      precisa caber entre as paredes. O contador zera no saque. */
   let chicles = 0;             // mordidas de chiclete no ponto corrente
-  const CHICLES_ESTOURO = 5;   // segredo: nesta mordida a bola explode (fora do manual)
+  const CHICLES_ESTOURO = 6;   // segredo: nesta mordida a bola explode (fora do manual)
   const bolaTeto = () => SPAN - WALL * 2 - 4;
   function mascarChiclete() {
     chicles++;
@@ -1907,6 +1906,57 @@
   let gumPop = 0;              // esticadinha do inchaço, para o crescimento ter peso
   let gumFesta = 0;            // janela em que as bolhas sobem pelas laterais
   let estouroRosa = 0;         // pulso rosa das laterais no segredo do chiclete
+
+  /* ── Chicletinho ──
+     O mascote do estouro: primo do personagem do blackhole — corpo redondo,
+     olhos grandes, bochecha e boquinha — todo nos rosas do chiclete. Ele
+     nasce no lugar da explosão SEGURANDO a bola (ela congela), se
+     apresenta, cospe a bola para um jogador sorteado e sai desmanchando em
+     purpurina. `dono` marca a instância que manda na bola: no online só o
+     anfitrião cospe; o convidado tem uma réplica visual que percebe o cuspe
+     quando a bola volta a andar. */
+  const MASC_DUR = 2.35, MASC_CUSPE = 1.35;   // vida total e idade do cuspe, em segundos
+  const MASC_ROSTO = "#2b2233";               // o plum escuro do rosto, como no blackhole
+  const mascote = { t: 0, a: 0, b: 0, alvo: 0, cuspiu: false, dono: false };
+  /* Rosto na régua, no traço do blackhole: círculo pequeno por fórmula
+     sempre sai quadrado. */
+  const MASC_OLHO = ["..##..", ".####.", "######", "######", "######", "######", ".####.", "..##.."];
+  const MASC_BOCH = ["..##..", ".####.", "######", ".####."];
+  const MASC_BOCA = ["#.......#", ".#.....#.", "..#####.."];
+  const MASC_BICO = [".###.", "#####", "#####", "#####", ".###."];   // boca de "o" do cuspe
+
+  function acordarMascote(ca, cb, dono) {
+    mascote.t = MASC_DUR;
+    mascote.cuspiu = false;
+    mascote.dono = dono;
+    /* Um recuo das bordas para o corpo e a fala caberem; na arena a
+       explosão já acontece dentro do disco. */
+    mascote.a = S.arena ? ca : clamp(ca, 46, LEN - 46);
+    mascote.b = S.arena ? cb : clamp(cb, WALL + 26, SPAN - WALL - 26);
+    mascote.alvo = Math.floor(Math.random() * jogadoresAtivos());
+    ball.dono = -1;              // bola cuspida é virgem: vale para todo mundo
+  }
+
+  /** O cuspe: a bola parte do mascote na direção da raquete sorteada. */
+  function cuspirBola() {
+    mascote.cuspiu = true;
+    const cx = ball.a + BOLA / 2, cy = ball.b + BOLA / 2;
+    let ta, tb;
+    if (S.arena) {
+      const th = thetaDoArco(mascote.alvo, pads[mascote.alvo].b + padLen(mascote.alvo) / 2);
+      ta = ARENA_CA() + Math.cos(th) * ARENA_R();
+      tb = ARENA_CB() + Math.sin(th) * ARENA_R();
+    } else {
+      ta = mascote.alvo === 0 ? padA(0) + PT : padA(1);
+      tb = pads[mascote.alvo].b + padLen(mascote.alvo) / 2;
+    }
+    const d = Math.hypot(ta - cx, tb - cy) || 1;
+    ball.va = (ta - cx) / d * ball.speed;
+    ball.vb = (tb - cy) / d * ball.speed;
+    spark(cx, cy, 12, 4, 130, COL.gumHi, { lifeMin: 0.2, lifeMax: 0.5, peak: 0.9 });
+    Snd.gum();
+    transmitirMundo();
+  }
   let bolhaTimer = 0;
   let popTimer = 0;            // segura o som para não virar metralhadora
   const bolhas = [];
@@ -2202,6 +2252,9 @@
     chiclete.on = false; gumTimer = rand(18, 31);
     iris.on = false;     irisTimer = rand(22, 35);
     gumFesta = 0;        gumPop = 0;   estouroRosa = 0;
+    /* Se o raio pega o Chicletinho no palco, ele cospe na hora e some:
+       ninguém pode ficar com a bola congelada depois da varredura. */
+    if (mascote.t > 0) { if (mascote.dono && !mascote.cuspiu) cuspirBola(); mascote.t = 0; }
     coracoes.length = 0;
     brasas.length = 0;
     bolhas.length = 0;
@@ -2650,6 +2703,7 @@
     BOLA = BS;
     chicles = 0;
     gumPop = 0;
+    mascote.t = 0;
     pads[0].err = pads[1].err = 0;
     sincronizar("saque");
   }
@@ -2672,6 +2726,7 @@
     BOLA = BS;
     chicles = 0;
     gumPop = 0;
+    mascote.t = 0;
     gumFesta = 0;
     bolhas.length = 0;
     iris.on = false;
@@ -3139,8 +3194,8 @@
       chiclete.on = false;
       gumTimer = rand(18, 31);
       marcarUso(quemMandou(), "gum");
-      /* ── Segredo do quinto chiclete ──
-         Cinco mordidas no MESMO ponto e o chiclete não aguenta: a bola
+      /* ── Segredo do sexto chiclete ──
+         Seis mordidas no MESMO ponto e o chiclete não aguenta: a bola
          explode e volta ao branco de fábrica, na velocidade de saque. Não
          está no manual de propósito — é para se descobrir jogando. */
       if (chicles + 1 >= CHICLES_ESTOURO) {
@@ -3150,9 +3205,9 @@
         b.a = cxE - BOLA / 2;
         b.b = clamp(cyE - BOLA / 2, WALL, SPAN - WALL - BOLA);
         b.speed = LEVELS[S.diff].base;
-        const dirE = Math.hypot(b.va, b.vb) || 1;
-        b.va = b.va / dirE * b.speed;
-        b.vb = b.vb / dirE * b.speed;
+        /* A bola não parte: fica na boca do Chicletinho até o cuspe. */
+        b.va = 0; b.vb = 0; b.spin = 0; b.budget = 0;
+        acordarMascote(cxE, cyE, true);
         gumPop = 0; gumFesta = 4.5;
         estouroRosa = 1;                      // brilho lateral rosa, bem mais forte
         kick(0.75, 1.1, COL.gum, 2.1);
@@ -3160,8 +3215,7 @@
         spark(cxE, cyE, 46, 7, 210, COL.gum, { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
         spark(cxE, cyE, 26, 6, 150, COL.gumHi, { lifeMin: 0.25, lifeMax: 0.7, peak: 0.9, size: 2 });
         Snd.gum(); Snd.storm();
-        showHint(-1, "EXPLOSÃO", COL.gum);
-        announce("Explosão: o chiclete estourou e a bola voltou ao normal.");
+        announce("Explosão! O Chicletinho apareceu e vai cuspir a bola.");
         sincronizar("estouro");
         transmitirMundo();
         return;
@@ -4203,9 +4257,9 @@
       aberr = reduceMotion ? 0 : 0.7;
       spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 46, 7, 210, COL.gum,
             { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
+      acordarMascote(ball.a + BOLA / 2, ball.b + BOLA / 2, false);
       Snd.gum(); Snd.storm();
-      showHint(-1, "EXPLOSÃO", COL.gum);
-      announce("Explosão: o chiclete estourou e a bola voltou ao normal.");
+      announce("Explosão! O Chicletinho apareceu e vai cuspir a bola.");
       return;
     }
     if (motivo.indexOf("premio-") === 0) {
@@ -5006,6 +5060,7 @@
       g.globalAlpha = 1;
     }
     drawSideFlash();
+    desenharChicletinho();
 
     /* Alarde de chegada: nome e "ENTROU!" no meio da tela, entrando e saindo
        com escala — é o momento mais social do jogo. */
@@ -5147,6 +5202,65 @@
       g.fillRect(0, 0, cw, ch);
       g.globalAlpha = 1;
     }
+  }
+
+  /** Carimbo centrado de um sprite de uma cor só, em coordenadas de tela. */
+  function carimboM(rows, cx, cy, s, cor) {
+    drawSprite(rows, cx - rows[0].length * s / 2, cy - rows.length * s / 2, s, { "#": cor });
+  }
+
+  function desenharChicletinho() {
+    if (mascote.t <= 0) return;
+    const idade = MASC_DUR - mascote.t;
+    /* Entrada com easeOutBack: passa do tamanho e assenta — o mesmo
+       vocabulário de mola do resto do jogo. Na saída o corpo encolhe e o
+       alfa cai junto, entregando o resto à purpurina. */
+    const u = Math.min(1, idade / 0.28) - 1;
+    let k = 1 + 2.70158 * u * u * u + 1.70158 * u * u;
+    const cuspe = mascote.cuspiu ? Math.min(1, Math.max(0, (idade - MASC_CUSPE) / 0.22)) : 0;
+    if (cuspe > 0 && cuspe < 1) k *= 1 - Math.sin(cuspe * Math.PI) * 0.12;   // tranco do cuspe
+    const some = Math.min(1, mascote.t / 0.55);
+    k *= 0.75 + 0.25 * some;
+    const r = Math.max(1, 19 * k);
+    const ca = mascote.a, cb = mascote.b;
+
+    g.save();
+    /* Halo bem tímido: rosa-claro chapado sobre fundo escuro não lê como
+       brilho, lê como sujeira — a lição do halo do blackhole. */
+    g.globalAlpha = 0.14 * some;
+    disco(COL.gumHi, ca - r - 3, cb - r - 3, (r + 3) * 2);
+    g.globalAlpha = some;
+    discoBorda(COL.gumEdge, COL.gum, ca - r, cb - r, r * 2);
+    // brilho especular na gramática da bola de chiclete: disco claro + pixel branco
+    const luzD = Math.max(3, Math.round(r * 0.5));
+    const luzA = ca - r + Math.round(r * 0.34), luzB = cb - r + Math.round(r * 0.34);
+    disco(COL.gumHi, luzA, luzB, luzD);
+    const pt = Math.max(1, Math.round(r * 0.14));
+    fill("#ffffff", luzA + Math.round(luzD * 0.2), luzB + Math.round(luzD * 0.2), pt, pt);
+
+    /* O rosto vive em coordenadas de tela, para ficar de pé nas duas
+       orientações da quadra. */
+    const c = rect(ca, cb, 0, 0);
+    const s = 2 * r / 19, sep = Math.round(r * 0.42);   // rosto escala com o corpo
+    const boca = mascote.cuspiu && idade < MASC_CUSPE + 0.4 ? MASC_BICO : MASC_BOCA;
+    // bochecha DENTRO do corpo, abaixo e fora dos olhos, como no blackhole
+    g.globalAlpha = 0.8 * some;
+    carimboM(MASC_BOCH, c[0] - r * 0.72, c[1] + r * 0.3, s / 2, "#ff5fa8");
+    carimboM(MASC_BOCH, c[0] + r * 0.72, c[1] + r * 0.3, s / 2, "#ff5fa8");
+    g.globalAlpha = some;
+    carimboM(MASC_OLHO, c[0] - sep, c[1] - r * 0.16, s, MASC_ROSTO);
+    carimboM(MASC_OLHO, c[0] + sep, c[1] - r * 0.16, s, MASC_ROSTO);
+    carimboM(boca, c[0], c[1] + r * 0.4, s, MASC_ROSTO);
+
+    // a apresentação, viva entre o assentar do corpo e o cuspe
+    if (idade > 0.34 && idade < MASC_CUSPE + 0.15) {
+      g.globalAlpha = Math.min(1, (idade - 0.34) / 0.2) * some;
+      const acima = c[1] - r - 36;
+      centered(g, "OI! EU SOU O CHICLETINHO!", c[0],
+               acima > 10 ? acima : c[1] + r + 12, 2, COL.gumHi, cv.width - 24);
+    }
+    g.globalAlpha = 1;
+    g.restore();
   }
 
   /** Palavra com uma cor da roda por letra. */
@@ -6252,6 +6366,24 @@
 
     if (estouroRosa > 0) estouroRosa = Math.max(0, estouroRosa - dt / 1.6);
 
+    if (mascote.t > 0) {
+      mascote.t = Math.max(0, mascote.t - dt);
+      const idade = MASC_DUR - mascote.t;
+      if (!mascote.cuspiu) {
+        if (mascote.dono && idade >= MASC_CUSPE) cuspirBola();
+        // a réplica do convidado percebe o cuspe quando a bola volta a andar
+        else if (!mascote.dono && (ball.va !== 0 || ball.vb !== 0)) mascote.cuspiu = true;
+      }
+      /* Depois do cuspe ele se desmancha em purpurina: pó miúdo nas cores
+         vivas da roda, nascendo do corpo enquanto o alfa cai. */
+      if (mascote.cuspiu && !reduceMotion) {
+        const cor = VIVAS[Math.floor(Math.random() * VIVAS.length)];
+        spark(mascote.a + rand(-12, 12), mascote.b + rand(-14, 10), 2, 5,
+              rand(26, 80), cor, { lifeMin: 0.3, lifeMax: 0.8, peak: 0.9,
+              size: Math.random() < 0.3 ? 2 : 1 });
+      }
+    }
+
 
     const mpDe = quemNoMatchPoint();
     if (mpDe >= 0 && S.phase === "play" && !reduceMotion) {
@@ -7058,7 +7190,6 @@
   }
 })();
 </script>
-
 
 </body>
 </html>
