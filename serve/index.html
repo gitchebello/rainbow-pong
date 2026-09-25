@@ -1360,7 +1360,7 @@
   const RECUO = 17;        // fundo do recuo, em unidades de quadra
   /** A mola do recuo: para trás no impacto, passa do ponto na volta, assenta. */
   const molaDoRecuo = u => Math.sin(u * Math.PI * 2) * Math.exp(-u * 2.3) * RECUO;
-  const BHIT_TIME = 0.16;  // esticada da bola logo após sair
+  const BHIT_TIME = 0.62;  // janela da mola do impacto; a goma usa ela toda
   const BS = 8;          // tamanho de fábrica da bola
   let BOLA = BS;         // e o de agora — o chiclete faz ela inchar
   /* O chiclete acumula sem teto de mordidas: cada uma DOBRA a bola
@@ -1380,18 +1380,33 @@
      pode fechar na próxima bola; se os DOIS chegarem, o ponto seguinte decide
      a partida — e aí o campo inteiro avisa. */
   const matchPoint = i => S.score[i] === TARGET - 1;
-  /** Quem está a um ponto do título (só no 1x1 clássico; −1 se ninguém). */
+  /** Quem está a um ponto do título (−1 se ninguém). No clássico é o 1x1;
+      na arena vale para qualquer lotação, e com dois ou mais a um ponto
+      ninguém tem a vez — é o mesmo empate do ponto final. */
   function quemNoMatchPoint() {
-    if (S.arena || jogadoresAtivos() !== 2 || pontoFinal()) return -1;
-    if (matchPoint(0)) return 0;
-    if (matchPoint(1)) return 1;
-    return -1;
+    if (pontoFinal()) return -1;
+    if (!S.arena) {
+      if (jogadoresAtivos() !== 2) return -1;
+      if (matchPoint(0)) return 0;
+      if (matchPoint(1)) return 1;
+      return -1;
+    }
+    let quem = -1;
+    for (let i = 0; i < jogadoresAtivos(); i++) {
+      if (!matchPoint(i)) continue;
+      if (quem >= 0) return -1;
+      quem = i;
+    }
+    return quem;
   }
   /* Vagalumes do match point: pontos de luz que ainda não existiam no jogo —
      sobem devagar pelas laterais, na cor de quem está a um ponto, com um
-     balanço senoidal e um halo macio. */
+     balanço senoidal e um halo macio. Na arena não há "cima": eles nascem no
+     aro e SAEM dele, radialmente — uma salva quando o aviso entra e um gotejo
+     enquanto ele durar. */
   const vagalumes = [];
   let vagalumeTimer = 0;
+  let mpDeAntes = -1;   // a salva do aro dispara na entrada, não a cada quadro
   const pontoFinal = () => matchPoint(0) && matchPoint(1);
   let tremorFinal = 0;
 
@@ -1454,10 +1469,21 @@
      campo, no placar de cima, na tela final e no que é lido em voz alta.
      Uma fonte só para os três formatos, porque antes cada canto inventava o
      seu — e metade deles nem olhava para o nome. */
-  const meuNome = () => {
-    try { return (localStorage.getItem("rainbow-pong-nome") || "").trim().slice(0, 12); }
-    catch (_) { return ""; }
+  /** Doze letras, sem caractere de controle nem espaço nas pontas — a mesma
+      peneira que o relay passa do lado de lá. */
+  const limparNome = s => String(s || "").replace(/\p{C}/gu, "").trim().slice(0, 12);
+  /* ── De quem é este jogo ──
+     O nome vem do ENDEREÇO (…?name=<nome>): o link é a identidade, e vale
+     igual em qualquer aparelho — o mesmo endereço no celular, no PC do amigo
+     ou num favorito entra como a mesma pessoa. O que este navegador guardou
+     da última vez é só a reserva, para quem entra pela home não ter de se
+     apresentar de novo; a URL ganha dela sempre que traz um nome. */
+  const NOME_CHAVE = "rainbow-pong-nome";
+  const nomeGuardado = () => {
+    try { return limparNome(localStorage.getItem(NOME_CHAVE)); } catch (_) { return ""; }
   };
+  let nomeAtual = nomeGuardado();
+  const meuNome = () => nomeAtual;
   /** O nome de quem ocupa a vaga, ou "" se ninguém deu um. */
   function nomeCru(slot) {
     if (!naSala()) return slot === 0 ? meuNome() : "";
@@ -1581,6 +1607,9 @@
   const held = [null, null, null, null];
   const scorePop = [0, 0, 0, 0];   // estouro do dígito quando alguém pontua
   const stats = { picks: [0, 0], blocks: [0, 0], used: [{ fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }, { fire: 0, star: 0, gem: 0, poison: 0, heart: 0, bolt: 0, rainbow: 0, gum: 0 }] };
+  /* A ordem do log da tela final — e a ordem em que o uso viaja no resumo
+     para o convidado, que não conta nada sozinho. */
+  const USO_CHAVES = ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"];
   const STAR_BOOST = 1.5;   // multiplicador da estrela
   const fire = { on: false, owner: 0 };
   const trail = [];
@@ -1908,39 +1937,152 @@
   let estouroRosa = 0;         // pulso rosa das laterais no segredo do chiclete
 
   /* ── Chicletinho ──
-     O mascote do estouro: primo do personagem do blackhole — corpo redondo,
-     olhos grandes, bochecha e boquinha — todo nos rosas do chiclete. Ele
-     nasce no lugar da explosão SEGURANDO a bola (ela congela), se
-     apresenta, cospe a bola para um jogador sorteado e sai desmanchando em
+     O mascote do estouro: primo do personagem do blackhole — uma bolota de
+     chiclete com olhos grandes, bochechas e boquinha de gatinho, toda nos
+     rosas do próprio chiclete. Ele brota no lugar da explosão SEGURANDO a
+     bola (ela congela), acena e se apresenta, leva a bola à boca, toma
+     fôlego e cospe para um jogador sorteado; depois sai desmanchando em
      purpurina. `dono` marca a instância que manda na bola: no online só o
      anfitrião cospe; o convidado tem uma réplica visual que percebe o cuspe
-     quando a bola volta a andar. */
-  const MASC_DUR = 2.35, MASC_CUSPE = 1.35;   // vida total e idade do cuspe, em segundos
-  const MASC_ROSTO = "#2b2233";               // o plum escuro do rosto, como no blackhole
-  const mascote = { t: 0, a: 0, b: 0, alvo: 0, cuspiu: false, dono: false };
-  /* Rosto na régua, no traço do blackhole: círculo pequeno por fórmula
-     sempre sai quadrado. */
-  const MASC_OLHO = ["..##..", ".####.", "######", "######", "######", "######", ".####.", "..##.."];
-  const MASC_BOCH = ["..##..", ".####.", "######", ".####."];
-  const MASC_BOCA = ["#.......#", ".#.....#.", "..#####.."];
-  const MASC_BICO = [".###.", "#####", "#####", "#####", ".###."];   // boca de "o" do cuspe
+     quando a bola volta a andar.
 
-  function acordarMascote(ca, cb, dono) {
-    mascote.t = MASC_DUR;
-    mascote.cuspiu = false;
-    mascote.dono = dono;
-    /* Um recuo das bordas para o corpo e a fala caberem; na arena a
-       explosão já acontece dentro do disco. */
-    mascote.a = S.arena ? ca : clamp(ca, 46, LEN - 46);
-    mascote.b = S.arena ? cb : clamp(cb, WALL + 26, SPAN - WALL - 26);
-    mascote.alvo = Math.floor(Math.random() * jogadoresAtivos());
-    ball.dono = -1;              // bola cuspida é virgem: vale para todo mundo
+     Toda a animação é função da IDADE dele — ninguém guarda velocidade —
+     para as duas pontas do online verem o mesmo boneco. Os princípios da
+     animação estão nos nomes: antecipação (o fôlego antes do cuspe), squash
+     & stretch (o corpo é uma mola que conserva volume), follow-through (o
+     recuo depois do cuspe) e overlapping action (olhar e bracinhos chegam
+     depois do corpo). */
+  const MASC_CUSPE = 1.6;                    // idade do cuspe, em segundos
+  const MASC_DUR = MASC_CUSPE + 1.05;        // vida total
+  const MASC_R = 21;                         // raio do corpo em repouso
+  const MASC_POUSO = 0.3;                    // idade em que ele assenta
+  const MASC_FOLEGO = 0.3;                   // duração do fôlego antes do cuspe
+  const MASC_LEVA = MASC_CUSPE - MASC_FOLEGO - 0.16;   // quando a mão leva a bola à boca
+  const MASC_ZOOM = 0.25;                    // a câmera fecha um quarto no palco
+  const MASC_ROSTO = "#2b2233";              // o plum escuro do rosto, como no blackhole
+  const MASC_BLUSH = "#ff5fa8";
+  const mascote = { t: 0, a: 0, b: 0, alvo: 0, cuspiu: false, cuspeEm: MASC_CUSPE,
+                    dono: false, rumo: [1, 0], olhar: [0, 0] };
+  let mascZoom = 0;                          // fecho da câmera, alisado quadro a quadro
+  /* A câmera do quadro: onde o mundo está e quanto ele fechou. É o que a
+     fala, desenhada fora da câmera, usa para achar a cabeça dele. */
+  const cam = { z: 1, x: LEN / 2, y: BASE_SPAN / 2, cw: LEN, ch: BASE_SPAN };
+  const paraTela = (x, y) => [(x - cam.x) * cam.z + cam.cw / 2, (y - cam.y) * cam.z + cam.ch / 2];
+  /* Rosto na régua, no traço do blackhole: círculo pequeno por fórmula
+     sempre sai quadrado. No olho, `W` é o brilho — a luz vem do alto-esquerda
+     nos dois, como em todo sprite do jogo; é o pixel que faz o olhar kawaii. */
+  const MASC_OLHO   = [".###.", "#WW##", "#WW##", "#####", "#####", "###W#", ".###."];
+  const MASC_PISCA  = [".....", ".....", ".....", "#####", ".....", ".....", "....."];
+  const MASC_FELIZ  = [".....", ".....", ".###.", "#####", "##.##", "#...#", "....."];   // ^ ^
+  const MASC_APERTA = [".....", "#....", ".#...", "..##.", ".#...", "#....", "....."];   // > <
+  const MASC_BOCH   = [".###.", "#####", ".###."];
+  const MASC_BOCA   = ["#..#..#", "#.#.#.#", ".#...#."];                                 // ω de gatinho
+  const MASC_BOCA_O = [".###.", "#####", "#####", "#####", ".###."];                     // o "O" do cuspe
+  const MASC_FAISCA = ["..#..", "..#..", "#####", "..#..", "..#.."];
+  const espelho = rows => rows.map(r => r.split("").reverse().join(""));
+
+  /** Rumo de quadra → rumo de tela, para deslocar o corpo na tela. */
+  const rumoNaTela = (da, db) => (vertical ? [db, -da] : [da, db]);
+  /** Ponto de tela → ponto de quadra: o inverso de `rect` para um ponto. */
+  const pontoDaTela = (x, y) => (vertical ? [LEN - y, x] : [x, y]);
+  const suave = u => u * u * (3 - 2 * u);
+  const easeOutBack = u => { u -= 1; return 1 + 2.70158 * u * u * u + 1.70158 * u * u; };
+  /** Janela suave: sobe em `rampa` a partir de `ini` e desce em `rampa` até `fim`. */
+  const janela = (t, ini, fim, rampa) =>
+    suave(clamp((t - ini) / rampa, 0, 1)) * suave(clamp((fim - t) / rampa, 0, 1));
+  /* Mola analítica: cosseno amortecido a partir do tranco, a mesma gramática
+     de `formaDaBola`. Antes do tranco, zero. */
+  const molinha = (t, amp, freq, amort) =>
+    (t < 0 ? 0 : amp * Math.cos(t * freq) * Math.exp(-t * amort));
+
+  /** A pose do quadro, toda função da idade. Devolve medidas de TELA. */
+  function poseDoMascote() {
+    const idade = MASC_DUR - mascote.t;
+    const tc = mascote.cuspiu ? idade - mascote.cuspeEm : -1;    // tempo desde o cuspe
+    /* 1. Entrada: brota esticado para cima, passa do tamanho, dá um pulinho
+       e ACHATA ao pousar — a mola repica até assentar. */
+    const u0 = Math.min(1, idade / MASC_POUSO);
+    let k = easeOutBack(u0);
+    let e = -0.4 * (1 - u0) * (1 - u0) + molinha(idade - MASC_POUSO, 0.3, 22, 6);
+    let dx = 0, dy = -10 * Math.sin(u0 * Math.PI);
+    // 2. No palco ele respira: nunca fica parado de todo.
+    if (!reduceMotion) { k *= 1 + 0.015 * Math.sin(idade * 9); e += 0.02 * Math.sin(idade * 9 + 1); }
+    /* 3. Fôlego: incha devagar e recua do alvo — a antecipação que dá força
+       ao cuspe. A réplica do convidado segura a pose até a bola andar. */
+    const uf = mascote.cuspiu ? 1 : clamp((idade - (MASC_CUSPE - MASC_FOLEGO)) / MASC_FOLEGO, 0, 1);
+    const folego = uf * uf;
+    let inchaco = 0.16 * folego, avanco = -4 * folego;
+    /* 4. Cuspe: solta o ar de uma vez, avança no rumo do alvo e volta com
+       repique (follow-through); o corpo estica no eixo do avanço. */
+    if (tc >= 0) {
+      const solta = Math.exp(-tc / 0.06);
+      inchaco *= solta;
+      avanco = -4 * solta + 12 * Math.sin(tc * 12.6) * Math.exp(-tc * 3.5);
+      const horiz = Math.abs(mascote.rumo[0]) >= Math.abs(mascote.rumo[1]);
+      e += (horiz ? 1 : -1) * molinha(tc, 0.22, 26, 6.5);
+    }
+    k *= 1 + inchaco;
+    dx += mascote.rumo[0] * avanco;
+    dy += mascote.rumo[1] * avanco;
+    // 5. Saída: encolhe e apaga enquanto a purpurina toma conta.
+    const some = Math.min(1, mascote.t / 0.55);
+    k *= 0.7 + 0.3 * some;
+    const r = Math.max(1, MASC_R * k);
+    e = clamp(e, -0.4, 0.4);
+    const c = rect(mascote.a, mascote.b, 0, 0);
+    return { idade, tc, folego, some, r,
+             rx: r * (1 + e), ry: r * (1 - 0.82 * e),        // o que alarga, abaixa
+             cx: c[0] + dx, cy: c[1] + dy };
   }
 
-  /** O cuspe: a bola parte do mascote na direção da raquete sorteada. */
-  function cuspirBola() {
-    mascote.cuspiu = true;
-    const cx = ball.a + BOLA / 2, cy = ball.b + BOLA / 2;
+  /** A boca neste quadro (tela): acompanha o corpo e, de leve, o olhar. */
+  const bocaNaTela = P => [P.cx + mascote.olhar[0] * 0.6, P.cy + P.ry * 0.55 + mascote.olhar[1] * 0.6];
+  /** A boca em repouso (tela): onde a bola congela. */
+  function bocaEmRepouso() {
+    const c = rect(mascote.a, mascote.b, 0, 0);
+    return [c[0], c[1] + MASC_R * 0.55];
+  }
+
+  /** Onde estão ombros e mãos neste quadro (tela). A esquerda segura a bola
+      e a leva à boca antes do fôlego; a direita acena na apresentação. */
+  function maosDoMascote(P) {
+    const { idade, tc, r, rx, ry, cx, cy } = P;
+    const L = r * 0.62, d = r * 0.19;                              // alcance e raio da mão
+    const ombroE = [cx - rx * 0.78, cy + ry * 0.08], ombroD = [cx + rx * 0.78, cy + ry * 0.08];
+    // no cuspe os dois braços voam para cima e voltam: leves, chegam depois do corpo
+    const recuo = tc >= 0 ? 1.3 * Math.sin(Math.PI * clamp(tc / 0.5, 0, 1)) : 0;
+    // direita: sobe e acena entre o pouso e a hora de levar a bola à boca
+    const acena = janela(idade, 0.48, MASC_LEVA, 0.14);
+    const angD = 0.55 + acena * (-1.65 + 0.42 * Math.sin((idade - 0.48) * 19)) - recuo;
+    const maoD = [ombroD[0] + Math.cos(angD) * L, ombroD[1] + Math.sin(angD) * L];
+    // esquerda: pendurada com a bola; leva a bola à boca e volta de mão vazia
+    const angE = Math.PI - 0.55 + recuo;
+    const solta = [ombroE[0] + Math.cos(angE) * L, ombroE[1] + Math.sin(angE) * L];
+    const leva = suave(clamp((idade - MASC_LEVA) / 0.16, 0, 1))
+               * (1 - suave(clamp((idade - MASC_LEVA - 0.16) / 0.16, 0, 1)));
+    const boca = bocaNaTela(P);
+    const maoE = [solta[0] + (boca[0] - solta[0]) * leva, solta[1] + (boca[1] - solta[1]) * leva];
+    return { ombroE, ombroD, maoE, maoD, d, leva };
+  }
+
+  /** A bola está com o mascote: na mão, na boca ou recém-cuspida por cima do
+      rosto. Nessa janela quem a desenha é ele. */
+  const bolaComOMascote = () =>
+    mascote.t > 0 && (!mascote.cuspiu || MASC_DUR - mascote.t - mascote.cuspeEm < 0.3);
+
+  /** Quanto a câmera fecha no Chicletinho, de 0 a 1: rápido quando ele
+      brota, e de volta ao fim da animação do cuspe. */
+  function mascoteRamp() {
+    if (mascote.t <= 0 || reduceMotion) return 0;
+    const idade = MASC_DUR - mascote.t;
+    const entra = 1 - Math.pow(1 - Math.min(1, idade / 0.45), 3);
+    const tc = mascote.cuspiu ? idade - mascote.cuspeEm : -1;
+    const sai = tc < 0.3 ? 0 : Math.min(1, (tc - 0.3) / 0.4);
+    return entra * (1 - suave(sai));
+  }
+
+  /** Rumo do cuspe: de (oa, ob) à raquete sorteada, em coordenadas de quadra. */
+  function rumoDoAlvo(oa, ob) {
     let ta, tb;
     if (S.arena) {
       const th = thetaDoArco(mascote.alvo, pads[mascote.alvo].b + padLen(mascote.alvo) / 2);
@@ -1950,11 +2092,53 @@
       ta = mascote.alvo === 0 ? padA(0) + PT : padA(1);
       tb = pads[mascote.alvo].b + padLen(mascote.alvo) / 2;
     }
-    const d = Math.hypot(ta - cx, tb - cy) || 1;
-    ball.va = (ta - cx) / d * ball.speed;
-    ball.vb = (tb - cy) / d * ball.speed;
-    spark(cx, cy, 12, 4, 130, COL.gumHi, { lifeMin: 0.2, lifeMax: 0.5, peak: 0.9 });
+    const d = Math.hypot(ta - oa, tb - ob) || 1;
+    return [(ta - oa) / d, (tb - ob) / d];
+  }
+
+  function acordarMascote(ca, cb, dono, alvo) {
+    mascote.t = MASC_DUR;
+    mascote.cuspiu = false;
+    mascote.cuspeEm = MASC_CUSPE;
+    mascote.dono = dono;
+    mascote.olhar = [0, 0];
+    /* Um recuo das bordas para o corpo e a fala caberem; na arena a
+       explosão já acontece dentro do disco. */
+    mascote.a = S.arena ? ca : clamp(ca, 46, LEN - 46);
+    mascote.b = S.arena ? cb : clamp(cb, WALL + 26, SPAN - WALL - 26);
+    mascote.alvo = alvo === undefined ? Math.floor(Math.random() * jogadoresAtivos()) : alvo;
+    ball.dono = -1;              // bola cuspida é virgem: vale para todo mundo
+    /* A bola congela na boca dele. O anfitrião a põe lá; o convidado a
+       recebe no evento do estouro — e o alvo vem junto, para o olhar dos
+       dois lados mirar a mesma raquete. */
+    if (dono) {
+      const boca = pontoDaTela(...bocaEmRepouso());
+      ball.a = boca[0] - BOLA / 2;
+      ball.b = clamp(boca[1] - BOLA / 2, WALL, SPAN - WALL - BOLA);
+    }
+    mascote.rumo = rumoNaTela(...rumoDoAlvo(ball.a + BOLA / 2, ball.b + BOLA / 2));
+  }
+
+  /** O cuspe: a bola parte da boca dele rumo à raquete sorteada. */
+  function cuspirBola() {
+    /* A bola parte de onde a boca ESTÁ neste quadro — a animação a levou
+       junto — e o rumo é medido de lá. A pose sai antes de marcar o cuspe,
+       para ser a do fôlego. */
+    const boca = pontoDaTela(...bocaNaTela(poseDoMascote()));
+    mascote.cuspiu = true;
+    mascote.cuspeEm = MASC_DUR - mascote.t;
+    ball.a = boca[0] - BOLA / 2;
+    ball.b = clamp(boca[1] - BOLA / 2, WALL, SPAN - WALL - BOLA);
+    const [ra, rb] = rumoDoAlvo(boca[0], boca[1]);
+    ball.va = ra * ball.speed;
+    ball.vb = rb * ball.speed;
+    mascote.rumo = rumoNaTela(ra, rb);
+    spark(boca[0], boca[1], 12, 4, 130, COL.gumHi, { lifeMin: 0.2, lifeMax: 0.5, peak: 0.9 });
     Snd.gum();
+    /* Um evento, e não só o resumo: o resumo é filtrado por assinatura e a
+       bola não entra nela — sem isto o convidado só via a bola partir no
+       reenvio de segurança, até dois segundos depois. */
+    sincronizar("cuspe");
     transmitirMundo();
   }
   let bolhaTimer = 0;
@@ -2680,6 +2864,103 @@
     disco(color, a, b, la, h);
   }
 
+  /* ── Elipse torta ──
+     A bola não estica só no eixo dos gols: ela estica no RUMO da viagem, e
+     numa diagonal isso é uma elipse girada. Mesma malha de fileiras do
+     `disco` — para cada fileira sai a quadrática da elipse rotacionada e um
+     retângulo de 1 px de altura. Continua sem `g.arc()`, então o pixelado
+     da ampliação se mantém. */
+  function spansTortos(p, q, ang) {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const ip2 = 1 / (p * p), iq2 = 1 / (q * q);
+    const alt = Math.sqrt(p * p * s * s + q * q * c * c);
+    const A = c * c * ip2 + s * s * iq2;
+    const linhas = [];
+    for (let j = Math.floor(-alt); j <= Math.ceil(alt); j++) {
+      const y = j + 0.5;
+      const B = 2 * y * c * s * (ip2 - iq2);
+      const C = y * y * (s * s * ip2 + c * c * iq2) - 1;
+      const D = B * B - 4 * A * C;
+      if (D <= 0) continue;
+      const raiz = Math.sqrt(D);
+      linhas.push([j, (-B - raiz) / (2 * A), (-B + raiz) / (2 * A)]);
+    }
+    return linhas;
+  }
+
+  function discoTorto(color, cx, cy, p, q, ang) {
+    if (p <= 0.6 || q <= 0.6) return;
+    const L = spansTortos(p, q, ang);
+    for (let i = 0; i < L.length; i++) {
+      const x0 = Math.round(cx + L[i][1]), x1 = Math.round(cx + L[i][2]);
+      if (x1 > x0) fill(color, x0, Math.round(cy + L[i][0]), x1 - x0, 1);
+    }
+  }
+
+  /** O `discoBorda` da elipse torta: o miolo se afasta olhando também para a
+      fileira de cima e a de baixo, senão o contorno abre mordidas. */
+  function discoTortoBorda(borda, miolo, cx, cy, p, q, ang) {
+    if (p <= 0.6 || q <= 0.6) return;
+    const L = spansTortos(p, q, ang);
+    if (L.length < 3) { discoTorto(borda, cx, cy, p, q, ang); return; }
+    const e = L.map(l => Math.round(cx + l[1])), d = L.map(l => Math.round(cx + l[2]));
+    for (let i = 0; i < L.length; i++) {
+      const y = Math.round(cy + L[i][0]);
+      if (d[i] > e[i]) fill(borda, e[i], y, d[i] - e[i], 1);
+      if (i === 0 || i === L.length - 1) continue;
+      const ei = Math.max(e[i] + 1, e[i - 1], e[i + 1]);
+      const di = Math.min(d[i] - 1, d[i - 1], d[i + 1]);
+      if (di > ei) fill(miolo, ei, y, di - ei, 1);
+    }
+  }
+
+  /* ── Squash & stretch ──
+     Três coisas somam, na ordem em que a animação clássica as ensina:
+       1. velocidade — a bola estica no rumo da viagem, e isso sozinho já
+          vende a pressa: é o smear que dispensa borrão;
+       2. impacto — no toque ela ACHATA contra a raquete e dispara esticada,
+          oscilando até assentar. É uma mola com repique, não um decaimento
+          seco, e é o repique que dá peso ao golpe;
+       3. chiclete — inchada, ela vira blob: amplitude bem maior, mola bem
+          mais frouxa e uma respiração que nunca assenta de todo.
+     O volume se conserva quase todo — o que estica num eixo encolhe no
+     outro, com expoente abaixo de 1, senão a bola viraria folha de papel. */
+  const MOLA = {
+    seca: { amp: 0.46, freq: 46, amort: 17 },   // bola comum: estala e assenta
+    goma: { amp: 0.78, freq: 25, amort: 5.4 }   // chiclete: mole e demorada
+  };
+
+  function formaDaBola() {
+    const eGoma = BOLA > BS;
+    const M = eGoma ? MOLA.goma : MOLA.seca;
+    const calma = reduceMotion ? 0.4 : 1;
+    let e = 1;
+
+    const vel = Math.hypot(ball.va, ball.vb);
+    e += clamp((vel - LEVELS[S.diff].base) / 420, 0, 1) * 0.26 * calma;
+
+    if (ball.hit > 0) {
+      const t = BHIT_TIME - ball.hit;
+      e *= 1 - M.amp * calma * Math.cos(t * M.freq) * Math.exp(-t * M.amort);
+    }
+
+    if (eGoma && !reduceMotion) e *= 1 + 0.075 * Math.sin(S.blink * 5.2);
+
+    e = clamp(e, 0.42, 2.2);
+    // o pulso do inchaço é redondo, não estica: entra no raio
+    const pulso = gumPop > 0 ? Math.sin(gumPop / 0.45 * Math.PI) * (eGoma ? 0.17 : 0.05) : 0;
+    const r = (BOLA / 2) * (1 + pulso);
+    return {
+      p: r * e,
+      /* O perpendicular tem teto: sem ele a conservacao de volume no auge do
+         squash faz a bola virar uma panqueca larga demais, cobrindo meia
+         quadra por dois quadros. */
+      q: clamp(r / Math.pow(e, 0.78), r * 0.44, r * 1.5),
+      ang: Math.atan2(ball.vb, ball.va),
+      reta: Math.abs(e - 1) < 0.03 && pulso === 0
+    };
+  }
+
   function toCourt(clientX, clientY) {
     const r = cv.getBoundingClientRect();
     const x = (clientX - r.left) / r.width * cv.width;
@@ -2777,9 +3058,13 @@
 
   const foeName = () => nomeFalado(1);
 
+  /* O nome agora chega pelo endereço, que qualquer um monta e manda para
+     qualquer um: no HTML ele entra como texto, nunca como marcação. */
+  const escaparHTML = s => String(s).replace(/[&<>"]/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   function updateScoreline() {
     scoreline.innerHTML =
-      `${nomeFalado(0)} <b>${S.score[0]}</b> · <b>${S.score[1]}</b> ${foeName()} — até ${TARGET} pontos`;
+      `${escaparHTML(nomeFalado(0))} <b>${S.score[0]}</b> · <b>${S.score[1]}</b> ${escaparHTML(foeName())} — até ${TARGET} pontos`;
   }
   const announce = m => { live.textContent = m; };
 
@@ -2930,15 +3215,6 @@
       if (gumTimer <= 0) spawnChiclete();
     }
 
-    /* No ponto final a câmera não fica parada. Pulso a cada 1,2 s em vez de
-       tremor contínuo: marca a tensão sem embrulhar o estômago de ninguém. */
-    if (pontoFinal() && S.phase === "play" && !reduceMotion) {
-      tremorFinal -= dt;
-      if (tremorFinal <= 0) { tremorFinal = 1.2; kick(0.26, 0.3, VIVAS, 0.85); }
-    } else {
-      tremorFinal = 0;
-    }
-
     if (iris.on) {
       iris.life -= dt;
       if (iris.life <= 0) { iris.on = false; irisTimer = rand(19, 30); }
@@ -2958,22 +3234,6 @@
     if (storm.t > 0) {
       storm.t -= dt;
       if (storm.t <= 0) { storm.t = 0; bolts.length = 0; arcos.length = 0; }
-      else {
-        // a tempestade não deixa a câmera assentar
-        // não deixa a câmera assentar em momento nenhum dos dez segundos
-        if (fx.shake <= 0.09 && !reduceMotion) kick(0.34, 0.36, RAIOS[(Math.random() * 3) | 0], 0.95);
-        storm.next -= dt;
-        if (storm.next <= 0) { storm.next = rand(0.18, 0.5); storm.pedir = true; }
-
-        storm.trovao -= dt;
-        if (storm.trovao <= 0) { storm.trovao = rand(1.6, 3.2); Snd.thunder(); }
-
-        if (arcoTimer <= 0 && !reduceMotion) {
-          arcoTimer = 0.045;
-          const quantos = 2 + (Math.random() * 2 | 0);
-          for (let k = 0; k < quantos; k++) novoArco();
-        }
-      }
     }
 
     if (poison.on) {
@@ -2987,23 +3247,9 @@
     if (venom.t > 0) {
       venom.t -= dt;
       if (venom.t <= 0) endVenom();
-      else {
-        smokeTimer -= dt;
-        while (smokeTimer <= 0) {
-          smokeTimer += 0.05;
-          const perto = Math.random() < 0.5;
-          smoke.push({
-            ...jatoDeBorda(perto, 6, rand(5, 16), rand(-14, 14)),
-            size: rand(3, 7),
-            life: rand(0.8, 1.6),
-            max: 1.6,
-            rosa: Math.random() < 0.42
-          });
-          if (smoke.length > 90) smoke.shift();
-        }
-      }
     }
 
+    ambientar(dt);
     atualizarEnfeites(dt);
 
     /* Ponto retido: a bola já saiu e segue de sobra, sem ser julgada de
@@ -3033,6 +3279,55 @@
   /* Envelhecimento de tudo que é enfeite: avisos, faíscas, fumaça, riscos.
      Roda para os dois lados da sala — o convidado não simula a partida, mas
      precisa que as partículas dele apaguem, senão elas se acumulam na tela. */
+  /* ── Clima do campo ──
+     O que a tempestade, o veneno e o ponto final fazem na TELA — tremor de
+     câmera, relâmpagos, arcos, trovão, fumaça: puro enfeite, sem decidir
+     nada, e por isso roda nos DOIS papéis. Antes vivia dentro do step() do
+     anfitrião, e o convidado via um raio sem raio e um veneno sem fumaça —
+     só a cor indo embora. Os relógios (storm.t, venom.t) seguem a cargo de
+     cada laço; aqui só se lê. */
+  function ambientar(dt) {
+    if (S.phase !== "play") return;
+    if (storm.t > 0) {
+      // a tempestade não deixa a câmera assentar em momento nenhum dos dez segundos
+      if (fx.shake <= 0.09 && !reduceMotion) kick(0.34, 0.36, RAIOS[(Math.random() * 3) | 0], 0.95);
+      storm.next -= dt;
+      if (storm.next <= 0) { storm.next = rand(0.18, 0.5); storm.pedir = true; }
+
+      storm.trovao -= dt;
+      if (storm.trovao <= 0) { storm.trovao = rand(1.6, 3.2); Snd.thunder(); }
+
+      if (arcoTimer <= 0 && !reduceMotion) {
+        arcoTimer = 0.045;
+        const quantos = 2 + (Math.random() * 2 | 0);
+        for (let k = 0; k < quantos; k++) novoArco();
+      }
+    }
+    if (venom.t > 0) {
+      smokeTimer -= dt;
+      while (smokeTimer <= 0) {
+        smokeTimer += 0.05;
+        const perto = Math.random() < 0.5;
+        smoke.push({
+          ...jatoDeBorda(perto, 6, rand(5, 16), rand(-14, 14)),
+          size: rand(3, 7),
+          life: rand(0.8, 1.6),
+          max: 1.6,
+          rosa: Math.random() < 0.42
+        });
+        if (smoke.length > 90) smoke.shift();
+      }
+    }
+    /* No ponto final a câmera não fica parada. Pulso a cada 1,2 s em vez de
+       tremor contínuo: marca a tensão sem embrulhar o estômago de ninguém. */
+    if (pontoFinal() && !reduceMotion) {
+      tremorFinal -= dt;
+      if (tremorFinal <= 0) { tremorFinal = 1.2; kick(0.26, 0.3, VIVAS, 0.85); }
+    } else {
+      tremorFinal = 0;
+    }
+  }
+
   function atualizarEnfeites(dt) {
     /* Os coraçõezinhos não boiam mais o tempo todo: cada um é cuspido pelas
        laterais no instante do acerto (ver `cuspirCoracoes`) e vai perdendo
@@ -3216,7 +3511,7 @@
         spark(cxE, cyE, 26, 6, 150, COL.gumHi, { lifeMin: 0.25, lifeMax: 0.7, peak: 0.9, size: 2 });
         Snd.gum(); Snd.storm();
         announce("Explosão! O Chicletinho apareceu e vai cuspir a bola.");
-        sincronizar("estouro");
+        sincronizar("estouro", { alvo: mascote.alvo, masc: [r1(mascote.a), r1(mascote.b)] });
         transmitirMundo();
         return;
       }
@@ -3667,6 +3962,21 @@
     }
   });
 
+  /* ── A pasta do jogo ──
+     De onde saem o socket (…/ws) e o /quem, lida do endereço da página. Sem
+     barra no fim, o último pedaço só é arquivo se tiver extensão: sem ela é a
+     própria pasta (/pong), e cortá-la mandava o socket para a raiz do domínio,
+     a conexão falhava e a sala caía para o modo "abas". E a porta direta da
+     arena (…/arena) não é pasta nenhuma — quem entrou pelo link tem de bater
+     no mesmo endereço de quem entrou pela home. */
+  function baseDoJogo() {
+    let base = location.pathname;
+    if (!/\/$/.test(base)) {
+      base = /\.[^\/]*$/.test(base) ? base.replace(/[^\/]*$/, "") : base + "/";
+    }
+    return base.replace(/(^|\/)arena\/$/i, "$1");
+  }
+
   function abrirSala(codigo, papel) {
     fecharSala(true);
     sala.codigo = codigo;
@@ -3707,24 +4017,15 @@
 
     try {
       /* O endereço é relativo à página: se o jogo está em /pong/, a sala fica
-         em /pong/ws. Assim ele funciona atrás de qualquer proxy de subcaminho.
-         Sem a barra final (/pong), o último segmento é a própria pasta — só é
-         arquivo se tiver extensão. Cortá-lo mandava o socket para /ws na raiz
-         do domínio, a conexão falhava e a sala caía para o modo "abas". */
+         em /pong/ws. Assim ele funciona atrás de qualquer proxy de subcaminho. */
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      let base = location.pathname;
-      if (!/\/$/.test(base)) {
-        base = /\.[^\/]*$/.test(base) ? base.replace(/[^\/]*$/, "") : base + "/";
-      }
-      const ws = new WebSocket(`${proto}//${location.host}${base}ws`);
+      const ws = new WebSocket(`${proto}//${location.host}${baseDoJogo()}ws`);
       sala.ws = ws;
       ws.onopen = () => {
         decidido = true;
         sala.via = "rede";
         sala.tentativas = 0;
-        const nomeCampo = document.getElementById("nome-jogador");
-        const nome = (nomeCampo && nomeCampo.value || "").slice(0, 12).trim();
-        ws.send(JSON.stringify({ t: "sala", codigo, nome }));
+        ws.send(JSON.stringify({ t: "sala", codigo, nome: meuNome() }));
         pintarSala();
       };
       ws.onmessage = e => { try { receber(JSON.parse(e.data)); } catch (_) {} };
@@ -3974,7 +4275,7 @@
       const duro = m.m === "saque" || m.m === "ponto";
       if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
       adotarBola(m.bola, duro, m.ts);
-      reagirAoEvento(m.m);
+      reagirAoEvento(m.m, m);
       return;
     }
     if (m.t === "mundo") aplicarMundo(m);
@@ -3995,9 +4296,9 @@
   ];
 
   /** Chamado a cada descontinuidade da trajetória. */
-  function sincronizar(motivo) {
+  function sincronizar(motivo, extra) {
     if (!sala.conectado || sala.papel !== "anfitriao") return;
-    enviar({ t: "ev", m: motivo, bola: estadoBola(), ts: Math.round(performance.now()) });
+    enviar(Object.assign({ t: "ev", m: motivo, bola: estadoBola(), ts: Math.round(performance.now()) }, extra || {}));
   }
 
   /** Resumo do que muda devagar: placar, itens, efeitos, raquetes. */
@@ -4023,7 +4324,8 @@
       chiclete.on && [r1(chiclete.a), r1(chiclete.b)],
       heart.on && heart.hits.join(","),
       roleta.on && roleta.dono,
-      venom.t > 0, slow.t > 0, storm.t > 0, BOLA
+      venom.t > 0, slow.t > 0, storm.t > 0, BOLA,
+      stats.used
     ]);
   }
 
@@ -4056,6 +4358,10 @@
       iris: iris.on ? [r1(iris.a), r1(iris.b), r1(iris.life)] : null,
       gum: chiclete.on ? [r1(chiclete.a), r1(chiclete.b), r1(chiclete.life)] : null,
       tam: BOLA,
+      /* O log da tela final. Só o anfitrião conta o que cada um gastou
+         (marcarUso), e sem isto o convidado terminava a partida vendo
+         "SEM ITENS" nas duas colunas. */
+      uso: stats.used.map(u => USO_CHAVES.map(k => u[k])),
       bola: estadoBola()
     });
   }
@@ -4248,16 +4554,19 @@
   }
 
   /** Efeitos locais de um aviso, para o convidado ver e ouvir o que houve. */
-  function reagirAoEvento(motivo) {
+  function reagirAoEvento(motivo, m) {
     if (motivo === "saque" || motivo === "ponto") return;
     if (motivo === "estouro") {
       gumFesta = 4.5;
       estouroRosa = 1;
       kick(0.75, 1.1, COL.gum, 2.1);
       aberr = reduceMotion ? 0 : 0.7;
-      spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 46, 7, 210, COL.gum,
-            { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
-      acordarMascote(ball.a + BOLA / 2, ball.b + BOLA / 2, false);
+      /* O evento traz onde o mascote ficou e para quem ele vai cuspir; a
+         bola que veio junto já está na boca dele. */
+      const ca = m && m.masc ? m.masc[0] : ball.a + BOLA / 2;
+      const cb = m && m.masc ? m.masc[1] : ball.b + BOLA / 2;
+      spark(ca, cb, 46, 7, 210, COL.gum, { lifeMin: 0.3, lifeMax: 0.85, peak: 1, size: 3 });
+      acordarMascote(ca, cb, false, m ? m.alvo : undefined);
       Snd.gum(); Snd.storm();
       announce("Explosão! O Chicletinho apareceu e vai cuspir a bola.");
       return;
@@ -4329,10 +4638,35 @@
 
     if (m.jog) sala.n = Math.max(sala.n, m.jog);
     if (m.elc && sala.papel !== "anfitriao") sala.membros = m.elc;
+    /* A defesa da bola de fogo: a chama apaga e UMA raquete cresce no mesmo
+       resumo. O anfitrião mostra "DEFENDEU" e cospe as chamas na hora; aqui
+       isso se deduz do resumo, antes de as medidas serem aplicadas. */
+    let defendeu = -1;
+    if (fire.on && !m.fogo[0])
+      for (let j = 0; j < m.lens.length && j < JMAX; j++) if (m.lens[j] > pads[j].len) defendeu = j;
     for (let j = 0; j < m.lens.length && j < JMAX; j++) pads[j].len = m.lens[j];
+    if (m.uso) {
+      for (let j = 0; j < m.uso.length && j < JMAX; j++) {
+        if (!stats.used[j]) stats.used[j] = {};
+        USO_CHAVES.forEach((k, n) => { stats.used[j][k] = m.uso[j][n] || 0; });
+      }
+    }
 
-    if (!fire.on && m.fogo[0]) { trail.length = 0; Snd.fire(); kick(0.46, 0.6, COL.fireText, 1.05, COL.fireEmber); cuspirFogo(); }
-    if (!star.on && m.fogo[1]) Snd.star();
+    /* O que o anfitrião vê ao acender — clarão da paleta, tranco, faíscas,
+       aviso — o convidado vê igual; a estrela, antes, ele só ouvia. */
+    if (!fire.on && m.fogo[0]) {
+      trail.length = 0; Snd.fire(); kick(0.46, 0.6, COL.fireText, 1.05, COL.fireEmber); cuspirFogo();
+      flashCol = COL.fire; flash = reduceMotion ? 0 : 0.4;
+      showHint(-1, "BOLA DE FOGO", COL.fireText);
+    }
+    if (!star.on && m.fogo[1]) {
+      Snd.star();
+      spark(ball.a + BOLA / 2, ball.b + BOLA / 2, 30, 5, 160, null, { size: 2 });
+      kick(0.3, 0.45, COL.star, 0.7);
+      flashCol = COL.star; flash = reduceMotion ? 0 : 0.4;
+      showHint(-1, "ESTRELA", COL.star);
+    }
+    if (defendeu >= 0) { showHint(defendeu, "DEFENDEU", COL.fireText); cuspirFogo(); }
     fire.on = !!m.fogo[0];
     star.on = !!m.fogo[1];
     armed.who = m.fogo[2];
@@ -4383,6 +4717,7 @@
       salvaLascas(18);
     }
     if (m.efe[2] > storm.t + 0.5) {
+      storm.next = 0; storm.trovao = 1.2; arcos.length = 0;   // os relógios do clima, como no enterStorm
       kick(0.7, 0.7, "#ffffff", 1.5); Snd.storm();
       showHint(-1, "RAIO", COL.boltHi);
       announce("Raio: o campo perdeu a cor por dez segundos.");
@@ -4611,14 +4946,18 @@
        entra na transformação — placar e avisos ficam onde estão. */
     g.save();
 
-    const fecho = ZOOM * slowRamp() + ZOOM_STORM * stormRamp();
+    const fecho = ZOOM * slowRamp() + ZOOM_STORM * stormRamp() + MASC_ZOOM * mascZoom;
+    cam.z = 1; cam.x = cw / 2; cam.y = ch / 2; cam.cw = cw; cam.ch = ch;
     if (fecho > 0.001) {
       const z = 1 + fecho;
-      const bp = rect(ball.a, ball.b, BOLA, BOLA);
+      /* O foco é a bola — ou o Chicletinho enquanto a câmera está com ele,
+         para o quadro não pular atrás da bola quando ela sai cuspida. */
+      const bp = mascZoom > 0.01 ? rect(mascote.a, mascote.b, 0, 0) : rect(ball.a, ball.b, BOLA, BOLA);
       const half = [cw / (2 * z), ch / (2 * z)];
       // trava a câmera dentro da quadra, senão apareceria o vazio de fora
       const camX = clamp(bp[0] + bp[2] / 2, half[0], cw - half[0]);
       const camY = clamp(bp[1] + bp[3] / 2, half[1], ch - half[1]);
+      cam.z = z; cam.x = camX; cam.y = camY;
       g.translate(cw / 2, ch / 2);
       g.scale(z, z);
       g.translate(-camX, -camY);
@@ -4672,12 +5011,12 @@
     }
     for (const v of vagalumes) {
       const cor = corDoJogador(v.dono);
-      const puls = 0.45 + 0.45 * Math.sin(S.blink * 4 + v.fase);
-      const a2 = v.a + Math.sin(S.blink * 1.7 + v.fase) * v.amp;
+      const puls = v.salva ? 0.95 : 0.45 + 0.45 * Math.sin(S.blink * 4 + v.fase);
+      const pv = posDoVagalume(v);
       g.globalAlpha = Math.min(1, v.vida * 1.4) * puls * 0.5;
-      fill(cor, a2 - 2, v.b - 2, 5, 5);
+      fill(cor, pv[0] - 2, pv[1] - 2, v.tam + 3, v.tam + 3);
       g.globalAlpha = Math.min(1, v.vida * 1.4) * puls;
-      fill(cor, a2 - 1, v.b - 1, 2, 2);
+      fill(cor, pv[0] - 1, pv[1] - 1, v.tam, v.tam);
     }
     g.globalAlpha = 1;
 
@@ -4974,22 +5313,36 @@
       glowFill(col, pa, pb, th, ln);
     }
     ball.a += corrBola.a; ball.b += corrBola.b;   // só o desenho vê isto
-    if (S.phase !== "over") {
-      if (fire.on) {
-        disco(COL.fire, ball.a - 2, ball.b - 2, BOLA + 4);
-        disco(COL.core, ball.a, ball.b, BOLA);
-      } else if (ball.hit > 0) {
-        // Smear: sai da raquete esticada no eixo em que viaja, e volta ao quadrado
-        const k = ball.hit / BHIT_TIME;
-        const sa = BOLA * (1 + 0.65 * k), sb = BOLA * (1 - 0.3 * k);
-        const ea = ball.a - (sa - BOLA) / 2, eb = ball.b - (sb - BOLA) / 2;
-        // glow mínimo do impacto: dois anéis que apagam junto com o smear
-        g.globalAlpha = 0.16 * k;
-        disco(COL.ball, ea - 7, eb - 7, sa + 14, sb + 14);
-        g.globalAlpha = 0.34 * k;
-        disco(COL.ball, ea - 3, eb - 3, sa + 6, sb + 6);
+    if (S.phase !== "over" && !bolaComOMascote()) {
+      /* A forma vale para TODOS os modos: fogo, roleta, chiclete ou bola
+         limpa deformam pela mesma mola. `bolaDisco` engorda o disco em `d`
+         unidades por lado, como os halos já pediam; parada, volta o `disco`
+         reto, que tem o arredondamento simétrico afinado para a bola em
+         repouso. */
+      const F = formaDaBola();
+      const bcx = ball.a + BOLA / 2, bcy = ball.b + BOLA / 2;
+      const bolaDisco = (cor, d) => {
+        if (F.reta) disco(cor, ball.a - d, ball.b - d, BOLA + 2 * d);
+        else discoTorto(cor, bcx, bcy, F.p + d, F.q + d, F.ang);
+      };
+      const bolaGlow = cor => {
+        if (theme.glow) { g.globalAlpha = 0.2; bolaDisco(cor, 2); g.globalAlpha = 1; }
+        bolaDisco(cor, 0);
+      };
+
+      /* O clarão do toque é curto e vale em qualquer modo. A deformação agora
+         dura bem mais que ele, então os dois andam separados. */
+      const brilho = ball.hit - (BHIT_TIME - 0.16);
+      if (brilho > 0) {
+        const k = brilho / 0.16;
+        g.globalAlpha = 0.16 * k; bolaDisco(COL.ball, 7);
+        g.globalAlpha = 0.34 * k; bolaDisco(COL.ball, 3);
         g.globalAlpha = 1;
-        discoGlow(COL.ball, ea, eb, sa, sb);
+      }
+
+      if (fire.on) {
+        bolaDisco(COL.fire, 2);
+        bolaDisco(COL.core, 0);
       } else if (roleta.on) {
         // Borrão de movimento: cada amostra na cor que a roleta tinha ali
         for (let i = 0; i < rastroIris.length; i++) {
@@ -5002,47 +5355,50 @@
         g.globalAlpha = 1;
 
         // vibra: halo largo na cor da vez, anel na seguinte, miolo branco
-        const c = roletaViva();
-        const prox = VIVAS[(roletaIndice() + 1) % VIVAS.length];
-        disco(prox, ball.a - 4, ball.b - 4, BOLA + 8);
-        disco(c, ball.a - 2, ball.b - 2, BOLA + 4);
-        disco("#ffffff", ball.a + 1, ball.b + 1, BOLA - 2);
+        bolaDisco(VIVAS[(roletaIndice() + 1) % VIVAS.length], 4);
+        bolaDisco(roletaViva(), 2);
+        bolaDisco("#ffffff", -1);
       } else if (BOLA > BS) {
-        /* Bola de chiclete: casca rosa, miolo claro quase transparente e um
-           ponto de luz em cima à esquerda — a mesma gramática das outras peças.
-           Ela ainda pulsa um pouco logo depois de inchar. */
-        const q = gumPop > 0 ? Math.sin(gumPop / 0.45 * Math.PI) * 2.5 : 0;
-        const t = BOLA + q;
-        const x = Math.round(ball.a - q / 2), y = Math.round(ball.b - q / 2);
-        /* Mesma gramática do sprite do chiclete em campo: contorno fechado,
-           sombra na barriga de baixo-direita e a luz no alto-esquerda. A
-           sombra é uma lua: o corpo entra deslocado sobre um disco todo
-           escuro, e o que sobra dele é a beirada de baixo. */
-        const luaK = Math.max(2, Math.round(t * 0.14));
-        discoBorda(COL.gumEdge, COL.gumLo, x, y, t);
-        disco(COL.gum, x + 1, y + 1, t - luaK);
-        const luzD = Math.max(3, Math.round(t * 0.40));
-        const luzX = x + Math.round(t * 0.16), luzY = y + Math.round(t * 0.16);
+        /* Bola de chiclete: casca rosa, miolo claro e a luz no alto-esquerda.
+           Com o blob deformando, a lua da sombra e o brilho acompanham a
+           forma em vez de ficarem presos ao quadrado de antes. A sombra é uma
+           lua: o corpo entra deslocado sobre um disco todo escuro, e o que
+           sobra dele é a beirada de baixo-direita. */
+        const luaK = Math.max(2, Math.round(BOLA * 0.14));
+        if (F.reta) discoBorda(COL.gumEdge, COL.gumLo, ball.a, ball.b, BOLA);
+        else discoTortoBorda(COL.gumEdge, COL.gumLo, bcx, bcy, F.p, F.q, F.ang);
+
+        const desl = 1 - luaK / 2;
+        if (F.reta) disco(COL.gum, ball.a + 1, ball.b + 1, BOLA - luaK);
+        else discoTorto(COL.gum, bcx + desl, bcy + desl, F.p - luaK / 2, F.q - luaK / 2, F.ang);
+
+        /* A luz fica no alto-esquerda em qualquer rotação — a fonte de luz não
+           gira com a bola. Medida pelo menor semieixo, ela nunca escapa do
+           blob por mais achatado que ele esteja. */
+        const menor = Math.min(F.p, F.q);
+        const luzR = Math.max(1.5, menor * 0.40), luzD = luzR * 2;
+        const luzX = bcx - menor * 0.30 - luzR, luzY = bcy - menor * 0.30 - luzR;
         disco(COL.gumHi, luzX, luzY, luzD);
         /* O brilho especular fica quadrado de propósito: é a marca de um
            punhado de pixels que a estrela e o coração também usam, e
            arredondá-la nesse tamanho só a borraria. */
-        const pt = Math.max(1, Math.round(t * 0.11));
+        const pt = Math.max(1, Math.round(BOLA * 0.11));
         fill("#ffffff", luzX + Math.round(luzD * 0.2), luzY + Math.round(luzD * 0.2), pt, pt);
       } else {
         // No ponto final ela segue branca, mas com um halo que respira
         if (pontoFinal()) {
           const k = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(S.blink * 6);
           g.globalAlpha = 0.14 + 0.16 * k;
-          disco(COL.ball, ball.a - 6, ball.b - 6, BOLA + 12);
+          bolaDisco(COL.ball, 6);
           g.globalAlpha = 0.26 + 0.26 * k;
-          disco(COL.ball, ball.a - 3, ball.b - 3, BOLA + 6);
+          bolaDisco(COL.ball, 3);
           g.globalAlpha = 1;
         }
-        discoGlow(COL.ball, ball.a, ball.b, BOLA);
+        bolaGlow(COL.ball);
       }
     }
     ball.a -= corrBola.a; ball.b -= corrBola.b;
+    desenharChicletinho();
 
     g.restore();
     if (estouroRosa > 0) {
@@ -5060,7 +5416,7 @@
       g.globalAlpha = 1;
     }
     drawSideFlash();
-    desenharChicletinho();
+    desenharFalaDoChicletinho();
 
     /* Alarde de chegada: nome e "ENTROU!" no meio da tela, entrando e saindo
        com escala — é o momento mais social do jogo. */
@@ -5204,62 +5560,217 @@
     }
   }
 
-  /** Carimbo centrado de um sprite de uma cor só, em coordenadas de tela. */
-  function carimboM(rows, cx, cy, s, cor) {
-    drawSprite(rows, cx - rows[0].length * s / 2, cy - rows.length * s / 2, s, { "#": cor });
+  /** Carimbo centrado de um sprite em coordenadas de tela. `mapa` é opcional
+      (sem ele, `#` sai na cor dada) e `sy` também: é a escala vertical, para
+      o rosto achatar e esticar junto com o corpo. */
+  function carimboM(rows, cx, cy, s, cor, mapa, sy) {
+    const ys = sy || s;
+    drawSprite(rows, cx - rows[0].length * s / 2, cy - rows.length * ys / 2, s, mapa || { "#": cor }, null, ys);
   }
 
+  /** Elipse de eixos alinhados em coordenadas de TELA, para o que precisa
+      ficar de pé nas duas orientações da quadra — o corpo do Chicletinho.
+      Mesma malha de fileiras do `disco`, mas as fileiras vão num caminho
+      só: sob o zoom da câmera, retângulos separados deixam costuras entre
+      si (cada um antialiasa a própria borda) e o corpo saía listrado. */
+  function ovalTela(cor, cx, cy, rx, ry) {
+    const w = Math.max(1, Math.round(rx * 2)), h = Math.max(1, Math.round(ry * 2));
+    const x0 = Math.round(cx - rx), y0 = Math.round(cy - ry);
+    g.fillStyle = cor;
+    g.beginPath();
+    for (let j = 0; j < h; j++) {
+      const mg = margemDoDisco(j, w, h);
+      if (mg >= 0) g.rect(x0 + mg, y0 + j, w - 2 * mg, 1);
+    }
+    g.fill();
+  }
+  /** A oval com contorno de 1 px que não abre mordidas — o `discoBorda` de tela. */
+  function ovalTelaBorda(borda, miolo, cx, cy, rx, ry) {
+    ovalTela(borda, cx, cy, rx, ry);
+    const w = Math.max(1, Math.round(rx * 2)), h = Math.max(1, Math.round(ry * 2));
+    if (w <= 4 || h <= 4) return;
+    const x0 = Math.round(cx - rx), y0 = Math.round(cy - ry);
+    g.fillStyle = miolo;
+    g.beginPath();
+    for (let j = 1; j < h - 1; j++) {
+      const mg = margemDoDisco(j, w, h);
+      if (mg < 0) continue;
+      const viz = Math.max(mg + 1, margemDoDisco(j - 1, w, h), margemDoDisco(j + 1, w, h));
+      if (w - 2 * viz > 0) g.rect(x0 + viz, y0 + j, w - 2 * viz, 1);
+    }
+    g.fill();
+  }
+  /** A bola branca em coordenadas de tela, com o halo do tema, como `discoGlow`. */
+  function bolaNaTela(x, y) {
+    if (theme.glow) { g.globalAlpha *= 0.2; ovalTela(COL.ball, x, y, BOLA / 2 + 2, BOLA / 2 + 2); g.globalAlpha *= 5; }
+    ovalTela(COL.ball, x, y, BOLA / 2, BOLA / 2);
+  }
+
+  /** Bracinho: salsicha de discos do ombro à mão — contorno numa passada e
+      miolo na outra, para o traço fechar como um só. */
+  function desenharBraco(ombro, mao, d) {
+    const pts = [0.3, 0.65, 1].map(u => [ombro[0] + (mao[0] - ombro[0]) * u,
+                                          ombro[1] + (mao[1] - ombro[1]) * u,
+                                          u < 1 ? d * 0.72 : d]);
+    for (const [x, y, rr] of pts) ovalTela(COL.gumEdge, x, y, rr + 1, rr + 1);
+    for (const [x, y, rr] of pts) ovalTela(COL.gum, x, y, rr, rr);
+  }
+
+  /** O corpo, dentro da câmera — ele acompanha a bola e o zoom. */
   function desenharChicletinho() {
     if (mascote.t <= 0) return;
-    const idade = MASC_DUR - mascote.t;
-    /* Entrada com easeOutBack: passa do tamanho e assenta — o mesmo
-       vocabulário de mola do resto do jogo. Na saída o corpo encolhe e o
-       alfa cai junto, entregando o resto à purpurina. */
-    const u = Math.min(1, idade / 0.28) - 1;
-    let k = 1 + 2.70158 * u * u * u + 1.70158 * u * u;
-    const cuspe = mascote.cuspiu ? Math.min(1, Math.max(0, (idade - MASC_CUSPE) / 0.22)) : 0;
-    if (cuspe > 0 && cuspe < 1) k *= 1 - Math.sin(cuspe * Math.PI) * 0.12;   // tranco do cuspe
-    const some = Math.min(1, mascote.t / 0.55);
-    k *= 0.75 + 0.25 * some;
-    const r = Math.max(1, 19 * k);
-    const ca = mascote.a, cb = mascote.b;
+    const P = poseDoMascote();
+    const { idade, tc, folego, some, r, rx, ry, cx, cy } = P;
+    /* O rosto acompanha o corpo: escala com ele e achata e estica junto,
+       pela metade — deformar tanto quanto a silhueta faz o olho virar risco. */
+    const s = r / 10, sx = s * Math.sqrt(rx / r), sy = s * Math.sqrt(ry / r);
+    const [ox, oy] = mascote.olhar;
 
     g.save();
+    // a onda do pouso: um anel que sai do corpo quando ele assenta
+    if (idade > MASC_POUSO && idade < MASC_POUSO + 0.32 && !reduceMotion) {
+      const q = (idade - MASC_POUSO) / 0.32;
+      g.globalAlpha = 0.55 * (1 - q);
+      g.strokeStyle = COL.gumHi;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.ellipse(cx, cy, rx * (1 + q * 1.1), ry * (1 + q * 1.1), 0, 0, Math.PI * 2);
+      g.stroke();
+    }
     /* Halo bem tímido: rosa-claro chapado sobre fundo escuro não lê como
        brilho, lê como sujeira — a lição do halo do blackhole. */
     g.globalAlpha = 0.14 * some;
-    disco(COL.gumHi, ca - r - 3, cb - r - 3, (r + 3) * 2);
+    ovalTela(COL.gumHi, cx, cy, rx + 3, ry + 3);
     g.globalAlpha = some;
-    discoBorda(COL.gumEdge, COL.gum, ca - r, cb - r, r * 2);
-    // brilho especular na gramática da bola de chiclete: disco claro + pixel branco
-    const luzD = Math.max(3, Math.round(r * 0.5));
-    const luzA = ca - r + Math.round(r * 0.34), luzB = cb - r + Math.round(r * 0.34);
-    disco(COL.gumHi, luzA, luzB, luzD);
-    const pt = Math.max(1, Math.round(r * 0.14));
-    fill("#ffffff", luzA + Math.round(luzD * 0.2), luzB + Math.round(luzD * 0.2), pt, pt);
+    ovalTelaBorda(COL.gumEdge, COL.gum, cx, cy, rx, ry);
+    // a luz no alto-esquerda, na gramática da bola de chiclete: oval clara e o pixel branco
+    const lx = cx - rx * 0.5, ly = cy - ry * 0.55;
+    const lrx = Math.max(1.5, rx * 0.2), lry = Math.max(1.5, ry * 0.2);
+    ovalTela(COL.gumHi, lx, ly, lrx, lry);
+    const pt = Math.max(1, Math.round(r * 0.12));
+    g.fillStyle = "#ffffff";
+    g.fillRect(Math.round(lx - lrx * 0.55), Math.round(ly - lry * 0.55), pt, pt);
 
-    /* O rosto vive em coordenadas de tela, para ficar de pé nas duas
-       orientações da quadra. */
-    const c = rect(ca, cb, 0, 0);
-    const s = 2 * r / 19, sep = Math.round(r * 0.42);   // rosto escala com o corpo
-    const boca = mascote.cuspiu && idade < MASC_CUSPE + 0.4 ? MASC_BICO : MASC_BOCA;
-    // bochecha DENTRO do corpo, abaixo e fora dos olhos, como no blackhole
-    g.globalAlpha = 0.8 * some;
-    carimboM(MASC_BOCH, c[0] - r * 0.72, c[1] + r * 0.3, s / 2, "#ff5fa8");
-    carimboM(MASC_BOCH, c[0] + r * 0.72, c[1] + r * 0.3, s / 2, "#ff5fa8");
+    // bracinhos por cima do corpo, como quem os desenha num boneco redondo
+    const M = maosDoMascote(P);
+    desenharBraco(M.ombroE, M.maoE, M.d);
+    desenharBraco(M.ombroD, M.maoD, M.d);
+
+    // bochechas: dentro do corpo, abaixo e fora dos olhos; incham no fôlego
+    g.globalAlpha = 0.85 * some;
+    const kB = 1 + 0.5 * folego;
+    carimboM(MASC_BOCH, cx - rx * 0.72 + ox * 0.5, cy + ry * 0.36 + oy * 0.5, sx * kB, MASC_BLUSH, null, sy * kB);
+    carimboM(MASC_BOCH, cx + rx * 0.72 + ox * 0.5, cy + ry * 0.36 + oy * 0.5, sx * kB, MASC_BLUSH, null, sy * kB);
     g.globalAlpha = some;
-    carimboM(MASC_OLHO, c[0] - sep, c[1] - r * 0.16, s, MASC_ROSTO);
-    carimboM(MASC_OLHO, c[0] + sep, c[1] - r * 0.16, s, MASC_ROSTO);
-    carimboM(boca, c[0], c[1] + r * 0.4, s, MASC_ROSTO);
 
-    // a apresentação, viva entre o assentar do corpo e o cuspe
-    if (idade > 0.34 && idade < MASC_CUSPE + 0.15) {
-      g.globalAlpha = Math.min(1, (idade - 0.34) / 0.2) * some;
-      const acima = c[1] - r - 36;
-      centered(g, "OI! EU SOU O CHICLETINHO!", c[0],
-               acima > 10 ? acima : c[1] + r + 12, 2, COL.gumHi, cv.width - 24);
+    // olhos: a expressão segue o roteiro
+    let olhoE, olhoD, kO = 1;
+    if (tc >= 0.3) olhoE = olhoD = MASC_FELIZ;                                      // satisfeito
+    else if (tc >= 0) { olhoE = olhoD = MASC_OLHO; kO = 1.12; }                     // arregala no cuspe
+    else if (folego > 0.3) { olhoE = MASC_APERTA; olhoD = espelho(MASC_APERTA); }   // força no fôlego
+    else if (idade > 0.95 && idade < 1.06) olhoE = olhoD = MASC_PISCA;              // uma piscada no palco
+    else olhoE = olhoD = MASC_OLHO;
+    const mapaOlho = { "#": MASC_ROSTO, "W": "#ffffff" };
+    const olhoY = cy - ry * 0.02 + oy;
+    carimboM(olhoE, cx - rx * 0.42 + ox, olhoY, sx * kO, MASC_ROSTO, mapaOlho, sy * kO);
+    carimboM(olhoD, cx + rx * 0.42 + ox, olhoY, sx * kO, MASC_ROSTO, mapaOlho, sy * kO);
+
+    // boca e bola
+    const boca = bocaNaTela(P);
+    const naBoca = !mascote.cuspiu && idade >= MASC_LEVA + 0.16;
+    const abrindo = clamp((idade - MASC_LEVA) / 0.16, 0, 1);
+    if (tc >= 0.3) carimboM(MASC_BOCA, boca[0], boca[1], sx, MASC_ROSTO, null, sy);
+    else if (tc >= 0) carimboM(MASC_BOCA_O, boca[0], boca[1], sx * (1.3 - tc * 2), MASC_ROSTO, null, sy * (1.3 - tc * 2));
+    else if (naBoca) ovalTela(MASC_ROSTO, boca[0], boca[1], BOLA / 2 + 2, BOLA / 2 + 2);   // lábios em volta da bola
+    else if (abrindo > 0) carimboM(MASC_BOCA_O, boca[0], boca[1], sx * (0.4 + 0.6 * abrindo), MASC_ROSTO, null, sy * (0.4 + 0.6 * abrindo));
+    else carimboM(MASC_BOCA, boca[0], boca[1], sx, MASC_ROSTO, null, sy);
+
+    if (!mascote.cuspiu) {
+      // a bola: na mão esquerda até a hora de levá-la à boca, depois na boca
+      const pos = naBoca ? boca : [M.maoE[0] - 2 * (1 - M.leva), M.maoE[1] - 3 * (1 - M.leva)];
+      bolaNaTela(pos[0], pos[1]);
+    } else if (tc < 0.3) {
+      // recém-cuspida, a bola passa por cima do rosto até sair da boca
+      const bc = rect(ball.a + BOLA / 2, ball.b + BOLA / 2, 0, 0);
+      bolaNaTela(bc[0], bc[1]);
+      // o sopro: três gotas rosa saindo da boca no rumo da bola
+      if (tc < 0.25 && !reduceMotion) {
+        const q = tc / 0.25, [ra, rb] = mascote.rumo;
+        g.globalAlpha = (1 - q) * some;
+        for (let i = -1; i <= 1; i++) {
+          const dist = 12 + 70 * q + Math.abs(i) * 4, lado = i * (5 + 9 * q);
+          const rr = 3.5 * (1 - q) + 1;
+          ovalTela(COL.gumHi, boca[0] + ra * dist - rb * lado, boca[1] + rb * dist + ra * lado, rr, rr);
+        }
+        g.globalAlpha = some;
+      }
+    }
+
+    // faíscas kawaii em volta da cabeça enquanto ele se apresenta
+    if (idade > 0.45 && idade < 1.25) {
+      const vis = Math.min(1, (idade - 0.45) / 0.15, (1.25 - idade) / 0.15);
+      const F = [[-1.35, -0.8, 0, "#ffffff"], [1.05, -1.25, 2.1, COL.gumHi], [1.4, 0.7, 4.2, "#ffffff"]];
+      for (const [fx, fy, ph, cor] of F) {
+        const pisca = reduceMotion ? 0.7 : 0.5 + 0.5 * Math.sin(S.blink * 7 + ph);
+        g.globalAlpha = vis * (0.35 + 0.65 * pisca) * some;
+        carimboM(MASC_FAISCA, cx + rx * fx, cy + ry * fy, s * (0.5 + 0.4 * pisca), cor);
+      }
     }
     g.globalAlpha = 1;
+    g.restore();
+  }
+
+  /** A fala, fora da câmera: o balão fica do tamanho de sempre e onde a
+      tela permite, mesmo com o mundo ampliado. Nasce e some com escala a
+      partir do bico — uma mola, como o corpo. */
+  const FALA_INI = 0.42, FALA_FIM = 1.22;
+  function desenharFalaDoChicletinho() {
+    if (mascote.t <= 0) return;
+    const idade = MASC_DUR - mascote.t;
+    if (idade < FALA_INI || idade > FALA_FIM) return;
+    const P = poseDoMascote();
+    const entra = easeOutBack(Math.min(1, (idade - FALA_INI) / 0.22));
+    const sai = 1 - clamp((idade - (FALA_FIM - 0.12)) / 0.12, 0, 1);
+    const k = entra * sai * sai;
+    if (k <= 0.01) return;
+
+    const txt = "OI! EU SOU O CHICLETINHO!";
+    const cw = cam.cw, ch = cam.ch;
+    const s = fitScale(txt, cw - 48, 2);
+    const w = textWidth(txt, s) + 8 * s, h = CH * s + 6 * s;
+    const BICO = 5;                                               // altura do biquinho
+    // acima da cabeça quando cabe; senão, abaixo do queixo
+    const topo = paraTela(P.cx, P.cy - P.ry - 3);
+    const acima = topo[1] - BICO - h > 8;
+    const anc = acima ? topo : paraTela(P.cx, P.cy + P.ry + 3);
+    const bx = clamp(anc[0] - w / 2, 6, cw - w - 6);
+    const by = acima ? anc[1] - BICO - h : anc[1] + BICO;
+    const px = clamp(anc[0], bx + 6, bx + w - 6);                 // o bico fica sob o balão
+
+    g.save();
+    g.globalAlpha = P.some;
+    g.translate(anc[0], anc[1]);
+    g.scale(k, k);
+    g.translate(-anc[0], -anc[1]);
+    // balão de cantos cortados: contorno e miolo
+    const caixa = (cor, x, y, lw, lh) => {
+      g.fillStyle = cor;
+      g.fillRect(x + 2, y, lw - 4, lh);
+      g.fillRect(x, y + 2, lw, lh - 4);
+      g.fillRect(x + 1, y + 1, lw - 2, lh - 2);
+    };
+    caixa(COL.gumEdge, bx - 1, by - 1, w + 2, h + 2);
+    caixa(COL.gumHi, bx, by, w, h);
+    // o biquinho, apontando para ele: contorno e miolo, como a caixa
+    for (const [cor, folga] of [[COL.gumEdge, 1], [COL.gumHi, 0]]) {
+      g.fillStyle = cor;
+      for (let i = 0; i < BICO + folga; i++) {
+        const meia = Math.max(0, BICO - 1 - i) + folga;
+        const y = acima ? by + h - 1 + i : by - i;
+        g.fillRect(Math.round(px - meia), y, meia * 2 + 1, 1);
+      }
+    }
+    drawText(g, txt, bx + 4 * s, by + 3 * s, s, MASC_ROSTO);
     g.restore();
   }
 
@@ -5277,17 +5788,27 @@
       para cima, mesmo com a quadra em pé. */
   /* Cada pixel do sprite vira um retângulo de bordas inteiras. Assim a escala
      pode ser fracionária — o coração respira — sem que o canvas suavize nada. */
-  function drawSprite(rows, x, y, s, map, ctx) {
-    const c2 = ctx || g;
+  function drawSprite(rows, x, y, s, map, ctx, sy) {
+    const c2 = ctx || g, ys = sy || s;
+    /* Cada cor sai num caminho só: sob o zoom da câmera, retângulos
+       separados deixam costuras entre células vizinhas (cada um antialiasa
+       a própria borda) e o sprite fica quadriculado. */
+    const cores = {};
     for (let r = 0; r < rows.length; r++) {
-      const y0 = Math.round(y + r * s), y1 = Math.round(y + (r + 1) * s);
+      const y0 = Math.round(y + r * ys), y1 = Math.round(y + (r + 1) * ys);
       for (let c = 0; c < rows[r].length; c++) {
         const k = rows[r][c];
         if (k === ".") continue;
         const x0 = Math.round(x + c * s), x1 = Math.round(x + (c + 1) * s);
-        c2.fillStyle = map[k];
-        c2.fillRect(x0, y0, x1 - x0, y1 - y0);
+        (cores[k] || (cores[k] = [])).push(x0, y0, x1 - x0, y1 - y0);
       }
+    }
+    for (const k in cores) {
+      const L = cores[k];
+      c2.fillStyle = map[k];
+      c2.beginPath();
+      for (let i = 0; i < L.length; i += 4) c2.rect(L[i], L[i + 1], L[i + 2], L[i + 3]);
+      c2.fill();
     }
   }
 
@@ -5417,7 +5938,7 @@
        vem depois caber. Como as duas encolhem na mesma proporção, a comparação
        entre elas continua honesta. */
     const linhas = Math.max(1, ...[0, 1].map(k =>
-      ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"].filter(n => stats.used[k][n] > 0).length));
+      USO_CHAVES.filter(n => stats.used[k][n] > 0).length));
     // Em tela baixa com log comprido, o corpo do log cai um degrau
     const logSt = (ch < 320 && linhas > 4) ? 1 : 2;
 
@@ -5501,7 +6022,7 @@
       que o efeito atinja os dois. */
   function drawUseLog(cx, y, i, st) {
     const ICONE = 14;   // caixa única: as grades variam de 7 a 21 células
-    const entradas = ["fire", "star", "rainbow", "gum", "gem", "poison", "heart", "bolt"]
+    const entradas = USO_CHAVES
       .filter(k => stats.used[i][k] > 0)
       .map(k => ({ sp: SPRITES[k], txt: "×" + stats.used[i][k] }));
 
@@ -6093,6 +6614,10 @@
     if (slow.t > 0) return COL.time;
     if (BOLA > BS) return COL.gum;          // chiclete: enquanto a bola dura inchada
     if (heart.on) return COL.heart;
+    /* Match point: sem item em vigor, o aro veste a cor de quem está a um
+       ponto do título — o mesmo aviso que as laterais dão no clássico. */
+    const mp = quemNoMatchPoint();
+    if (mp >= 0 && S.phase !== "over") return corDoJogador(mp);
     return COL.core;
   }
 
@@ -6140,6 +6665,42 @@
     p.va = ux * jorro - uy * deriva;
     p.vb = uy * jorro + ux * deriva;
     return p;
+  }
+
+  /** Um vagalume do match point. No clássico nasce numa parede e sobe; na
+      arena nasce em cima do aro com um impulso `sai` para fora, e o balanço
+      senoidal corre pela tangente em vez de pela horizontal. */
+  function novoVagalume(dono, sai, salva) {
+    const perto = Math.random() < 0.5;
+    const v = {
+      ...bercoDeBorda(perto, S.arena ? 3 : 24),
+      sobe: (perto ? 1 : -1) * rand(2, 6),
+      fase: rand(0, 6.28),
+      amp: rand(3, 9),
+      vida: rand(1.6, 3.2),
+      max: 0,
+      tam: 2,
+      salva: !!salva,   // faísca da salva: mais parruda, sem o pisca-pisca
+      dono
+    };
+    if (S.arena) { v.r = Math.hypot(v.a - ARENA_CA(), v.b - ARENA_CB()); v.sai = sai; }
+    if (salva) { v.tam = Math.random() < 0.6 ? 3 : 2; v.amp = rand(1, 4); v.vida = rand(1.1, 2.2); }
+    return v;
+  }
+
+  /** Onde o vagalume está agora, já com o balanço: [a, b] na quadra. */
+  function posDoVagalume(v) {
+    const bal = Math.sin(S.blink * 1.7 + v.fase) * v.amp;
+    if (v.th === undefined) return [v.a + bal, v.b];
+    return [v.a - Math.sin(v.th) * bal, v.b + Math.cos(v.th) * bal];
+  }
+
+  /** A salva do aro: na arena, quando alguém chega a um ponto do título, o
+      anel inteiro solta vagalumes na cor dele de uma vez, mais rápidos que o
+      gotejo — é o que faz o aviso SAIR do círculo em vez de só tingi-lo. */
+  function salvaDoAro(dono) {
+    for (let k = 0; k < 30; k++) vagalumes.push(novoVagalume(dono, rand(40, 95), true));
+    while (vagalumes.length > 48) vagalumes.shift();
   }
 
   function drawMoldura(cw, ch) {
@@ -6372,41 +6933,57 @@
       if (!mascote.cuspiu) {
         if (mascote.dono && idade >= MASC_CUSPE) cuspirBola();
         // a réplica do convidado percebe o cuspe quando a bola volta a andar
-        else if (!mascote.dono && (ball.va !== 0 || ball.vb !== 0)) mascote.cuspiu = true;
+        else if (!mascote.dono && (ball.va !== 0 || ball.vb !== 0)) {
+          mascote.cuspiu = true;
+          mascote.cuspeEm = idade;
+          const v = Math.hypot(ball.va, ball.vb);
+          mascote.rumo = rumoNaTela(ball.va / v, ball.vb / v);
+        }
       }
-      /* Depois do cuspe ele se desmancha em purpurina: pó miúdo nas cores
-         vivas da roda, nascendo do corpo enquanto o alfa cai. */
-      if (mascote.cuspiu && !reduceMotion) {
+      /* O olhar mira a raquete sorteada antes do cuspe e acompanha a bola
+         logo depois — e ARRASTA atrás do corpo, que é o que dá vida
+         (overlapping action). */
+      const tc = mascote.cuspiu ? idade - mascote.cuspeEm : -1;
+      const mira = idade > MASC_CUSPE - MASC_FOLEGO - 0.28 && tc < 0.4 ? MASC_R * 0.14 : 0;
+      mascote.olhar[0] += (mascote.rumo[0] * mira - mascote.olhar[0]) * Math.min(1, dt * 9);
+      mascote.olhar[1] += (mascote.rumo[1] * mira - mascote.olhar[1]) * Math.min(1, dt * 9);
+      /* No fim ele se desmancha em purpurina: pó miúdo nas cores vivas da
+         roda, nascendo do corpo enquanto o alfa cai. */
+      if (mascote.cuspiu && mascote.t < 0.7 && !reduceMotion) {
         const cor = VIVAS[Math.floor(Math.random() * VIVAS.length)];
         spark(mascote.a + rand(-12, 12), mascote.b + rand(-14, 10), 2, 5,
               rand(26, 80), cor, { lifeMin: 0.3, lifeMax: 0.8, peak: 0.9,
               size: Math.random() < 0.3 ? 2 : 1 });
       }
     }
-
+    // a câmera segue o mascote com um alisamento curto, para nunca saltar — nem quando o raio o corta
+    mascZoom += (mascoteRamp() - mascZoom) * Math.min(1, dt / 0.09);
 
     const mpDe = quemNoMatchPoint();
+    /* A salva sai no instante em que o aviso entra — ainda no saque, junto
+       com o aro mudando de cor — e vale para os dois papéis, porque o placar
+       do convidado também passa por aqui. */
+    if (S.arena && mpDe >= 0 && mpDe !== mpDeAntes && S.phase !== "over" && !reduceMotion) salvaDoAro(mpDe);
+    mpDeAntes = mpDe;
     if (mpDe >= 0 && S.phase === "play" && !reduceMotion) {
       vagalumeTimer -= dt;
       while (vagalumeTimer <= 0) {
-        vagalumeTimer += 0.16;
-        const perto = Math.random() < 0.5;
-        vagalumes.push({
-          ...bercoDeBorda(perto, 24),
-          sobe: (perto ? 1 : -1) * rand(2, 6),
-          fase: rand(0, 6.28),
-          amp: rand(3, 9),
-          vida: rand(1.6, 3.2),
-          max: 0,
-          dono: mpDe
-        });
-        if (vagalumes.length > 26) vagalumes.shift();
+        vagalumeTimer += S.arena ? 0.11 : 0.16;
+        vagalumes.push(novoVagalume(mpDe, rand(10, 26)));
+        if (vagalumes.length > (S.arena ? 48 : 26)) vagalumes.shift();
       }
     }
     for (let i = vagalumes.length - 1; i >= 0; i--) {
       const v = vagalumes[i];
       v.vida -= dt * (mpDe >= 0 ? 1 : 2.5);
-      v.b += v.sobe * dt;
+      if (v.th === undefined) v.b += v.sobe * dt;
+      else {
+        // arena: afasta-se do aro perdendo o impulso, até só boiar
+        v.r += v.sai * dt;
+        v.sai *= Math.pow(0.45, dt);
+        v.a = ARENA_CA() + Math.cos(v.th) * v.r;
+        v.b = ARENA_CB() + Math.sin(v.th) * v.r;
+      }
       if (v.vida <= 0) vagalumes.splice(i, 1);
     }
 
@@ -6454,9 +7031,13 @@
              nada aqui pode aparecer em dobro: slow.t decai no quadro (para os
              dois papéis) e roleta.t anda dentro de atualizarEnfeites. */
           if (S.phase === "play") {
+            ambientar(DT);             // o clima é dos dois papéis: raio, veneno, ponto final
             atualizarEnfeites(DT);
             if (venom.t > 0) venom.t = Math.max(0, venom.t - DT);
-            if (storm.t > 0) storm.t = Math.max(0, storm.t - DT);
+            if (storm.t > 0) {
+              storm.t = Math.max(0, storm.t - DT);
+              if (storm.t <= 0) { bolts.length = 0; arcos.length = 0; }
+            }
             if (heart.pulse > 0) heart.pulse = Math.max(0, heart.pulse - DT);
             if (heart.on) heart.t += DT;
             /* Vidas de item: só para o desenho (o pisca de fim). Nunca
@@ -6759,7 +7340,7 @@
      mostra quem está lá agora, pelo /quem do servidor. */
   const VIVA = "ARENA";
   const nomeEl = document.getElementById("nome-jogador");
-  try { nomeEl.value = localStorage.getItem("rainbow-pong-nome") || ""; } catch (_) {}
+  nomeEl.value = nomeAtual;              // a reserva deste navegador, se houver
   const btnViva = document.getElementById("btn-viva");
   const btnVivaOk = document.getElementById("btn-viva-ok");
 
@@ -6772,25 +7353,91 @@
     if (abrir) nomeEl.focus();
   }
 
-  function entrarNaArena() {
-    try { localStorage.setItem("rainbow-pong-nome", nomeEl.value.slice(0, 12)); } catch (_) {}
+  /* ── ?name=<nome>: a porta dos fundos ──
+     O endereço diz quem entra: …/pong?name=Marcos cai direto na sala pública
+     como Marcos, passando por cima do nome que este navegador tenha guardado.
+     Sem nome, …/arena (e também ?arena e #arena, para hospedagem que não saiba
+     rotear o caminho) entra com o nome de casa, ou anônimo se não houver.
+     Devolve null quando o endereço não pede a arena — e só então a home
+     aparece. */
+  function nomeNaURL() {
+    const decodificar = s => {
+      try { return decodeURIComponent(s.replace(/\+/g, " ")); } catch (_) { return s; }
+    };
+    const busca = location.search + location.hash;
+    const m = /(?:^|[?&#])name=([^&#]*)/i.exec(busca);
+    if (m) return limparNome(decodificar(m[1]));
+    const seg = location.pathname.replace(/\/+$/, "").split("/").pop().toLowerCase();
+    if (seg === "arena" || /(^|[?&#])arena\b/i.test(busca)) return nomeAtual;
+    return null;
+  }
+
+  /* A barra de endereço vira o convite: quem entrou pela home passa a ver
+     …/pong?name=<nome> ali (…/arena se entrou sem nome), pronto para copiar,
+     guardar e mandar ao amigo; quem sai volta a ver a home, para um F5 não
+     puxar de volta para dentro. Só em http(s): em file:// o replaceState
+     levanta exceção. */
+  function marcarURL(dentro) {
+    if (!/^https?:$/.test(location.protocol)) return;
+    try {
+      const base = baseDoJogo();
+      const pasta = base === "/" ? "/" : base.replace(/\/$/, "");
+      history.replaceState(null, "", !dentro ? base
+        : nomeAtual ? pasta + "?name=" + encodeURIComponent(nomeAtual) : base + "arena");
+    } catch (_) {}
+  }
+
+  /* Abrir um link não é gesto do usuário, e o navegador só concede a
+     Fullscreen API e o áudio dentro de um toque ou tecla de verdade — na
+     carga, o pedido é recusado sem apelação. O modo imersivo é outra história:
+     é só uma classe no <body> (painel some, quadra toma a página, HUD entra) e
+     nasce na hora. A barra do navegador e o som ficam de tocaia esperando o
+     primeiro gesto — na prática a primeira jogada. É `pointerup`, não
+     `pointerdown`: no toque, só o levantar do dedo conta como ativação; e o Esc
+     nunca conta, então não gasta a vez. Fase de bolha: se o gesto foi no botão
+     de sair do imersivo, ele já desligou antes de chegarmos aqui, e a guarda
+     em `immersive` respeita a escolha. */
+  function esperarGesto() {
+    const ligar = e => {
+      if (e.key === "Escape") return;
+      document.removeEventListener("pointerup", ligar);
+      document.removeEventListener("keydown", ligar);
+      if (!S.arena || !naSala()) return;
+      Snd.ensure();
+      if (immersive && !telaCheiaAtiva()) { pedirTelaCheia(); if (coarse) travarDeitado(); }
+    };
+    document.addEventListener("pointerup", ligar);
+    document.addEventListener("keydown", ligar);
+  }
+
+  /* `nome` vem do endereço; sem ele, do campo da home. Nos dois casos o campo
+     e a barra de endereço passam a mostrar o mesmo, e o navegador guarda o
+     nome para a próxima — um nome vazio não apaga o que já estava, que a
+     entrada anônima é do link, não uma decisão sobre este aparelho. */
+  function entrarNaArena(gesto, nome) {
+    nomeAtual = limparNome(nome === undefined ? nomeEl.value : nome);
+    nomeEl.value = nomeAtual;
+    try { if (nomeAtual) localStorage.setItem(NOME_CHAVE, nomeAtual); } catch (_) {}
     pedirNome(false);
     sala.avisouAbas = false;
     aplicarArena(true, false);
     abrirSala(VIVA, "auto");
+    marcarURL(true);
     /* A tela cheia precisa nascer DENTRO do clique: pedida mais tarde, o
-       navegador recusa por falta de gesto do usuário. */
-    toggleImmersive(true);
-    Snd.ensure();
+       navegador recusa por falta de gesto do usuário. Sem clique (link), o
+       imersivo entra já e o resto espera o primeiro gesto. */
+    if (gesto) { toggleImmersive(true); Snd.ensure(); }
+    else { setImmersive(true); esperarGesto(); }
     if (S.phase === "attract" || S.phase === "over") { newGame("serve"); requestWake(); }
     syncPlayButton();
-    announce("Entrando na arena ao vivo.");
+    announce(nomeAtual ? "Entrando na arena ao vivo como " + nomeAtual + "." : "Entrando na arena ao vivo.");
   }
 
   btnViva.addEventListener("click", () => {
     if (S.arena && naSala()) {          // já dentro: o botão é a porta de saída
       fecharSala(false);
       aplicarArena(false, false);
+      marcarURL(false);
       newGame("attract");
       syncPlayButton();
       announce("Você saiu da arena. De volta ao jogo clássico.");
@@ -6798,18 +7445,27 @@
     }
     pedirNome(true);
   });
-  btnVivaOk.addEventListener("click", entrarNaArena);
+  btnVivaOk.addEventListener("click", () => entrarNaArena(true));
   nomeEl.addEventListener("keydown", e => {
     e.stopPropagation();
-    if (e.key === "Enter") entrarNaArena();
+    if (e.key === "Enter") entrarNaArena(true);
     if (e.key === "Escape") pedirNome(false);
   });
+
+  /* Chamada no arranque, depois do layout: a arena posiciona as raquetes pelo
+     raio do disco, que depende do SPAN que o layout acabou de acertar. Entra
+     mesmo sem nome — o link é para cair jogando, e jogador sem nome a sala já
+     sabe mostrar. Quem quiser se batizar troca o endereço para …?name=<nome>
+     ou sai e volta pela home. */
+  function arenaPelaURL() {
+    const nome = nomeNaURL();
+    if (nome !== null) entrarNaArena(false, nome);
+  }
 
   const vivaEl = document.getElementById("viva-lista");
   async function espiarViva() {
     try {
-      const base = location.pathname.replace(/[^\/]*$/, "");
-      const r = await fetch(base + "quem", { cache: "no-store" });
+      const r = await fetch(baseDoJogo() + "quem", { cache: "no-store" });
       const q = await r.json();
       if (!q.n) { vivaEl.textContent = "Arena ao vivo: vazia — seja o primeiro!"; return; }
       const nomes = (q.jogadores || []).slice(0, 8)
@@ -6880,7 +7536,7 @@
 
   document.getElementById("sala-sair").addEventListener("click", () => {
     fecharSala(false);
-    if (S.arena) aplicarArena(false, false);
+    if (S.arena) { aplicarArena(false, false); marcarURL(false); }
     newGame("attract");
     syncPlayButton();
   });
@@ -7183,6 +7839,7 @@
     syncBadge();
     syncPlayButton();
     layout();
+    arenaPelaURL();
     requestAnimationFrame(frame);
   } catch (e) {
     if (window.relatarFalha) window.relatarFalha(e, "arranque");

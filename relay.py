@@ -350,7 +350,11 @@ def atender(sock, ip):
             atender_websocket(sock, cabecalhos.get("sec-websocket-key", ""))
             return
 
-        if metodo in ("GET", "HEAD") and caminho.split("?")[0] == "/quem":
+        alvo = caminho.split("?")[0].split("#")[0]
+
+        # /quem por sufixo, nao por igualdade: a pagina monta o endereco a
+        # partir da propria pasta, entao de /arena/ ela pede /arena/quem.
+        if metodo in ("GET", "HEAD") and alvo.rstrip("/").endswith("/quem"):
             corpo = quem_esta_na_viva().encode()
             sock.sendall(cabecalhos_comuns("application/json", len(corpo))
                          + (b"" if metodo == "HEAD" else corpo))
@@ -359,7 +363,14 @@ def atender(sock, ip):
         if metodo not in ("GET", "HEAD"):
             sock.sendall(b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
             return
-        servir_arquivo(sock, caminho.split("?")[0], so_cabecalho=(metodo == "HEAD"))
+
+        # .../arena e a porta direta da arena ao vivo. Nao existe arquivo com
+        # esse nome: a pagina e a mesma de sempre, e e ela que le o endereco e
+        # entra na sala publica sozinha. O roteamento mora aqui porque um 404
+        # mataria o link antes de o jogo ter chance de ver a URL.
+        if alvo.rstrip("/").split("/")[-1].lower() == "arena":
+            alvo = "/index.html"
+        servir_arquivo(sock, alvo, so_cabecalho=(metodo == "HEAD"))
     except (OSError, ValueError, IndexError):
         pass
     finally:

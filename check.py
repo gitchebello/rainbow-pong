@@ -120,7 +120,13 @@ def limpar(t):
                 elif t[j] == "\n": break
                 j += 1
             if j < n and t[j] == "/":
-                saida.append(" " * (j - i + 1)); i = j + 1; anterior = "i"; continue
+                # as flags entram no apagamento: sem isso o `i` de /.../i sobra
+                # como identificador solto e a analise de escopo acusa um uso
+                # de variavel que nunca existiu
+                k = j + 1
+                while k < n and t[k] in "dgimsuvy":
+                    k += 1
+                saida.append(" " * (k - i)); i = k; anterior = "i"; continue
         saida.append(c)
         if not c.isspace():
             anterior = "i" if (c.isalnum() or c in "_$") else c
@@ -321,10 +327,7 @@ else:
 # Sintaxe boa não garante quadro bom: um `i` fora do seu `for` compila liso e
 # mata o jogo no primeiro quadro. Aqui o script roda de verdade no V8, com um
 # DOM de mentira, e qualquer erro que o laço de quadros engolir aparece.
-try:
-    from py_mini_racer import MiniRacer as _MR
-    _m = _MR()
-    _m.eval(r"""
+_SHIM = r"""
 function fantasma(n){const f=function(){return fantasma(n+"()")};return new Proxy(f,{
  get(t,p){if(p===Symbol.toPrimitive||p==="valueOf")return()=>0;if(p==="toString")return()=>"";
   if(p===Symbol.iterator)return function*(){};if(p==="length")return 0;
@@ -333,7 +336,8 @@ function fantasma(n){const f=function(){return fantasma(n+"()")};return new Prox
  apply(){return fantasma(n+"()")},construct(){return fantasma(n+"{}")}});}
 var document=fantasma("document"); var window=globalThis;
 globalThis.innerWidth=900; globalThis.innerHeight=600;
-var location={protocol:"http:",host:"x",pathname:"/pong/",href:"http://x/pong/"};
+var location={protocol:"http:",host:"x",pathname:"/pong/",search:"",hash:"",href:"http://x/pong/"};
+var history={replaceState:()=>{}};
 var localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
 var matchMedia=()=>({matches:false,addEventListener:()=>{}});
 var addEventListener=()=>{}; var removeEventListener=()=>{};
@@ -346,26 +350,65 @@ var navigator={wakeLock:undefined};
 var getComputedStyle=()=>({paddingLeft:"0",paddingRight:"0"});
 var console={error:(...a)=>{globalThis.__erro=a.map(String).join(" | ")},log:()=>{},warn:()=>{}};
 globalThis.__erro=null; globalThis.relatarFalha=e=>{globalThis.__erro=String(e&&e.stack||e)};
-""")
-    # gancho de teste: depois da abertura, forca a tela final — ela ja ficou
-    # descoberta uma vez (a coroa sumiu num recorte e so quebrava no fim de jogo)
-    _js2 = js.replace("function frame(now) {",
-        "globalThis.__forcarOver = (v) => { S.phase = \"over\"; S.winner = 0; S.t = 0; vertical = !!v; };\n  globalThis.__arena = (on) => { S.arena = !!on; };\n  function frame(now) {", 1)
+"""
+
+_RUNNER = ("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
+           "if(!__erro&&globalThis.__arena){__arena(true);"
+           "for(let k=301;k<=420&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}__arena(false);}"
+           "if(!__erro&&globalThis.__forcarOver){__forcarOver(false);"
+           "for(let k=301;k<=430&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
+           "if(!__erro){__forcarOver(true);"
+           "for(let k=431;k<=560&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}}}"
+           "if(!__erro&&globalThis.__estouro){for(const v of [false,true]){__estouro(v);"
+           "for(let k=0;k<180&&!__erro;k++){__rel+=16.7;if(__raf)__raf(__rel);}}}return __erro||'';})()")
+
+# gancho de teste: depois da abertura, forca a tela final — ela ja ficou
+# descoberta uma vez (a coroa sumiu num recorte e so quebrava no fim de jogo)
+# e o Chicletinho, que só nasce no sexto chiclete: acorda, cospe e some, nas
+# duas orientações — a câmera fecha nele e a bola passa por ele no desenho
+_js2 = js.replace("function frame(now) {",
+    "globalThis.__forcarOver = (v) => { S.phase = \"over\"; S.winner = 0; S.t = 0; vertical = !!v; };\n  globalThis.__arena = (on) => { S.arena = !!on; };\n"
+    "  globalThis.__estouro = (v) => { vertical = !!v; S.phase = \"play\"; ball.a = LEN / 2; ball.b = SPAN / 2; ball.va = ball.vb = 0; BOLA = BS; acordarMascote(LEN / 2 + 10, SPAN / 2 - 7, true); };\n"
+    "  function frame(now) {", 1)
+_CORPO = _SHIM + "\n(function(){\n" + _js2 + "\n})()\n"
+
+def _pelo_v8():
+    from py_mini_racer import MiniRacer as _MR
+    _m = _MR()
+    _m.eval(_SHIM)
     _m.eval("(function(){\n" + _js2 + "\n})()")
-    _res = _m.eval("(function(){for(let k=1;k<=300&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
-                   "if(!__erro&&globalThis.__arena){__arena(true);"
-                   "for(let k=301;k<=420&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}__arena(false);}"
-                   "if(!__erro&&globalThis.__forcarOver){__forcarOver(false);"
-                   "for(let k=301;k<=430&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}"
-                   "if(!__erro){__forcarOver(true);"
-                   "for(let k=431;k<=560&&!__erro;k++){__rel=k*16.7;if(__raf)__raf(__rel);}}}return __erro||'';})()")
+    return _m.eval(_RUNNER), "V8"
+
+def _pelo_node():
+    """Mesma fumaça, mas no node — o V8 do sistema serve tão bem quanto o
+       embutido, e numa máquina limpa é o que costuma existir."""
+    import shutil, subprocess, tempfile, os
+    exe = shutil.which("node") or shutil.which("nodejs")
+    if not exe:
+        raise ImportError("sem node")
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+        f.write(_CORPO + "\nprocess.stdout.write(String(" + _RUNNER + "));\n")
+        caminho = f.name
+    try:
+        r = subprocess.run([exe, caminho], capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            return (r.stderr.strip().split("\n")[0] or "node saiu " + str(r.returncode)), "node"
+        return r.stdout.strip(), "node"
+    finally:
+        os.unlink(caminho)
+
+try:
+    try:
+        _res, _motor = _pelo_v8()
+    except ImportError:
+        _res, _motor = _pelo_node()
     if _res:
         ruim = True
         print("EXECUÇÃO: erro em quadro ->", _res.split("\n")[0][:200])
     else:
-        print("EXECUÇÃO: 680 quadros (abertura, arena e tela final nas duas orientações) sem erro")
+        print(f"EXECUÇÃO ({_motor}): 1040 quadros (abertura, arena, tela final e Chicletinho nas duas orientações) sem erro")
 except ImportError:
-    print("EXECUÇÃO: V8 indisponível — pulando")
+    print("EXECUÇÃO: nenhum motor de JS — pulando")
 except Exception as _e:
     ruim = True
     print("EXECUÇÃO: erro na carga ->", str(_e).split("\n")[0][:200])
