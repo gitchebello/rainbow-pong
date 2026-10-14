@@ -1527,6 +1527,8 @@
      saltava quando a distância passava de 90: as duas coisas apareciam em
      tela como teletransporte de um lado do disco para o outro. */
   const ARENA_VMAX = 5200;
+  const ARENA_RECOMECO = 9;
+  const SAQUE_DUR = 1.5;      // a bola espera parada no meio antes de partir   // segundos de tela final antes da próxima partida na arena ao vivo
   const mArco = v => ((v % arcoVolta()) + arcoVolta()) % arcoVolta();
   const dArco = (x, y) => {
     let d = (x - y) % arcoVolta();
@@ -3252,6 +3254,16 @@
     ambientar(dt);
     atualizarEnfeites(dt);
 
+    // a reivindicação não veio a tempo: vale a rebatida feita aqui
+    if (avisoRetido.j >= 0) {
+      avisoRetido.t += dt;
+      if (avisoRetido.t >= janelaDefesa() || ball.dono !== avisoRetido.j) {
+        const j = avisoRetido.j;
+        avisoRetido.j = -1;
+        if (ball.dono === j) sincronizar("pad" + j);
+      }
+    }
+
     /* Ponto retido: a bola já saiu e segue de sobra, sem ser julgada de
        novo, enquanto a janela da defesa não fecha. */
     if (golEspera.on) {
@@ -3740,7 +3752,18 @@
           { lifeMin: 0.18, lifeMax: 0.4, peak: 0.8, size: 2 });
 
     b.dono = i;
-    sincronizar("pad" + i);
+    /* Defesa reencenada (aceitarDefesa): na tela do dono a bola saiu da
+       raquete quando o ponto começou a esperar, não agora. Adianta o tempo
+       retido antes de avisar, senão todos recebem a bola atrasada por essa
+       espera e ela salta para trás. */
+    if (b === ball && defesaAtrasada > 0) { avancarBolaLivre(defesaAtrasada); defesaAtrasada = 0; }
+    /* Na arena, se a raquete é de outro aparelho, quem rebateu aqui foi a
+       CÓPIA dela, que chega atrasada — o ângulo sai um pouco diferente do que
+       o dono viu. Anunciar já obrigava o dono a duas correções (esta e a
+       dele); segurando, todos recebem uma só. Quem recebe reencena a partir
+       do carimbo de tempo, então o atraso do anúncio não atrasa a bola. */
+    if (b === ball && S.arena && padDeOutro(i)) { avisoRetido.j = i; avisoRetido.t = 0; }
+    else sincronizar("pad" + i);
 
     if (roleta.on && roleta.dono === i) { premioRoleta(i); transmitirMundo(); }
 
@@ -3842,11 +3865,17 @@
      Enquanto isso a bola segue de sobra para fora do campo, já invisível, e
      ninguém percebe a espera. */
   const golEspera = { on: false, quem: -1, falhou: -1, t: 0 };
+  let defesaAtrasada = 0;   // segundos que a defesa aceita ficou retida (ver bounce)
+  /* Rebatida na raquete de OUTRA pessoa, ainda não anunciada: o aviso espera
+     a reivindicação do dono (ver aceitarDefesa) por uma janela curta. */
+  const avisoRetido = { j: -1, t: 0 };
   const zerarEspera = () => {
     golEspera.on = false; golEspera.quem = -1; golEspera.falhou = -1; golEspera.t = 0;
   };
   /** Quanto tempo o ponto espera pela defesa do dono da raquete, em segundos. */
-  const janelaDefesa = () => clamp(sala.atraso * 0.6 + 50, 70, 260) / 1000;
+  /* O teto era 260 ms: com 4G a reivindicação do convidado chegava depois
+     da janela, e a bola que ele viu sair da raquete virava ponto do outro. */
+  const janelaDefesa = () => clamp(sala.atraso * 0.6 + 60, 70, 420) / 1000;
 
   /** Essa raquete é de outra pessoa na sala? Então a verdade dela vem de lá. */
   const padDeOutro = j => {
@@ -3888,14 +3917,29 @@
      estava e a rebatida é REENCENADA aqui, pelo `bounce` de sempre — assim o
      prêmio da roleta, a defesa de fogo, o item armado e o placar de defesas
      acontecem no anfitrião como em qualquer outra rebatida. */
+  /** Há quanto tempo o convidado rebateu (carimbo dele já no meu relógio). */
+  const idadeDaDefesa = m => m.ts !== undefined && isFinite(m.ts)
+    ? clamp((performance.now() - m.ts) / 1000, 0, 0.8) : undefined;
   function aceitarDefesa(j, m) {
     const p = pads[j];
+    const idade = idadeDaDefesa(m);
     if (m.b !== undefined && isFinite(m.b)) {
       p.b = S.arena ? mArco(m.b) : clamp(m.b, WALL, SPAN - WALL - padLen(j));
       p.destino = p.b;
     }
     if (m.sw !== undefined && isFinite(m.sw)) p.swing = m.sw;
-    if (!golEspera.on || golEspera.falhou !== j) return;
+    if (!golEspera.on || golEspera.falhou !== j) {
+      /* Sem gol em espera: a cópia velha da raquete dele já rebateu aqui —
+         mas num ponto um pouco diferente do que ele viu, e a bola saiu com
+         outro ângulo. Vale o que o dono viu. */
+      if (avisoRetido.j === j && ball.dono === j && m.th !== undefined && isFinite(m.th)) {
+        const passou = idade !== undefined ? idade : avisoRetido.t;
+        avisoRetido.j = -1;
+        remirarDefesa(j, m.th, passou);
+      }
+      return;
+    }
+    defesaAtrasada = idade !== undefined ? idade : golEspera.t;
     zerarEspera();
     if (S.arena) {
       const th = m.th !== undefined && isFinite(m.th)
@@ -3907,6 +3951,27 @@
         : clamp(p.b + padLen(j) / 2 - BOLA / 2, WALL, SPAN - WALL - BOLA);
       bounce(j, j === 0 ? +1 : -1, ball);
     }
+    defesaAtrasada = 0;
+  }
+
+  /* Refaz só a DIREÇÃO de uma rebatida no aro que já aconteceu aqui, com a
+     raquete e a varrida que o dono informou — a mesma conta do bounce e do
+     rebaterLocal, sem repetir o resto (ganho de velocidade, defesa de fogo,
+     prêmio), que já valeu na primeira vez. */
+  function remirarDefesa(j, th, passou) {
+    const p = pads[j];
+    const rel = difAngulo(th, thetaDoArco(j, p.b + padLen(j) / 2)) * ARENA_R() / (padLen(j) / 2);
+    const ang = clamp(rel, -1, 1) * 0.95;
+    const ux = Math.cos(th), uy = Math.sin(th), c = Math.cos(ang), s = Math.sin(ang);
+    ball.va = (-ux * c - uy * s) * ball.speed;
+    ball.vb = (-uy * c + ux * s) * ball.speed;
+    const raio = ARENA_R() - BOLA / 2 - 0.5;
+    ball.a = ARENA_CA() + ux * raio - BOLA / 2;
+    ball.b = ARENA_CB() + uy * raio - BOLA / 2;
+    ball.spin = clamp(p.swing / SPIN_REF, -1, 1) * MAX_SPIN + clamp(rel, -1, 1) * EDGE_SPIN;
+    ball.budget = SPIN_BUDGET;
+    avancarBolaLivre(passou);
+    sincronizar("pad" + j);
   }
 
   function novoCodigo() {
@@ -3944,8 +4009,37 @@
   }, 3000);
 
   // Ao voltar para a aba, se a sala caiu no meio tempo, religa na hora
+  /* Anfitrião que some da tela some da partida. Com a aba em segundo plano o
+     navegador para os quadros — e era no aparelho dele que a arena inteira
+     rodava: a bola congelava para todo mundo enquanto o batimento, que corre
+     fora dos quadros, o mantinha "vivo" no servidor. Depois de 1,5 s escondido
+     ele sai de verdade; o comando migra para o próximo da fila, que continua
+     a partida do estado que já tinha. Ao voltar, entra de novo como convidado. */
+  function cederArena() {
+    sala.cedeu = true;
+    fecharSala(true);
+  }
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden || !naSala()) return;
+    if (document.hidden) {
+      if (sala.papel === "anfitriao" && arenaComGente()) {
+        clearTimeout(sala.cedeTimer);
+        sala.cedeTimer = setTimeout(() => {
+          if (document.hidden && sala.papel === "anfitriao" && arenaComGente()) cederArena();
+        }, 1500);
+      }
+      return;
+    }
+    if (sala.cedeu) {
+      sala.cedeu = false;
+      if (!naSala() && S.arena) {
+        sala.tentativas = 0;
+        abrirSala(VIVA, "auto");
+        showHint(-1, "DE VOLTA", corDoJogador(0));
+        announce("De volta à arena.");
+      }
+      return;
+    }
+    if (!naSala()) return;
     if (!sala.conectado && (!sala.ws || sala.via === "abas")) {
       sala.tentativas = 0;
       abrirSala(sala.codigo, sala.papel);
@@ -3984,10 +4078,12 @@
     sala.conectado = false;
     if (papel === "anfitriao") { sala.slot = 0; sala.membros = {}; sala.proxVaga = 1; }
     if (papel === "auto") sala.slot = 0;
+    if (papel !== "anfitriao") sala.membros = {};   // elenco velho de outra visita embaralharia as vagas
     sala.visto = performance.now();
     sala.rttMin = undefined;       // rede pode ter mudado: mede de novo
     sala.desvio = undefined;       // e o relógio comum se recalibra do zero
     sala.via = "tentando";
+    avisosNaFila.length = 0;
     if (sala.tentativas === undefined) sala.tentativas = 0;
 
     let decidido = false;
@@ -4074,6 +4170,63 @@
     if (!silencioso) { pintarSala(); announce("Você saiu da sala."); }
   }
 
+  /* ── Elenco sem buracos ──
+     As vagas são 0..n−1, sempre. Antes quem saía deixava um buraco que nunca
+     fechava: o anfitrião (vaga 0) ia embora, o herdeiro ficava na vaga 1
+     jogando contra uma raquete vazia, e um terceiro na vaga 2 caía fora da
+     física (jogadoresAtivos conta cabeças, não vagas). Agora, a cada saída, o
+     anfitrião empurra todo mundo para baixo na mesma ordem e avisa; cada
+     aparelho leva junto a raquete, o placar e o log de quem mudou de vaga. */
+  const CAMPOS_PAD = ["b", "len", "destino", "swing", "glow", "hit", "grow", "growFrom", "touch"];
+  function aplicarElenco(novo) {
+    const velho = sala.membros || {};
+    const ant = pads.map(p => { const c = {}; for (const k of CAMPOS_PAD) c[k] = p[k]; return c; });
+    const placar = S.score.slice(), guarda = held.slice(), uso = stats.used.slice();
+    let mexeu = false;
+    for (const [id, s] of Object.entries(novo)) {
+      const de = velho[id];
+      if (de === undefined || +de === +s) continue;
+      mexeu = true;
+      Object.assign(pads[+s], ant[+de]);
+      S.score[+s] = placar[+de];
+      held[+s] = guarda[+de];
+      if (uso[+de]) stats.used[+s] = uso[+de];
+    }
+    /* O que ficou sem dono zera: placar velho numa vaga vazia viraria ponto
+       fantasma para o próximo que chegasse (ou para a CPU, na vaga 1). */
+    const ocupadas = new Set(Object.values(novo).map(Number));
+    for (let j = 0; j < JMAX; j++)
+      if (!ocupadas.has(j) && (S.score[j] || held[j])) { S.score[j] = 0; held[j] = null; mexeu = true; }
+    sala.membros = Object.assign({}, novo);
+    if (novo[sala.id] !== undefined) sala.slot = +novo[sala.id];
+    sala.proxVaga = Object.keys(novo).length;
+    if (mexeu) { updateScoreline(); pintarSala(); }
+  }
+  /** O anfitrião fecha os buracos e conta para todos. */
+  function reempacotar() {
+    if (sala.papel !== "anfitriao") return;
+    const ordem = Object.entries(sala.membros).sort((x, y) => +x[1] - +y[1]);
+    const novo = {};
+    ordem.forEach(([id], k) => { novo[id] = k; });
+    aplicarElenco(novo);
+    enviar({ t: "vaga", elenco: novo });
+  }
+  /** Quem comanda a partida: a menor vaga presente (a mesma regra da migração). */
+  const idDoChefe = () => {
+    let id, menor = Infinity;
+    for (const [k, s] of Object.entries(sala.membros || {})) if (+s < menor) { menor = +s; id = +k; }
+    return id;
+  };
+  /** O relógio comum é com o anfitrião: trocou o chefe, mede de novo. */
+  function remedirRelogio() {
+    sala.rttMin = undefined;
+    sala.desvio = undefined;
+    for (let k = 0; k < 5; k++)
+      setTimeout(() => enviar({ t: "ping", ts: Math.round(performance.now()) }), 60 + k * 140);
+  }
+  /** Estou na arena pública, com gente? */
+  const arenaComGente = () => S.arena && sala.conectado && sala.codigo === VIVA && sala.n > 1;
+
   function receber(m) {
     if (!m || !naSala()) return;
     sala.visto = performance.now();
@@ -4092,7 +4245,13 @@
           sala.papel = "anfitriao"; sala.slot = 0;
           sala.membros = {}; sala.membros[sala.id] = 0; sala.proxVaga = 1;
           if (!S.arena) aplicarArena(true, false);
-          newGame("attract");
+          /* A arena ao vivo nunca fica na vitrine. Aqui morava um
+             newGame("attract") que desfazia o saque de entrarNaArena meio
+             segundo depois: quem chegava pelo link via a demonstração, e o
+             convidado que entrasse em seguida ficava preso nela — só o
+             anfitrião pode dar "Jogar". */
+          if (S.phase !== "serve" && S.phase !== "play") { newGame("serve"); requestWake(); }
+          syncPlayButton();
         } else {
           sala.papel = "convidado";
           if (!S.arena) aplicarArena(true, false);
@@ -4107,9 +4266,10 @@
       /* Todo mundo ouve as vagas e mantém o MESMO elenco (id → raquete).
          É o que permite a migração: se o anfitrião cair, qualquer um sabe
          quem herda o comando. */
-      if (m.elenco) { sala.membros = m.elenco; }
+      const chefeAntes = idDoChefe();
+      if (m.elenco) aplicarElenco(m.elenco);
       if (m.alvo === sala.id) sala.slot = m.slot;
-      sala.proxVaga = Math.max(...Object.values(sala.membros).map(Number), 0) + 1;
+      if (sala.papel === "convidado" && idDoChefe() !== chefeAntes && chefeAntes !== undefined) remedirRelogio();
       pintarSala();
       return;
     }
@@ -4138,6 +4298,11 @@
       if (sala.papel === "anfitriao" && m.de !== undefined && sala.membros[m.de] === undefined) {
         const teto = S.arena ? JMAX - 1 : 1;
         if (sala.proxVaga <= teto) {
+          /* O primeiro humano tira a CPU do lugar: partida nova, do zero, em
+             vez de herdar o placar do computador. Do terceiro em diante a
+             partida segue, e quem chega começa zerado. */
+          if (S.arena && sala.proxVaga === 1) newGame("serve");
+          S.score[sala.proxVaga] = 0; held[sala.proxVaga] = null;
           sala.membros[m.de] = sala.proxVaga;
           enviar({ t: "vaga", alvo: m.de, slot: sala.proxVaga, elenco: sala.membros });
           pads[sala.proxVaga].b = S.arena ? mArco((sala.proxVaga * Math.PI * 2 / JMAX) * ARENA_R())
@@ -4182,11 +4347,16 @@
       return;
     }
     if (m.t === "tchau") {
+      /* Com servidor, o tchau que vale é o DELE (traz `n`). O que o próprio
+         jogador manda ao sair chega antes, repassado, sem `n` — e caía no
+         "OPONENTE SAIU" do fim, desligando a sala de quem ficou. */
+      if (m.de !== undefined && m.n === undefined) return;
       if (m.de !== undefined) {
         /* Alguém saiu: tira do elenco. Se era o anfitrião (menor raquete
            presente), o comando migra para a menor raquete restante — e se
            for a minha, EU viro o anfitrião e a simulação continua daqui,
            do estado que eu já tenho. */
+        const chefeAntes = idDoChefe();
         const vagaDele = sala.membros[m.de];
         delete sala.membros[m.de];
         const presentes = Object.entries(sala.membros);
@@ -4198,27 +4368,41 @@
             sala.proxVaga = Math.max(...Object.values(sala.membros).map(Number), 0) + 1;
             showHint(-1, "VOCE E O ANFITRIAO", corDoJogador(meuPadSlot()));
             announce("O anfitrião saiu. Agora a partida roda no seu aparelho.");
+            /* Herdou uma partida parada (fim de jogo, pausa)? A arena volta
+               a rodar: ninguém mais tem o botão de recomeçar. */
+            if (S.arena && S.phase !== "play" && S.phase !== "serve") { newGame("serve"); requestWake(); }
             pintarSala(); syncPlayButton();
+          } else if (sala.papel === "convidado" && idDoChefe() !== chefeAntes) {
+            remedirRelogio();
           }
         }
       }
+      if (m.n !== undefined) sala.n = m.n;
+      // na arena, quem fica desce de vaga até não sobrar buraco
+      if (S.arena && sala.papel === "anfitriao") reempacotar();
       if (m.n !== undefined && m.n > 1) {
-        /* Numa sala de N, a saída de um não desliga a sala: a raquete dele
-           fica órfã (aro aberto naquele trecho) e o jogo continua. */
-        sala.n = m.n;
         showHint(-1, "JOGADOR SAIU", COL.dim);
         announce("Um jogador saiu da sala.");
         return;
       }
       sala.conectado = false;
       pintarSala();
-      showHint(-1, "OPONENTE SAIU", COL.dim);
-      announce("O outro jogador saiu da sala.");
+      showHint(-1, S.arena ? "CPU ENTROU" : "OPONENTE SAIU", COL.dim);
+      announce(S.arena ? "Você ficou sozinho na arena. O computador joga com você até alguém chegar."
+                       : "O outro jogador saiu da sala.");
       return;
     }
     if (m.t === "eco") return;   // sinal de vida do servidor; o topo já anotou sala.visto
-    if (m.t === "ping") { enviar({ t: "pong", ts: m.ts, seu: Math.round(performance.now()) }); return; }
+    /* O pong volta só para quem perguntou. Antes ia para a sala inteira, e
+       numa arena de três cada convidado misturava o relógio dos outros
+       convidados com o do anfitrião: ida e volta negativa, desvio de
+       segundos, a bola de todo mundo deslocada ~60 px o tempo todo. */
+    if (m.t === "ping") { enviar({ t: "pong", ts: m.ts, seu: Math.round(performance.now()), para: m.de }); return; }
     if (m.t === "pong") {
+      /* E o convidado só acerta o relógio com o do ANFITRIÃO: é no relógio
+         dele que vem o carimbo de cada evento da bola. */
+      if (sala.papel === "convidado" && m.de !== undefined && idDoChefe() !== undefined &&
+          m.de !== idDoChefe()) return;
       /* Relógio comum. Cada pong traz o relógio do outro lado; a diferença
          estimada é (relógio dele) − (meu relógio), assumindo ida e volta
          simétricas. Só amostras com o ida-e-volta perto do MELHOR já visto
@@ -4249,33 +4433,65 @@
       }
       return;
     }
-    if (m.t === "pad") {                       // convidado → anfitrião
-      if (sala.papel !== "anfitriao") return;
+    if (m.t === "pad") {                       // convidado → todos
       const slot = sala.membros[m.de] !== undefined ? sala.membros[m.de] : 1;
-      pads[slot].destino = m.b + (m.v || 0) * (sala.atraso / 2) / 1000;
+      /* Na arena de três ou quatro, a raquete de outro convidado chega
+         direto do dono — o servidor já repassava a todos. Antes ela vinha
+         pela cópia do anfitrião: duas viagens de rede e uma perseguição a
+         mais, e as defesas dele saltavam na tela dos outros. */
+      if (sala.papel !== "anfitriao") {
+        if (slot !== meuPadSlot()) pads[slot].destino = m.b + (m.v || 0) * extrapolarPad();
+        return;
+      }
+      pads[slot].destino = m.b + (m.v || 0) * extrapolarPad();
       return;
     }
-    if (m.t === "defesa") {                    // convidado → anfitrião
-      if (sala.papel !== "anfitriao") return;
+    if (m.t === "defesa") {                    // convidado → todos
+      if (sala.papel !== "anfitriao") {
+        /* Defesa de outro convidado: se eu já rebati a bola na cópia da
+           raquete dele, acerto o ângulo pelo que ele viu — o mesmo que o
+           anfitrião vai fazer, só que uma viagem de rede antes. */
+        const j = sala.membros[m.de];
+        if (S.arena && j !== undefined && j !== meuPadSlot() && sala.preveuPad === j && ball.dono === j &&
+            m.th !== undefined && isFinite(m.th) && m.b !== undefined && isFinite(m.b)) {
+          const passou = m.ts !== undefined && isFinite(m.ts)
+            ? Math.max(0, idadeDoAviso(m.ts) - atrasoBola)
+            : (performance.now() - sala.preveuEm) / 1000 * timeScale();
+          if (passou < 0.6) {
+            pads[j].b = mArco(m.b);
+            if (m.sw !== undefined && isFinite(m.sw)) pads[j].swing = m.sw;
+            remirarDefesa(j, m.th, passou);
+          }
+        }
+        return;
+      }
       aceitarDefesa(sala.membros[m.de] !== undefined ? sala.membros[m.de] : 1, m);
       return;
     }
     if (m.t === "pads") {                      // anfitrião → todos
       if (sala.papel === "anfitriao") return;
       const meu = meuPadSlot();
+      const chefe = idDoChefe();
+      const deConvidado = new Set(Object.entries(sala.membros || {})
+        .filter(([id]) => +id !== chefe).map(([, v]) => +v));
       for (let j = 0; j < (m.bs || []).length && j < JMAX; j++) {
-        if (j === meu) continue;
-        pads[j].destino = m.bs[j] + ((m.vs && m.vs[j]) || 0) * (sala.atraso / 2) / 1000;
+        if (j === meu || deConvidado.has(j)) continue;   // essas chegam direto do dono
+        pads[j].destino = m.bs[j] + ((m.vs && m.vs[j]) || 0) * extrapolarPad();
       }
       return;
     }
 
     if (sala.papel !== "convidado") return;
     if (m.t === "ev") {
-      const duro = m.m === "saque" || m.m === "ponto";
-      if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
-      adotarBola(m.bola, duro, m.ts);
-      reagirAoEvento(m.m, m);
+      /* Aviso mais novo que o instante que a minha bola mostra (ela anda
+         atrasoBola no passado) espera na fila até a bola chegar nele. Adotar
+         na hora jogava a bola para o presente: a rebatida que na minha tela
+         ainda nem tinha acontecido aparecia de repente — salto de até um
+         disco. Saque, ponto e partida não esperam. */
+      const urgente = m.m === "saque" || m.m === "ponto" || m.m === "play" || S.phase !== "play";
+      if (urgente) avisosNaFila.length = 0;
+      else if (avisosNaFila.length || idadeDoAviso(m.ts) < atrasoBola - 0.004) { avisosNaFila.push(m); return; }
+      aplicarAviso(m);
       return;
     }
     if (m.t === "mundo") aplicarMundo(m);
@@ -4292,11 +4508,12 @@
      do mundo a 4 Hz, que serve de rede de segurança contra desvios. */
   const estadoBola = () => [
     r1(ball.a), r1(ball.b), r1(ball.va), r1(ball.vb),
-    r2(ball.spin), r2(ball.budget), r1(ball.speed)
+    r2(ball.spin), r2(ball.budget), r1(ball.speed), ball.dono
   ];
 
   /** Chamado a cada descontinuidade da trajetória. */
   function sincronizar(motivo, extra) {
+    if (motivo !== "pad" + avisoRetido.j) avisoRetido.j = -1;
     if (!sala.conectado || sala.papel !== "anfitriao") return;
     enviar(Object.assign({ t: "ev", m: motivo, bola: estadoBola(), ts: Math.round(performance.now()) }, extra || {}));
   }
@@ -4432,16 +4649,75 @@
 
   const corrBola = { a: 0, b: 0 };   // deslocamento só de desenho, ver adotarBola
 
+  /* ── Bola no passado (só o convidado) ──
+     A raquete do outro chega aqui com uma viagem de rede de atraso, e na
+     arena ela cruza o aro inteiro em 0,2 s: com 4G, a posição que temos dela
+     é de outro lugar do aro. Prever a batida com ela era cara ou coroa, e o
+     acerto vinha depois como teletransporte de até um disco inteiro.
+     Então, quando a bola vai para o OUTRO, ela é mostrada um pouco no
+     passado — exatamente a viagem de rede —, no mesmo instante da raquete
+     dele que temos. As duas ficam coerentes e a batida já sai certa. Quando
+     a bola volta para mim ela recupera o tempo e chega à minha raquete em
+     tempo real, que é onde o dedo precisa da verdade. A troca é suave: a bola
+     anda até ~55% mais devagar indo e mais depressa voltando. */
+  let atrasoBola = 0;                       // segundos que a minha bola mostra atrás do anfitrião
+  /* ── Diagnóstico ──
+     O banco de testes não vê o que os aparelhos de verdade veem. Cada salto
+     seco da bola (≥ 64 px) e um resumo a cada 10 s vão ao servidor, que só
+     anota no log dele — não repassa a ninguém. */
+  const diag = { motivo: "", saltos: 0, deslizes: 0, quadros: 0, lentos: 0, desde: 0, envio: 0 };
+  function enviarDiag(k, dados) {
+    const agora = performance.now();
+    if (agora - diag.envio < 400 || !sala.ws || sala.ws.readyState !== 1) return;
+    diag.envio = agora;
+    enviar(Object.assign({ t: "diag", k }, dados));
+  }
+  const avisosNaFila = [];                  // avisos à frente do instante que a bola mostra
+  const idadeDoAviso = ts => ts !== undefined && sala.desvio !== undefined
+    ? (performance.now() - (ts - sala.desvio)) / 1000 : Infinity;
+  let seguraAro = 0, seguraLim = 0;          // ver andarBolaLocal: a bola esperando no aro
+  const segurandoAro = () => seguraAro > 0 && seguraAro < seguraLim;
+  const viagemRede = () => Math.min(0.34, sala.atraso / 2000 + 0.015);  // a viagem, com um fio de folga para o tremor
+  const alvoAtrasoBola = () =>
+    S.phase === "play" && ball.dono >= 0 && ball.dono === meuPadSlot() ? viagemRede() : 0;
+  /** Quanto extrapolar a raquete de outro: só o que falta da viagem que a bola não cobre. */
+  const extrapolarPad = () => Math.max(0, sala.atraso / 2000 - atrasoBola);
+
   function adotarBola(bola, duro, ts) {
-    const [a, b, va, vb, spin, budget, speed] = bola;
+    const [a, b, va, vb, spin, budget, speed, dono] = bola;
+    // quem rebateu por último: sem isto a cópia ficava com a última previsão local
+    if (dono !== undefined) ball.dono = dono;
+    seguraAro = 0;                  // chegou o veredito: a bola sai do aro
     const antesA = ball.a, antesB = ball.b;
     ball.a = a; ball.b = b; ball.va = va; ball.vb = vb;
     ball.spin = spin; ball.budget = budget; ball.speed = speed;
 
     // do instante do evento até agora, no relógio local
-    const decorrido = ts !== undefined && sala.desvio !== undefined
+    let decorrido = ts !== undefined && sala.desvio !== undefined
       ? (performance.now() - (ts - sala.desvio)) / 1000
       : (sala.atraso / 2) / 1000;
+    /* A minha bola mostra o instante (agora − atrasoBola). Um aviso mais novo
+       que isso — o veredito que a bola parada no aro esperava — volta no tempo
+       pela própria reta (sem atravessar o aro de volta), e assim a bola SAI
+       do aro andando em vez de aparecer já longe dele. O que não couber
+       nessa volta encolhe a defasagem. */
+    if (decorrido < atrasoBola && !duro && S.arena && S.phase === "play" && ts !== undefined) {
+      const quer = atrasoBola - Math.max(0, decorrido);
+      const v2 = va * va + vb * vb;
+      let volta = quer;
+      if (v2 > 1) {
+        // até onde a reta para trás continua dentro do aro
+        const px = a + BOLA / 2 - ARENA_CA(), py = b + BOLA / 2 - ARENA_CB();
+        const r = ARENA_R() - BOLA / 2 - 0.5;
+        const pv = -(px * va + py * vb), c = px * px + py * py - r * r;
+        const t = c >= 0 ? 0 : (-pv + Math.sqrt(Math.max(0, pv * pv - v2 * c))) / v2;
+        volta = Math.min(quer, Math.max(0, t / timeScale()));
+      }
+      ball.a -= va * volta * timeScale(); ball.b -= vb * volta * timeScale();
+      atrasoBola -= quer - volta;   // o que não coube vira defasagem a menos
+      decorrido = atrasoBola;       // já está no instante que a bola mostra
+    } else if (decorrido < atrasoBola) atrasoBola = Math.max(0, decorrido);
+    decorrido -= atrasoBola;
     /* No saque a bola do anfitrião fica imóvel: adiantar aqui a faria andar
        sozinha. E durante a câmera lenta o mundo anda em timeScale — o replay
        do intervalo tem de andar no mesmo ritmo. */
@@ -4449,9 +4725,19 @@
 
     /* A física adota o estado exato — resíduo permanente era o defeito do
        blend antigo. O que alisa é só o DESENHO: um deslocamento visual que
-       parte da posição antiga e decai a zero em ~150 ms. */
+       parte da posição antiga e decai a zero em ~250 ms. */
     const longe = Math.hypot(ball.a - antesA, ball.b - antesB);
-    if (!duro && longe < 24) {
+    /* Até 64 px a correção desliza (~80 ms) em vez de saltar: um acerto de
+       meio disco de bola passa despercebido assim, e só a divergência grande
+       de verdade — ponto, saque — corta seco. */
+    if (!duro && sala.papel === "convidado" && S.phase === "play") {
+      if (longe >= 64) {
+        diag.saltos++;
+        enviarDiag("salto", { px: Math.round(longe), m: diag.motivo, atr: r2(atrasoBola),
+                              dec: r2(decorrido), dono: ball.dono, eu: meuPadSlot() });
+      } else if (longe >= 24) diag.deslizes++;
+    }
+    if (!duro && longe < 64) {
       corrBola.a = antesA - ball.a;
       corrBola.b = antesB - ball.b;
     } else {
@@ -4472,7 +4758,11 @@
        assim (ver golEspera). */
     const aviso = sala.conectado && sala.papel === "convidado" && i === meuPadSlot()
       ? { t: "defesa", b: r1(p.b), sw: r1(p.swing), bb: r1(ball.b),
-          th: dir && dir.th !== undefined ? r2(dir.th) : undefined }
+          th: dir && dir.th !== undefined ? r2(dir.th) : undefined,
+          /* QUANDO rebati, no relógio do anfitrião: o instante que a minha
+             bola mostrava (ela anda atrasoBola no passado). Sem isto ele
+             adiantava a bola refeita pelo tempo errado e ela saltava. */
+          ts: sala.desvio !== undefined ? Math.round(performance.now() + sala.desvio - atrasoBola * 1000) : undefined }
       : null;
     // defesa de bola de fogo: o anfitrião apaga o fogo e devolve ao ritmo
     // base antes do ganho de 7% — sem espelhar, a previsão sai rápida demais
@@ -4481,6 +4771,9 @@
       trail.length = 0;
       ball.speed = LEVELS[S.diff].base * 1.2;
     }
+    sala.preveuEm = performance.now();
+    sala.preveuPad = i;
+    seguraAro = 0;
     const aro = dir && dir.th !== undefined ? dir : null;
     const rel = aro
       ? difAngulo(aro.th, thetaDoArco(i, p.b + padLen(i) / 2)) * ARENA_R() / (padLen(i) / 2)
@@ -4512,9 +4805,19 @@
     if (aviso) enviar(aviso);
   }
 
+  /* ── Bola esperando no aro (só o convidado, na arena) ──
+     Quando a bola chega ao aro longe da MINHA raquete, quem decide se houve
+     rebatida é a raquete de outro aparelho — e a cópia dela aqui está uma
+     viagem de rede atrasada, num aro que ela cruza em 0,2 s. Adivinhar com
+     ela era o teletransporte da arena de três e quatro. Agora a bola encosta
+     no aro e espera o veredito (o aviso "pad" ou o ponto) por, no máximo,
+     duas viagens; o tempo parado vira atrasoBola, que se recupera depois sem
+     salto. Só sem veredito a tempo volta o palpite de antes. */
+
   /** O convidado anda a bola sozinho: giro, deslocamento, paredes e raquetes. */
   function andarBolaLocal(dt) {
     if (S.phase !== "play") return;
+    if (segurandoAro()) { seguraAro += dt; atrasoBola += dt; return; }
     const antes = ball.a;
     if (ball.spin !== 0 && ball.budget > 0) {
       const want = ball.spin * dt;
@@ -4533,6 +4836,23 @@
     ball.b += ball.vb * dt;
 
     guardarIris(ball.a, ball.b);
+    /* O coração devolve a bola com a mesma conta do anfitrião (só a física;
+       som, faísca e placar chegam com o aviso "coracao"). Sem prever, toda
+       batida nele era a bola atravessando o centro e saltando de volta. */
+    /* E com o coração do MESMO instante da bola: ele respira (26 a 52 px) e
+       a bola aqui anda atrasoBola no passado. Um coração de outro instante
+       virava batida de raspão num lado e bola passando no outro. */
+    const tCor = heart.t;
+    heart.t -= atrasoBola;
+    const hbox = heart.on ? heartBox() : null;
+    heart.t = tCor;
+    if (hbox && (ball.va > 0 ? ball.a + BOLA / 2 < hbox.a + hbox.s / 2 : ball.a + BOLA / 2 > hbox.a + hbox.s / 2) &&
+        hits(hbox.a, hbox.b, hbox.s, ball)) {
+      ball.a = ball.va > 0 ? hbox.a - BOLA : hbox.a + hbox.s;
+      ball.va = -ball.va;
+      ball.spin *= -0.5;
+      sala.preveuEm = performance.now();
+    }
     if (!S.arena && ball.b <= WALL) { ball.b = WALL; ball.vb = Math.abs(ball.vb); ball.spin *= -0.65; Snd.wall(); }
     if (!S.arena && ball.b + BOLA >= SPAN - WALL) {
       ball.b = SPAN - WALL - BOLA; ball.vb = -Math.abs(ball.vb); ball.spin *= -0.65; Snd.wall();
@@ -4543,8 +4863,24 @@
       const dist = Math.hypot(ex, ey);
       if (ex * ball.va + ey * ball.vb > 0 && dist >= ARENA_R() - BOLA / 2 && dist < ARENA_R() + BOLA) {
         const th = Math.atan2(ey, ex);
+        const meu = meuPadSlot();
+        if (cobreAngulo(meu, th)) { rebaterLocal(meu, { th }); return; }
+        /* Só espera se a raquete mais perto do ponto for de OUTRO: se a mais
+           perto é a minha e não cobriu, o erro é meu e eu sei disso na hora
+           (a espera ainda deixava a minha raquete chegar e "salvar" fora do
+           tempo). A cópia do outro chega atrasada, então "perto" é só isso:
+           mais perto que a minha. */
+        const longeDe = j => Math.abs(difAngulo(th, thetaDoArco(j, pads[j].b + padLen(j) / 2))) * ARENA_R() - padLen(j) / 2;
+        let maisPerto = meu;
+        for (let j = 0; j < jogadoresAtivos(); j++) if (longeDe(j) < longeDe(maisPerto)) maisPerto = j;
+        if (seguraAro === 0 && maisPerto !== meu) {
+          ball.a -= ball.va * dt; ball.b -= ball.vb * dt;   // fica encostada, não passa do aro
+          seguraLim = clamp(2 * viagemRede() - atrasoBola + 0.08, 0.1, 0.6);
+          seguraAro = dt; atrasoBola += dt;
+          return;
+        }
         for (let j = 0; j < jogadoresAtivos(); j++)
-          if (cobreAngulo(j, th)) { rebaterLocal(j, { th }); break; }
+          if (j !== meu && cobreAngulo(j, th)) { rebaterLocal(j, { th }); break; }
       }
       return;
     }
@@ -4605,8 +4941,38 @@
     }
   }
 
+  function aplicarAviso(m) {
+    diag.motivo = m.m;
+    const duro = m.m === "saque" || m.m === "ponto";
+    if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
+    if (m.m === "saque" && (S.phase === "play" || S.phase === "serve")) { S.phase = "serve"; S.t = desdeCarimbo(m.ts) * timeScale(); }
+    adotarBola(m.bola, duro, m.ts);
+    reagirAoEvento(m.m, m);
+  }
+  /** Solta da fila os avisos cujo instante a minha bola já alcançou. A bola
+      parada no aro não anda no tempo: o aviso que ela espera vale na hora. */
+  function soltarAvisos() {
+    while (avisosNaFila.length) {
+      const idade = idadeDoAviso(avisosNaFila[0].ts);
+      if (idade < atrasoBola && !segurandoAro() && S.phase === "play" && idade > -1) break;
+      aplicarAviso(avisosNaFila.shift());
+    }
+  }
+
+  /** Segundos desde o carimbo `ts` do anfitrião, no relógio local. */
+  const desdeCarimbo = ts => ts !== undefined && sala.desvio !== undefined
+    ? Math.max(0, (performance.now() - (ts - sala.desvio)) / 1000)
+    : (sala.atraso / 2) / 1000;
+
   function aplicarMundo(m) {
-    S.phase = m.fase; S.t = m.ct; S.winner = m.venc;
+    /* O saque tem relógio: o convidado conta os 1,5 s sozinho e solta a bola
+       junto com o anfitrião (ver o laço do convidado). Um resumo que saiu
+       ainda no saque não pode puxá-lo de volta para a bola parada. */
+    const tSaque = m.fase === "serve" ? m.ct + desdeCarimbo(m.ts) * timeScale() : m.ct;
+    if (!(m.fase === "serve" && S.phase === "play" && tSaque >= SAQUE_DUR - 0.15)) {
+      S.phase = m.fase; S.t = tSaque;
+    }
+    S.winner = m.venc;
     let quem = -1;
     for (let j = 0; j < m.placar.length && j < JMAX; j++)
       if (m.placar[j] !== S.score[j]) quem = j;
@@ -4701,7 +5067,9 @@
         showHint(-1, "CORAÇÃO", COL.heart);
         announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
       }
-      heart.on = true; heart.t = m.cor[0]; heart.life = m.cor[1];
+      // a respiração anda enquanto o resumo viaja
+      heart.on = true; heart.t = m.cor[0] + (m.fase === "play" ? desdeCarimbo(m.ts) * timeScale() : 0);
+      heart.life = m.cor[1];
       heart.pulse = Math.max(heart.pulse, m.cor[2]);
       for (let k = 0; k < JMAX; k++) heart.hits[k] = (m.cor[3] || [])[k] || 0;
     } else heart.on = false;
@@ -4735,8 +5103,14 @@
     }
     else roleta.on = false;
 
-    // rede de segurança: só corrige se a bola já divergiu de verdade
-    adotarBola(m.bola, false, m.ts);
+    /* Rede de segurança contra deriva. Logo depois de uma previsão local
+       (rebatida ou coração) ela fica de fora: o resumo pode ter saído do
+       anfitrião ANTES dele saber da rebatida, e puxaria a bola de volta para
+       o lado de onde ela acabou de sair — o aviso oficial já vem a caminho. */
+    diag.motivo = "mundo";
+    if (!segurandoAro() && !avisosNaFila.length && idadeDoAviso(m.ts) >= atrasoBola &&
+        performance.now() - (sala.preveuEm || -1e9) > sala.atraso * 1.5 + 120)
+      adotarBola(m.bola, false, m.ts);
   }
 
   function pintarSala() {
@@ -6906,6 +7280,17 @@
       let dt = (now - last) / 1000;
       last = now;
       if (dt > 0.25) dt = 0.25;
+      diag.quadros++;
+      if (dt > 0.05) diag.lentos++;
+      if (now - diag.desde > 10000) {
+        if (sala.conectado && diag.desde) enviarDiag("resumo", {
+          papel: sala.papel, n: jogadoresAtivos(), arena: S.arena ? 1 : 0, fase: S.phase,
+          rtt: Math.round(sala.atraso), relogio: sala.desvio !== undefined ? 1 : 0,
+          fps: Math.round(diag.quadros / ((now - diag.desde) / 1000)), lentos: diag.lentos,
+          saltos: diag.saltos, deslizes: diag.deslizes, toque: coarse ? 1 : 0,
+          tela: innerWidth + "x" + innerHeight, esc: document.hidden ? 1 : 0 });
+        diag.desde = now; diag.quadros = diag.lentos = diag.saltos = diag.deslizes = 0;
+      }
       // O mundo desacelera; os relógios da interface seguem em tempo real
       acc += dt * timeScale();
       S.blink += dt;
@@ -6918,8 +7303,8 @@
       aberr = Math.max(pisoAberr, aberr - dt * 1.4);
       if (slow.t > 0) slow.t = Math.max(0, slow.t - dt);
       if (slow.t > 0 || lascas.length) atualizarLascas(dt);
-      corrBola.a *= Math.exp(-dt / 0.05);
-      corrBola.b *= Math.exp(-dt / 0.05);
+      corrBola.a *= Math.exp(-dt / 0.08);
+      corrBola.b *= Math.exp(-dt / 0.08);
       for (let i = 0; i < 2; i++)
         if (scorePop[i] > 0) scorePop[i] = Math.max(0, scorePop[i] - dt);
       if (scoreGlow > 0) scoreGlow = Math.max(0, scoreGlow - dt);
@@ -7023,7 +7408,20 @@
           if (Math.abs(meu.vb) > Math.abs(meu.swing)) meu.swing = meu.vb;
           else meu.swing *= Math.pow(SWING_FADE, DT);
 
-          andarBolaLocal(DT);        // já se guarda: só integra no "play"
+          /* O saque solta a bola sozinho, no mesmo instante do anfitrião.
+             Esperar o aviso "play" deixava a bola parada uma viagem de rede
+             a mais e, quando ele chegava, ela saltava ~50 px para alcançar. */
+          if (S.phase === "serve") {
+            S.t += DT;
+            if (S.t >= SAQUE_DUR) { S.phase = "play"; S.t = 0; }
+          }
+          if (S.phase === "play") {
+            const ritmo = clamp(1 - (alvoAtrasoBola() - atrasoBola) * 6, 0.45, 1.6);
+            atrasoBola = Math.max(0, atrasoBola + DT * (1 - ritmo));
+            andarBolaLocal(DT * ritmo);
+            soltarAvisos();
+          } else { atrasoBola = 0; avisosNaFila.length = 0; }
+
 
           /* Cronômetros do MUNDO só andam no "play", como no anfitrião — o
              step() dele retorna antes disso fora da fase. Decair sempre abria
@@ -7087,9 +7485,17 @@
           step(DT);
           if (S.phase === "serve") {
             S.t += DT;
-            if (S.t >= 1.5) { S.phase = "play"; S.t = 0; sincronizar("play"); }
+            if (S.t >= SAQUE_DUR) { S.phase = "play"; S.t = 0; sincronizar("play"); }
           }
-          else if (S.phase === "over") S.t += DT;
+          else if (S.phase === "over") {
+            S.t += DT;
+            /* Na arena ao vivo ninguém precisa apertar "Novo jogo": a tela
+               final fica o bastante para ler o log e a próxima começa
+               sozinha, para todos — antes só o anfitrião podia recomeçar, e
+               se ele saísse da frente a sala inteira ficava presa no fim. */
+            if (S.arena && naSala() && sala.codigo === VIVA && sala.papel === "anfitriao" &&
+                S.t >= ARENA_RECOMECO) { newGame("serve"); requestWake(); syncPlayButton(); }
+          }
         }
         acc -= DT;
       }
@@ -7285,6 +7691,7 @@
       requestWake();
       announce("Jogo iniciado.");
     } else if (S.phase === "play") {
+      if (arenaComGente()) { announce("A arena ao vivo não pausa: tem mais gente jogando."); return; }
       S.phase = "pause";
       releaseWake();
       announce("Jogo em pausa.");
@@ -7823,7 +8230,11 @@
   function releaseWake() { if (wake) { wake.release().catch(() => {}); wake = null; } }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && S.phase === "play") { S.phase = "pause"; releaseWake(); syncPlayButton(); }
+    /* Numa sala conectada a fase não é minha para pausar: o convidado só a
+       espelha, e na arena com gente o anfitrião passa o comando adiante (ver
+       cederArena) em vez de congelar a partida de todo mundo na PAUSA. */
+    const minha = !sala.conectado || (sala.papel === "anfitriao" && !arenaComGente());
+    if (document.hidden && S.phase === "play" && minha) { S.phase = "pause"; releaseWake(); syncPlayButton(); }
     else if (!document.hidden && S.phase === "play") requestWake();
   });
 

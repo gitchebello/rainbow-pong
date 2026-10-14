@@ -2,8 +2,8 @@
 """Servidor do Rainbow Pong: serve o jogo e retransmite as salas na mesma porta.
 
 Sem dependências — o aperto de mão e o enquadramento do WebSocket são feitos
-à mão sobre sockets da biblioteca padrão. Cada sala guarda no máximo dois
-jogadores e as mensagens são repassadas cruas de um para o outro.
+à mão sobre sockets da biblioteca padrão. Cada sala guarda até seis
+jogadores e as mensagens são repassadas cruas aos demais.
 
     python3 relay.py [porta]
 """
@@ -37,6 +37,7 @@ OCIOSO = 45                 # segundos sem receber nada = conexão morta
 MUDO = 25                   # sem sinal por 25 s = fantasma; o cliente bate a cada 3 s
                             # mesmo em segundo plano, então 25 s tolera o navegador
                             # estrangulando timers sem deixar vaga presa por muito tempo
+CALADO = 12                 # na arena pública ninguém espera: 12 s mudo e o faxineiro derruba
 
 conexoes = 0
 por_ip = {}
@@ -262,6 +263,14 @@ def atender_websocket(sock, chave):
                 entrar_na_sala(par, str(msg.get("codigo", ""))[:8].upper())
                 continue
 
+            if msg.get("t") == "diag":
+                # diagnóstico do próprio jogo: só vai para o log, nunca à sala
+                msg.pop("t", None)
+                quem = f"#{getattr(par, 'ident', 0)} {getattr(par, 'nome', '')}"
+                print(f"  diag {time.strftime('%H:%M:%S')} {par.codigo or '-'} {quem}: "
+                      f"{json.dumps(msg, ensure_ascii=False)[:400]}")
+                continue
+
             # tudo o mais é repassado com o carimbo de quem mandou; se a
             # mensagem traz "para", vai só àquele jogador
             if par.codigo:
@@ -385,6 +394,26 @@ def atender(sock, ip):
             pass
 
 
+def faxineiro():
+    """Varre a arena pública a cada 2 s. A expulsão por MUDO só rodava quando
+    alguém ENTRAVA — e o OCIOSO do socket leva 45 s. Um anfitrião que perdia a
+    rede sem fechar a conexão congelava a partida de todo mundo esse tempo
+    inteiro, porque o comando só migra quando chega o tchau. Derrubar o
+    socket faz o laço de leitura dele sair, e o sair_da_sala avisa os outros."""
+    while True:
+        time.sleep(2)
+        agora = time.time()
+        with trava:
+            calados = [p for p in salas.get(SALA_VIVA, []) if agora - p.visto > CALADO]
+        for p in calados:
+            print(f"  sala {SALA_VIVA}: derrubando calado ({agora - p.visto:.0f}s)")
+            p.vivo = False
+            try:
+                p.sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+
 def main():
     porta = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -392,6 +421,7 @@ def main():
     srv.bind(("0.0.0.0", porta))
     srv.listen(64)
     print(f"Rainbow Pong servindo em http://0.0.0.0:{porta}  (salas em /ws)")
+    threading.Thread(target=faxineiro, daemon=True).start()
     global conexoes
     while True:
         cliente, origem = srv.accept()
