@@ -3908,8 +3908,12 @@
      estava e a rebatida é REENCENADA aqui, pelo `bounce` de sempre — assim o
      prêmio da roleta, a defesa de fogo, o item armado e o placar de defesas
      acontecem no anfitrião como em qualquer outra rebatida. */
+  /** Há quanto tempo o convidado rebateu (carimbo dele já no meu relógio). */
+  const idadeDaDefesa = m => m.ts !== undefined && isFinite(m.ts)
+    ? clamp((performance.now() - m.ts) / 1000, 0, 0.8) : undefined;
   function aceitarDefesa(j, m) {
     const p = pads[j];
+    const idade = idadeDaDefesa(m);
     if (m.b !== undefined && isFinite(m.b)) {
       p.b = S.arena ? mArco(m.b) : clamp(m.b, WALL, SPAN - WALL - padLen(j));
       p.destino = p.b;
@@ -3920,13 +3924,13 @@
          mas num ponto um pouco diferente do que ele viu, e a bola saiu com
          outro ângulo. Vale o que o dono viu. */
       if (avisoRetido.j === j && ball.dono === j && m.th !== undefined && isFinite(m.th)) {
-        const passou = avisoRetido.t;
+        const passou = idade !== undefined ? idade : avisoRetido.t;
         avisoRetido.j = -1;
         remirarDefesa(j, m.th, passou);
       }
       return;
     }
-    defesaAtrasada = golEspera.t;
+    defesaAtrasada = idade !== undefined ? idade : golEspera.t;
     zerarEspera();
     if (S.arena) {
       const th = m.th !== undefined && isFinite(m.th)
@@ -4070,6 +4074,7 @@
     sala.rttMin = undefined;       // rede pode ter mudado: mede de novo
     sala.desvio = undefined;       // e o relógio comum se recalibra do zero
     sala.via = "tentando";
+    avisosNaFila.length = 0;
     if (sala.tentativas === undefined) sala.tentativas = 0;
 
     let decidido = false;
@@ -4440,7 +4445,9 @@
         const j = sala.membros[m.de];
         if (S.arena && j !== undefined && j !== meuPadSlot() && sala.preveuPad === j && ball.dono === j &&
             m.th !== undefined && isFinite(m.th) && m.b !== undefined && isFinite(m.b)) {
-          const passou = (performance.now() - sala.preveuEm) / 1000 * timeScale();
+          const passou = m.ts !== undefined && isFinite(m.ts)
+            ? Math.max(0, idadeDoAviso(m.ts) - atrasoBola)
+            : (performance.now() - sala.preveuEm) / 1000 * timeScale();
           if (passou < 0.6) {
             pads[j].b = mArco(m.b);
             if (m.sw !== undefined && isFinite(m.sw)) pads[j].swing = m.sw;
@@ -4467,11 +4474,15 @@
 
     if (sala.papel !== "convidado") return;
     if (m.t === "ev") {
-      const duro = m.m === "saque" || m.m === "ponto";
-      if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
-      if (m.m === "saque" && (S.phase === "play" || S.phase === "serve")) { S.phase = "serve"; S.t = desdeCarimbo(m.ts) * timeScale(); }
-      adotarBola(m.bola, duro, m.ts);
-      reagirAoEvento(m.m, m);
+      /* Aviso mais novo que o instante que a minha bola mostra (ela anda
+         atrasoBola no passado) espera na fila até a bola chegar nele. Adotar
+         na hora jogava a bola para o presente: a rebatida que na minha tela
+         ainda nem tinha acontecido aparecia de repente — salto de até um
+         disco. Saque, ponto e partida não esperam. */
+      const urgente = m.m === "saque" || m.m === "ponto" || m.m === "play" || S.phase !== "play";
+      if (urgente) avisosNaFila.length = 0;
+      else if (avisosNaFila.length || idadeDoAviso(m.ts) < atrasoBola - 0.004) { avisosNaFila.push(m); return; }
+      aplicarAviso(m);
       return;
     }
     if (m.t === "mundo") aplicarMundo(m);
@@ -4641,6 +4652,22 @@
      tempo real, que é onde o dedo precisa da verdade. A troca é suave: a bola
      anda até ~55% mais devagar indo e mais depressa voltando. */
   let atrasoBola = 0;                       // segundos que a minha bola mostra atrás do anfitrião
+  /* ── Diagnóstico ──
+     O banco de testes não vê o que os aparelhos de verdade veem. Cada salto
+     seco da bola (≥ 64 px) e um resumo a cada 10 s vão ao servidor, que só
+     anota no log dele — não repassa a ninguém. */
+  const diag = { motivo: "", saltos: 0, deslizes: 0, quadros: 0, lentos: 0, desde: 0, envio: 0 };
+  function enviarDiag(k, dados) {
+    const agora = performance.now();
+    if (agora - diag.envio < 400 || !sala.ws || sala.ws.readyState !== 1) return;
+    diag.envio = agora;
+    enviar(Object.assign({ t: "diag", k }, dados));
+  }
+  const avisosNaFila = [];                  // avisos à frente do instante que a bola mostra
+  const idadeDoAviso = ts => ts !== undefined && sala.desvio !== undefined
+    ? (performance.now() - (ts - sala.desvio)) / 1000 : Infinity;
+  let seguraAro = 0, seguraLim = 0;          // ver andarBolaLocal: a bola esperando no aro
+  const segurandoAro = () => seguraAro > 0 && seguraAro < seguraLim;
   const viagemRede = () => Math.min(0.34, sala.atraso / 2000 + 0.015);  // a viagem, com um fio de folga para o tremor
   const alvoAtrasoBola = () =>
     S.phase === "play" && ball.dono >= 0 && ball.dono === meuPadSlot() ? viagemRede() : 0;
@@ -4651,6 +4678,7 @@
     const [a, b, va, vb, spin, budget, speed, dono] = bola;
     // quem rebateu por último: sem isto a cópia ficava com a última previsão local
     if (dono !== undefined) ball.dono = dono;
+    seguraAro = 0;                  // chegou o veredito: a bola sai do aro
     const antesA = ball.a, antesB = ball.b;
     ball.a = a; ball.b = b; ball.va = va; ball.vb = vb;
     ball.spin = spin; ball.budget = budget; ball.speed = speed;
@@ -4660,8 +4688,26 @@
       ? (performance.now() - (ts - sala.desvio)) / 1000
       : (sala.atraso / 2) / 1000;
     /* A minha bola mostra o instante (agora − atrasoBola). Um aviso mais novo
-       que isso não tem como ser desandado: a defasagem encolhe até ele. */
-    if (decorrido < atrasoBola) atrasoBola = Math.max(0, decorrido);
+       que isso — o veredito que a bola parada no aro esperava — volta no tempo
+       pela própria reta (sem atravessar o aro de volta), e assim a bola SAI
+       do aro andando em vez de aparecer já longe dele. O que não couber
+       nessa volta encolhe a defasagem. */
+    if (decorrido < atrasoBola && !duro && S.arena && S.phase === "play" && ts !== undefined) {
+      const quer = atrasoBola - Math.max(0, decorrido);
+      const v2 = va * va + vb * vb;
+      let volta = quer;
+      if (v2 > 1) {
+        // até onde a reta para trás continua dentro do aro
+        const px = a + BOLA / 2 - ARENA_CA(), py = b + BOLA / 2 - ARENA_CB();
+        const r = ARENA_R() - BOLA / 2 - 0.5;
+        const pv = -(px * va + py * vb), c = px * px + py * py - r * r;
+        const t = c >= 0 ? 0 : (-pv + Math.sqrt(Math.max(0, pv * pv - v2 * c))) / v2;
+        volta = Math.min(quer, Math.max(0, t / timeScale()));
+      }
+      ball.a -= va * volta * timeScale(); ball.b -= vb * volta * timeScale();
+      atrasoBola -= quer - volta;   // o que não coube vira defasagem a menos
+      decorrido = atrasoBola;       // já está no instante que a bola mostra
+    } else if (decorrido < atrasoBola) atrasoBola = Math.max(0, decorrido);
     decorrido -= atrasoBola;
     /* No saque a bola do anfitrião fica imóvel: adiantar aqui a faria andar
        sozinha. E durante a câmera lenta o mundo anda em timeScale — o replay
@@ -4675,6 +4721,13 @@
     /* Até 64 px a correção desliza (~80 ms) em vez de saltar: um acerto de
        meio disco de bola passa despercebido assim, e só a divergência grande
        de verdade — ponto, saque — corta seco. */
+    if (!duro && sala.papel === "convidado" && S.phase === "play") {
+      if (longe >= 64) {
+        diag.saltos++;
+        enviarDiag("salto", { px: Math.round(longe), m: diag.motivo, atr: r2(atrasoBola),
+                              dec: r2(decorrido), dono: ball.dono, eu: meuPadSlot() });
+      } else if (longe >= 24) diag.deslizes++;
+    }
     if (!duro && longe < 64) {
       corrBola.a = antesA - ball.a;
       corrBola.b = antesB - ball.b;
@@ -4696,7 +4749,11 @@
        assim (ver golEspera). */
     const aviso = sala.conectado && sala.papel === "convidado" && i === meuPadSlot()
       ? { t: "defesa", b: r1(p.b), sw: r1(p.swing), bb: r1(ball.b),
-          th: dir && dir.th !== undefined ? r2(dir.th) : undefined }
+          th: dir && dir.th !== undefined ? r2(dir.th) : undefined,
+          /* QUANDO rebati, no relógio do anfitrião: o instante que a minha
+             bola mostrava (ela anda atrasoBola no passado). Sem isto ele
+             adiantava a bola refeita pelo tempo errado e ela saltava. */
+          ts: sala.desvio !== undefined ? Math.round(performance.now() + sala.desvio - atrasoBola * 1000) : undefined }
       : null;
     // defesa de bola de fogo: o anfitrião apaga o fogo e devolve ao ritmo
     // base antes do ganho de 7% — sem espelhar, a previsão sai rápida demais
@@ -4707,6 +4764,7 @@
     }
     sala.preveuEm = performance.now();
     sala.preveuPad = i;
+    seguraAro = 0;
     const aro = dir && dir.th !== undefined ? dir : null;
     const rel = aro
       ? difAngulo(aro.th, thetaDoArco(i, p.b + padLen(i) / 2)) * ARENA_R() / (padLen(i) / 2)
@@ -4738,9 +4796,19 @@
     if (aviso) enviar(aviso);
   }
 
+  /* ── Bola esperando no aro (só o convidado, na arena) ──
+     Quando a bola chega ao aro longe da MINHA raquete, quem decide se houve
+     rebatida é a raquete de outro aparelho — e a cópia dela aqui está uma
+     viagem de rede atrasada, num aro que ela cruza em 0,2 s. Adivinhar com
+     ela era o teletransporte da arena de três e quatro. Agora a bola encosta
+     no aro e espera o veredito (o aviso "pad" ou o ponto) por, no máximo,
+     duas viagens; o tempo parado vira atrasoBola, que se recupera depois sem
+     salto. Só sem veredito a tempo volta o palpite de antes. */
+
   /** O convidado anda a bola sozinho: giro, deslocamento, paredes e raquetes. */
   function andarBolaLocal(dt) {
     if (S.phase !== "play") return;
+    if (segurandoAro()) { seguraAro += dt; atrasoBola += dt; return; }
     const antes = ball.a;
     if (ball.spin !== 0 && ball.budget > 0) {
       const want = ball.spin * dt;
@@ -4762,7 +4830,13 @@
     /* O coração devolve a bola com a mesma conta do anfitrião (só a física;
        som, faísca e placar chegam com o aviso "coracao"). Sem prever, toda
        batida nele era a bola atravessando o centro e saltando de volta. */
+    /* E com o coração do MESMO instante da bola: ele respira (26 a 52 px) e
+       a bola aqui anda atrasoBola no passado. Um coração de outro instante
+       virava batida de raspão num lado e bola passando no outro. */
+    const tCor = heart.t;
+    heart.t -= atrasoBola;
     const hbox = heart.on ? heartBox() : null;
+    heart.t = tCor;
     if (hbox && (ball.va > 0 ? ball.a + BOLA / 2 < hbox.a + hbox.s / 2 : ball.a + BOLA / 2 > hbox.a + hbox.s / 2) &&
         hits(hbox.a, hbox.b, hbox.s, ball)) {
       ball.a = ball.va > 0 ? hbox.a - BOLA : hbox.a + hbox.s;
@@ -4780,8 +4854,24 @@
       const dist = Math.hypot(ex, ey);
       if (ex * ball.va + ey * ball.vb > 0 && dist >= ARENA_R() - BOLA / 2 && dist < ARENA_R() + BOLA) {
         const th = Math.atan2(ey, ex);
+        const meu = meuPadSlot();
+        if (cobreAngulo(meu, th)) { rebaterLocal(meu, { th }); return; }
+        /* Só espera se a raquete mais perto do ponto for de OUTRO: se a mais
+           perto é a minha e não cobriu, o erro é meu e eu sei disso na hora
+           (a espera ainda deixava a minha raquete chegar e "salvar" fora do
+           tempo). A cópia do outro chega atrasada, então "perto" é só isso:
+           mais perto que a minha. */
+        const longeDe = j => Math.abs(difAngulo(th, thetaDoArco(j, pads[j].b + padLen(j) / 2))) * ARENA_R() - padLen(j) / 2;
+        let maisPerto = meu;
+        for (let j = 0; j < jogadoresAtivos(); j++) if (longeDe(j) < longeDe(maisPerto)) maisPerto = j;
+        if (seguraAro === 0 && maisPerto !== meu) {
+          ball.a -= ball.va * dt; ball.b -= ball.vb * dt;   // fica encostada, não passa do aro
+          seguraLim = clamp(2 * viagemRede() - atrasoBola + 0.08, 0.1, 0.6);
+          seguraAro = dt; atrasoBola += dt;
+          return;
+        }
         for (let j = 0; j < jogadoresAtivos(); j++)
-          if (cobreAngulo(j, th)) { rebaterLocal(j, { th }); break; }
+          if (j !== meu && cobreAngulo(j, th)) { rebaterLocal(j, { th }); break; }
       }
       return;
     }
@@ -4839,6 +4929,24 @@
             { lifeMin: 0.2, lifeMax: 0.42, peak: 0.8 });
       kick(0.14, 0.42, COL.heart, 0.6);
       cuspirCoracoes();
+    }
+  }
+
+  function aplicarAviso(m) {
+    diag.motivo = m.m;
+    const duro = m.m === "saque" || m.m === "ponto";
+    if (m.m === "play") S.phase = "play";   // a bola parte AGORA, não no próximo resumo
+    if (m.m === "saque" && (S.phase === "play" || S.phase === "serve")) { S.phase = "serve"; S.t = desdeCarimbo(m.ts) * timeScale(); }
+    adotarBola(m.bola, duro, m.ts);
+    reagirAoEvento(m.m, m);
+  }
+  /** Solta da fila os avisos cujo instante a minha bola já alcançou. A bola
+      parada no aro não anda no tempo: o aviso que ela espera vale na hora. */
+  function soltarAvisos() {
+    while (avisosNaFila.length) {
+      const idade = idadeDoAviso(avisosNaFila[0].ts);
+      if (idade < atrasoBola && !segurandoAro() && S.phase === "play" && idade > -1) break;
+      aplicarAviso(avisosNaFila.shift());
     }
   }
 
@@ -4950,7 +5058,9 @@
         showHint(-1, "CORAÇÃO", COL.heart);
         announce("Coração no centro por trinta segundos: acerte-o para crescer a raquete.");
       }
-      heart.on = true; heart.t = m.cor[0]; heart.life = m.cor[1];
+      // a respiração anda enquanto o resumo viaja
+      heart.on = true; heart.t = m.cor[0] + (m.fase === "play" ? desdeCarimbo(m.ts) * timeScale() : 0);
+      heart.life = m.cor[1];
       heart.pulse = Math.max(heart.pulse, m.cor[2]);
       for (let k = 0; k < JMAX; k++) heart.hits[k] = (m.cor[3] || [])[k] || 0;
     } else heart.on = false;
@@ -4988,7 +5098,10 @@
        (rebatida ou coração) ela fica de fora: o resumo pode ter saído do
        anfitrião ANTES dele saber da rebatida, e puxaria a bola de volta para
        o lado de onde ela acabou de sair — o aviso oficial já vem a caminho. */
-    if (performance.now() - (sala.preveuEm || -1e9) > sala.atraso * 1.5 + 120) adotarBola(m.bola, false, m.ts);
+    diag.motivo = "mundo";
+    if (!segurandoAro() && !avisosNaFila.length && idadeDoAviso(m.ts) >= atrasoBola &&
+        performance.now() - (sala.preveuEm || -1e9) > sala.atraso * 1.5 + 120)
+      adotarBola(m.bola, false, m.ts);
   }
 
   function pintarSala() {
@@ -7158,6 +7271,17 @@
       let dt = (now - last) / 1000;
       last = now;
       if (dt > 0.25) dt = 0.25;
+      diag.quadros++;
+      if (dt > 0.05) diag.lentos++;
+      if (now - diag.desde > 10000) {
+        if (sala.conectado && diag.desde) enviarDiag("resumo", {
+          papel: sala.papel, n: jogadoresAtivos(), arena: S.arena ? 1 : 0, fase: S.phase,
+          rtt: Math.round(sala.atraso), relogio: sala.desvio !== undefined ? 1 : 0,
+          fps: Math.round(diag.quadros / ((now - diag.desde) / 1000)), lentos: diag.lentos,
+          saltos: diag.saltos, deslizes: diag.deslizes, toque: coarse ? 1 : 0,
+          tela: innerWidth + "x" + innerHeight, esc: document.hidden ? 1 : 0 });
+        diag.desde = now; diag.quadros = diag.lentos = diag.saltos = diag.deslizes = 0;
+      }
       // O mundo desacelera; os relógios da interface seguem em tempo real
       acc += dt * timeScale();
       S.blink += dt;
@@ -7286,7 +7410,8 @@
             const ritmo = clamp(1 - (alvoAtrasoBola() - atrasoBola) * 6, 0.45, 1.6);
             atrasoBola = Math.max(0, atrasoBola + DT * (1 - ritmo));
             andarBolaLocal(DT * ritmo);
-          } else atrasoBola = 0;
+            soltarAvisos();
+          } else { atrasoBola = 0; avisosNaFila.length = 0; }
 
 
           /* Cronômetros do MUNDO só andam no "play", como no anfitrião — o
